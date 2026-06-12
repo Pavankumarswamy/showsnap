@@ -15,6 +15,7 @@ class AppConstants {
   // User roles
   static const String roleAdmin = 'admin';
   static const String roleTheaterManager = 'theaterManager';
+  static const String roleEventManager = 'eventManager';
   static const String roleUser = 'user';
 
   // Cloudinary folders

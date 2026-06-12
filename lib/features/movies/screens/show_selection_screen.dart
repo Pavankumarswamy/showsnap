@@ -65,6 +65,7 @@ class _ShowSelectionScreenState extends ConsumerState<ShowSelectionScreen> {
                 final filtered = <String, List<ShowModel>>{};
                 theaterShows.forEach((tid, shows) {
                   final day = shows.where((s) {
+                    if (s.seats.isEmpty) return false; // Hide unconfigured shows
                     final dt =
                         DateTime.fromMillisecondsSinceEpoch(s.startTs);
                     return dt.year == _selectedDate.year &&

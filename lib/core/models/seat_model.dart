@@ -65,4 +65,24 @@ class SeatModel {
       };
 
   String get label => '$row$number';
+
+  SeatModel copyWith({
+    String? seatId,
+    String? row,
+    int? number,
+    SeatCategory? category,
+    int? x,
+    int? y,
+    bool? isAccessible,
+  }) {
+    return SeatModel(
+      seatId: seatId ?? this.seatId,
+      row: row ?? this.row,
+      number: number ?? this.number,
+      category: category ?? this.category,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      isAccessible: isAccessible ?? this.isAccessible,
+    );
+  }
 }

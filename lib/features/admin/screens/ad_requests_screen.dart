@@ -5,6 +5,7 @@ import '../../../core/config/theme.dart';
 import '../../../core/models/ad_request_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 final _adRequestsProvider = FutureProvider<List<AdRequestModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAdRequests();
@@ -30,6 +31,13 @@ class AdRequestsScreen extends ConsumerWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ad Requests'),
+          toolbarHeight: 70,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(35),
+            ),
+          ),
+          clipBehavior: Clip.antiAlias,
           flexibleSpace: Container(
             decoration:
                 BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -88,7 +96,7 @@ class AdRequestsScreen extends ConsumerWidget {
                   ),
                 ],
               ),
-            ),
+            ).animate().fadeIn(duration: 300.ms),
             const Divider(height: 1),
             // ── Requests list ─────────────────────────────────────────────
             Expanded(
@@ -115,12 +123,15 @@ class AdRequestsScreen extends ConsumerWidget {
                     onRefresh: () async =>
                         ref.invalidate(_adRequestsProvider),
                     child: ListView.separated(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
                       itemCount: filtered.length,
                       separatorBuilder: (_, __) =>
                           const SizedBox(height: 8),
                       itemBuilder: (_, i) =>
-                          _AdRequestCard(request: filtered[i]),
+                          _AdRequestCard(request: filtered[i])
+                            .animate()
+                            .fadeIn(duration: 400.ms, delay: (i % 6 * 50).ms)
+                            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                     ),
                   );
                 },

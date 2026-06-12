@@ -4,7 +4,8 @@ class MovieModel {
   final String language;
   final List<String> genres;
   final int durationMinutes;
-  final int releaseDateTs; // epoch ms
+  final int releaseDateTs; // epoch ms (Start Date)
+  final int endDateTs; // epoch ms (End Date)
   final String certificate; // 'U' | 'UA' | 'A' | 'S'
   final String synopsis;
   final List<String> cast;
@@ -23,6 +24,7 @@ class MovieModel {
     this.genres = const [],
     this.durationMinutes = 120,
     this.releaseDateTs = 0,
+    this.endDateTs = 0,
     this.certificate = 'UA',
     this.synopsis = '',
     this.cast = const [],
@@ -49,6 +51,7 @@ class MovieModel {
       genres: _list(json['genres']),
       durationMinutes: (json['durationMinutes'] as num?)?.toInt() ?? 120,
       releaseDateTs: (json['releaseDateTs'] as num?)?.toInt() ?? 0,
+      endDateTs: (json['endDateTs'] as num?)?.toInt() ?? 0,
       certificate: json['certificate']?.toString() ?? 'UA',
       synopsis: json['synopsis']?.toString() ?? '',
       cast: _list(json['cast']),
@@ -68,6 +71,7 @@ class MovieModel {
         'genres': genres,
         'durationMinutes': durationMinutes,
         'releaseDateTs': releaseDateTs,
+        'endDateTs': endDateTs,
         'certificate': certificate,
         'synopsis': synopsis,
         'cast': cast,

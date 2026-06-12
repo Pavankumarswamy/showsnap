@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/screen_model.dart';
 import '../../../core/services/auth_service.dart';
@@ -26,6 +27,13 @@ class ScreenManagerScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Manage Screens'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -51,17 +59,20 @@ class ScreenManagerScreen extends ConsumerWidget {
                       child: const Text('Add Screen'),
                     ),
                   ],
-                ),
+                ).animate().fadeIn(duration: 400.ms),
               )
             : RefreshIndicator(
                 onRefresh: () => ref.refresh(_tmScreensProvider.future),
                 child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 16),
                   itemCount: screens.length,
                   separatorBuilder: (_, __) =>
                       const SizedBox(height: 8),
                   itemBuilder: (_, i) =>
-                      _ScreenCard(screen: screens[i]),
+                      _ScreenCard(screen: screens[i])
+                        .animate()
+                        .fadeIn(duration: 400.ms, delay: (i * 80).ms)
+                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                 ),
               ),
       ),
@@ -70,7 +81,7 @@ class ScreenManagerScreen extends ConsumerWidget {
         label: const Text('Add Screen'),
         icon: const Icon(Icons.add),
         backgroundColor: ShowSnapColors.primary,
-      ),
+      ).animate().scale(delay: 300.ms, duration: 400.ms, curve: Curves.elasticOut),
     );
   }
 

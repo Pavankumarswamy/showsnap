@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/router.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
@@ -92,6 +93,13 @@ class AdminDashboardScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Admin Dashboard'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -134,7 +142,7 @@ class AdminDashboardScreen extends ConsumerWidget {
               const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
           data: (stats) => ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
             children: [
               // Stats grid
               GridView.count(
@@ -146,16 +154,28 @@ class AdminDashboardScreen extends ConsumerWidget {
                 childAspectRatio: 1.6,
                 children: [
                   _StatCard('Total Users', '${stats.totalUsers}',
-                      Icons.people_outlined, ShowSnapColors.primary),
+                      Icons.people_outlined, ShowSnapColors.primary)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 50.ms)
+                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                   _StatCard("Today's Bookings",
                       '${stats.todayBookings}',
                       Icons.confirmation_number_outlined,
-                      ShowSnapColors.secondary),
+                      ShowSnapColors.secondary)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 150.ms)
+                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                   _StatCard('Total Revenue', '₹${stats.totalRevenue}',
-                      Icons.currency_rupee_outlined, Colors.purple),
+                      Icons.currency_rupee_outlined, Colors.purple)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 250.ms)
+                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                   _StatCard('Pending Ads',
                       '${stats.pendingAdRequests}',
-                      Icons.campaign_outlined, Colors.orange),
+                      Icons.campaign_outlined, Colors.orange)
+                    .animate()
+                    .fadeIn(duration: 400.ms, delay: 350.ms)
+                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                 ],
               ),
               const SizedBox(height: 20),
@@ -165,7 +185,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                     style: Theme.of(context)
                         .textTheme
                         .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                        ?.copyWith(fontWeight: FontWeight.bold))
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: 400.ms),
                 const SizedBox(height: 8),
                 SizedBox(
                   height: 180,
@@ -187,7 +209,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                       borderData: FlBorderData(show: false),
                     ),
                   ),
-                ),
+                ).animate().fadeIn(duration: 500.ms, delay: 450.ms),
                 const SizedBox(height: 20),
               ],
               // Quick actions
@@ -195,7 +217,9 @@ class AdminDashboardScreen extends ConsumerWidget {
                   style: Theme.of(context)
                       .textTheme
                       .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold)),
+                      ?.copyWith(fontWeight: FontWeight.bold))
+                .animate()
+                .fadeIn(duration: 300.ms, delay: 500.ms),
               const SizedBox(height: 12),
               GridView.count(
                 crossAxisCount: 2,
@@ -207,19 +231,40 @@ class AdminDashboardScreen extends ConsumerWidget {
                 children: [
                   _ActionButton('Users',
                       Icons.people_outlined,
-                      () => context.push(AppRoutes.userManagement)),
+                      () => context.push(AppRoutes.userManagement))
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 550.ms)
+                    .slideY(begin: 0.1, end: 0),
                   _ActionButton('Tickets',
                       Icons.confirmation_number_outlined,
-                      () => context.push(AppRoutes.ticketAudit)),
+                      () => context.push(AppRoutes.ticketAudit))
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 600.ms)
+                    .slideY(begin: 0.1, end: 0),
                   _ActionButton('Offers',
                       Icons.local_offer_outlined,
-                      () => context.push(AppRoutes.adminOffers)),
+                      () => context.push(AppRoutes.adminOffers))
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 650.ms)
+                    .slideY(begin: 0.1, end: 0),
                   _ActionButton('Ad Requests',
                       Icons.campaign_outlined,
-                      () => context.push(AppRoutes.adRequests)),
+                      () => context.push(AppRoutes.adRequests))
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 700.ms)
+                    .slideY(begin: 0.1, end: 0),
+                  _ActionButton('Add Theater',
+                      Icons.add_business_outlined,
+                      () => context.push(AppRoutes.addTheater))
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 750.ms)
+                    .slideY(begin: 0.1, end: 0),
                   _ActionButton('Banners',
                       Icons.image_outlined,
-                      () => context.push(AppRoutes.adminBanners)),
+                      () => context.push(AppRoutes.adminBanners))
+                    .animate()
+                    .fadeIn(duration: 300.ms, delay: 800.ms)
+                    .slideY(begin: 0.1, end: 0),
                 ],
               ),
               const SizedBox(height: 32),
@@ -296,8 +341,12 @@ class _ActionButton extends StatelessWidget {
               Icon(icon, color: ShowSnapColors.primary, size: 22),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(label,
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                child: Text(
+                  label,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               const Icon(Icons.chevron_right, color: ShowSnapColors.grey600),
             ],

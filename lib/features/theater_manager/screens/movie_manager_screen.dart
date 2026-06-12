@@ -1,15 +1,31 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/movie_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/models/screen_model.dart';
+import '../../../core/models/show_model.dart';
+import '../../../core/models/seat_status_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+
+final _tmScreensProvider = FutureProvider<List<ScreenModel>>((ref) async {
+  final uid = ref.watch(authStateProvider).valueOrNull?.uid;
+  if (uid == null) return [];
+  final theaters = await ref.watch(databaseServiceProvider).getAllTheaters();
+  final theater =
+      theaters.cast<dynamic>().firstWhere((t) => t.managerId == uid, orElse: () => null);
+  if (theater == null) return [];
+  return ref.watch(databaseServiceProvider).getScreensForTheater(theater.theaterId);
+});
 
 final _tmMoviesProvider = FutureProvider<List<MovieModel>>((ref) async {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
@@ -27,6 +43,13 @@ class MovieManagerScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Movie Manager'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -42,7 +65,7 @@ class MovieManagerScreen extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(Icons.movie_outlined,
-                        size: 80, color: ShowSnapColors.grey300),
+                        size: 80, color: ShowSnapColors.grey600),
                     const SizedBox(height: 16),
                     const Text('No movies added yet'),
                     const SizedBox(height: 16),
@@ -52,15 +75,18 @@ class MovieManagerScreen extends ConsumerWidget {
                       child: const Text('Add Movie'),
                     ),
                   ],
-                ),
+                ).animate().fadeIn(duration: 400.ms),
               )
             : ListView.separated(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 16),
                 itemCount: movies.length,
                 separatorBuilder: (_, __) =>
                     const SizedBox(height: 8),
                 itemBuilder: (_, i) =>
-                    _MovieManagerCard(movie: movies[i]),
+                    _MovieManagerCard(movie: movies[i])
+                      .animate()
+                      .fadeIn(duration: 400.ms, delay: (i * 80).ms)
+                      .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
               ),
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -68,7 +94,7 @@ class MovieManagerScreen extends ConsumerWidget {
         label: const Text('Add Movie'),
         icon: const Icon(Icons.add),
         backgroundColor: ShowSnapColors.primary,
-      ),
+      ).animate().scale(delay: 300.ms, duration: 400.ms, curve: Curves.elasticOut),
     );
   }
 
@@ -147,12 +173,18 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
   final _directorCtrl = TextEditingController();
   final _castCtrl = TextEditingController();
   final _durationCtrl = TextEditingController(text: '120');
+  final _trailerUrlCtrl = TextEditingController();
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 30));
   String _language = 'Hindi';
   String _certificate = 'UA';
   String _status = 'nowShowing';
   final Set<String> _genres = {};
   File? _posterFile;
   bool _saving = false;
+  
+  ScreenModel? _selectedScreen;
+  final List<TimeOfDay> _timeStamps = [];
 
   final _genres_list = [
     'Action', 'Comedy', 'Drama', 'Thriller', 'Horror',
@@ -164,6 +196,13 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Movie'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -184,7 +223,7 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
         child: Form(
           key: _formKey,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 16),
             children: [
               // Poster upload
               GestureDetector(
@@ -199,7 +238,9 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
                   child: _posterFile != null
                       ? ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.file(_posterFile!, fit: BoxFit.cover))
+                          child: kIsWeb
+                              ? Image.network(_posterFile!.path, fit: BoxFit.cover)
+                              : Image.file(_posterFile!, fit: BoxFit.cover))
                       : const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -243,6 +284,95 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _trailerUrlCtrl,
+                decoration: const InputDecoration(labelText: 'YouTube Trailer URL'),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today, size: 18),
+                      label: Text('Start: ${DateFormat('dd MMM yyyy').format(_startDate)}', style: const TextStyle(fontSize: 12)),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _startDate,
+                          firstDate: DateTime(2000),
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) setState(() => _startDate = d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.event, size: 18),
+                      label: Text('End: ${DateFormat('dd MMM yyyy').format(_endDate)}', style: const TextStyle(fontSize: 12)),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: context,
+                          initialDate: _endDate,
+                          firstDate: _startDate,
+                          lastDate: DateTime(2100),
+                        );
+                        if (d != null) setState(() => _endDate = d);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ref.watch(_tmScreensProvider).when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Text('Error loading screens: $e'),
+                data: (screens) {
+                  if (screens.isEmpty) return const Text('No screens available.');
+                  return DropdownButtonFormField<ScreenModel>(
+                    value: _selectedScreen,
+                    decoration: const InputDecoration(labelText: 'Schedule on Screen (Optional)'),
+                    items: screens
+                        .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _selectedScreen = v),
+                  );
+                },
+              ),
+              if (_selectedScreen != null) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Show Times', style: TextStyle(fontWeight: FontWeight.bold)),
+                    TextButton.icon(
+                      icon: const Icon(Icons.add),
+                      label: const Text('Add Time'),
+                      onPressed: () async {
+                        final t = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (t != null) {
+                          setState(() => _timeStamps.add(t));
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _timeStamps.map((t) {
+                    return Chip(
+                      label: Text(t.format(context)),
+                      onDeleted: () => setState(() => _timeStamps.remove(t)),
+                    );
+                  }).toList(),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -330,12 +460,14 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
         posterUrl = await ref.read(cloudinaryServiceProvider).uploadImage(
             _posterFile!, AppConstants.cloudinaryMoviePosters);
       }
-      await ref.read(databaseServiceProvider).createMovie(MovieModel(
+      final db = ref.read(databaseServiceProvider);
+      final duration = int.tryParse(_durationCtrl.text) ?? 120;
+      final movieId = await db.createMovie(MovieModel(
         movieId: '',
         title: _titleCtrl.text.trim(),
         language: _language,
         genres: _genres.toList(),
-        durationMinutes: int.tryParse(_durationCtrl.text) ?? 120,
+        durationMinutes: duration,
         certificate: _certificate,
         synopsis: _synopsisCtrl.text.trim(),
         cast: _castCtrl.text
@@ -345,12 +477,49 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
             .toList(),
         director: _directorCtrl.text.trim(),
         posterUrl: posterUrl,
+        trailerUrl: _trailerUrlCtrl.text.trim(),
         status: _status,
         addedByTm: uid,
-        releaseDateTs: DateTime.now().millisecondsSinceEpoch,
+        releaseDateTs: _startDate.millisecondsSinceEpoch,
+        endDateTs: _endDate.millisecondsSinceEpoch,
       ));
+
+      if (_selectedScreen != null && _timeStamps.isNotEmpty) {
+        final screen = _selectedScreen!;
+        final pricing = {'silver': 200, 'gold': 300, 'platinum': 500};
+        
+        final seats = <String, SeatStatusModel>{};
+        for (final seat in screen.seatLayout) {
+          seats[seat.seatId] = const SeatStatusModel();
+        }
+
+        DateTime current = DateTime(_startDate.year, _startDate.month, _startDate.day);
+        final end = DateTime(_endDate.year, _endDate.month, _endDate.day);
+
+        while (!current.isAfter(end)) {
+          for (final t in _timeStamps) {
+            final startDt = DateTime(current.year, current.month, current.day, t.hour, t.minute);
+            final endDt = startDt.add(Duration(minutes: duration + 15));
+            
+            await db.createShow(ShowModel(
+              showId: '',
+              movieId: movieId,
+              theaterId: screen.theaterId,
+              screenId: screen.screenId,
+              startTs: startDt.millisecondsSinceEpoch,
+              endTs: endDt.millisecondsSinceEpoch,
+              pricing: pricing,
+              bookingOpen: true,
+              seats: seats,
+              seatsAvailable: screen.seatLayout.length,
+            ));
+          }
+          current = current.add(const Duration(days: 1));
+        }
+      }
+
       if (mounted) {
-        context.showSnackbar('Movie added!');
+        context.showSnackbar('Movie added and scheduled successfully!');
         Navigator.pop(context);
       }
     } catch (e) {

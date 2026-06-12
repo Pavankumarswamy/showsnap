@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/seat_model.dart';
 import '../../../core/models/seat_status_model.dart';
@@ -38,27 +37,32 @@ class SeatMapWidget extends StatelessWidget {
 
     return Column(
       children: [
-        // Screen indicator with scale entrance animation
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            gradient: ShowSnapTheme.appBarGradient,
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
-            ),
-          ),
-          child: const Center(
-            child: Text(
-              'S C R E E N',
-              style: TextStyle(
-                letterSpacing: 6,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-                color: Colors.black,
+        // Curved movie screen indicator with scale entrance animation
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                height: 20,
+                child: CustomPaint(
+                  painter: _CurvedScreenPainter(
+                    color: ShowSnapColors.primary,
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(height: 6),
+              const Text(
+                'SCREEN',
+                style: TextStyle(
+                  letterSpacing: 8,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: ShowSnapColors.grey600,
+                ),
+              ),
+            ],
           ),
         )
             .animate()
@@ -82,56 +86,45 @@ class SeatMapWidget extends StatelessWidget {
           child: InteractiveViewer(
             minScale: 0.5,
             maxScale: 2.5,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: AnimationLimiter(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: AnimationConfiguration.toStaggeredList(
-                        duration: const Duration(milliseconds: 250),
-                        childAnimationBuilder: (widget) => SlideAnimation(
-                          horizontalOffset: -30,
-                          child: FadeInAnimation(child: widget),
-                        ),
-                        children: sortedRows.map((row) {
-                          final seats = rows[row]!
-                            ..sort((a, b) => a.number.compareTo(b.number));
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 6),
-                            child: Row(
-                              children: [
-                                SizedBox(
-                                  width: 24,
-                                  child: Text(
-                                    row,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 12,
-                                      color: ShowSnapColors.grey600,
-                                    ),
-                                  ),
-                                ),
-                                ...seats.map((seat) => _AnimatedSeatCell(
-                                      seat: seat,
-                                      status: show.seats[seat.seatId],
-                                      isSelected: selectedSeatIds
-                                          .contains(seat.seatId),
-                                      isLocking: lockingInProgress
-                                          .contains(seat.seatId),
-                                      currentUid: currentUid,
-                                      onTap: () => onSeatTap(seat),
-                                    )),
-                              ],
+            constrained: false, // Allows child to be larger than screen (perfect for desktop)
+            boundaryMargin: const EdgeInsets.all(double.infinity), // Allow infinite panning
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: sortedRows.map((row) {
+                  final seats = rows[row]!
+                    ..sort((a, b) => a.number.compareTo(b.number));
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min, // Hug content
+                      children: [
+                        SizedBox(
+                          width: 24,
+                          child: Text(
+                            row,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: ShowSnapColors.grey600,
                             ),
-                          );
-                        }).toList(),
-                      ),
+                          ),
+                        ),
+                        ...seats.map((seat) => _AnimatedSeatCell(
+                              seat: seat,
+                              status: show.seats[seat.seatId],
+                              isSelected: selectedSeatIds
+                                  .contains(seat.seatId),
+                              isLocking: lockingInProgress
+                                  .contains(seat.seatId),
+                              currentUid: currentUid,
+                              onTap: () => onSeatTap(seat),
+                            )),
+                      ],
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
               ),
             ),
           ),
@@ -299,30 +292,20 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: AnimationLimiter(
-        child: Wrap(
-          spacing: 16,
-          children: AnimationConfiguration.toStaggeredList(
-            duration: const Duration(milliseconds: 200),
-            childAnimationBuilder: (w) =>
-                FadeInAnimation(child: SlideAnimation(
-                  horizontalOffset: 10,
-                  child: w,
-                )),
-            children: [
-              _LegendItem(
-                  color: SeatColors.available,
-                  border: SeatColors.availableBorder,
-                  label: 'Available'),
-              _LegendItem(color: SeatColors.selected, label: 'Selected'),
-              _LegendItem(color: SeatColors.booked, label: 'Booked'),
-              _LegendItem(
-                  color: SeatColors.accessible, label: 'Accessible'),
-            ],
-          ),
-        ),
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16),
+      child: Wrap(
+        spacing: 16,
+        children: [
+          _LegendItem(
+              color: SeatColors.available,
+              border: SeatColors.availableBorder,
+              label: 'Available'),
+          _LegendItem(color: SeatColors.selected, label: 'Selected'),
+          _LegendItem(color: SeatColors.booked, label: 'Booked'),
+          _LegendItem(
+              color: SeatColors.accessible, label: 'Accessible'),
+        ],
       ),
     );
   }
@@ -353,5 +336,44 @@ class _LegendItem extends StatelessWidget {
         Text(label, style: const TextStyle(fontSize: 11)),
       ],
     );
+  }
+}
+
+class _CurvedScreenPainter extends CustomPainter {
+  final Color color;
+  _CurvedScreenPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Draw curved projection glow
+    final glowPaint = Paint()
+      ..color = color.withOpacity(0.15)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 14
+      ..strokeCap = StrokeCap.round;
+
+    final glowPath = Path()
+      ..moveTo(0, 2)
+      ..quadraticBezierTo(size.width / 2, size.height, size.width, 2);
+
+    canvas.drawPath(glowPath, glowPaint);
+
+    // 2. Draw curved screen line
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4
+      ..strokeCap = StrokeCap.round;
+
+    final path = Path()
+      ..moveTo(0, 2)
+      ..quadraticBezierTo(size.width / 2, size.height - 2, size.width, 2);
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CurvedScreenPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }

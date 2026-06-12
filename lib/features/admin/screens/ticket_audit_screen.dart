@@ -5,6 +5,7 @@ import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 final _allBookingsProvider = FutureProvider<List<BookingModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAllBookings();
@@ -24,6 +25,13 @@ class TicketAuditScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Ticket Audit'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -53,7 +61,7 @@ class TicketAuditScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
+          ).animate().fadeIn(duration: 300.ms),
           Expanded(
             child: bookingsAsync.when(
               loading: () =>
@@ -72,12 +80,15 @@ class TicketAuditScreen extends ConsumerWidget {
                 return RefreshIndicator(
                   onRefresh: () => ref.refresh(_allBookingsProvider.future),
                   child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: 4),
                     itemBuilder: (_, i) =>
-                        _BookingAuditTile(booking: filtered[i]),
+                        _BookingAuditTile(booking: filtered[i])
+                          .animate()
+                          .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                          .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                   ),
                 );
               },

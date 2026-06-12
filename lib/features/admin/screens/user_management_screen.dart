@@ -5,6 +5,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 final _allUsersProvider = FutureProvider<List<UserModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAllUsers();
@@ -25,6 +26,13 @@ class UserManagementScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('User Management'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -54,8 +62,11 @@ class UserManagementScreen extends ConsumerWidget {
                       _FilterChip('Users', AppConstants.roleUser,
                           roleFilter, ref),
                       const SizedBox(width: 8),
-                      _FilterChip('Managers',
+                      _FilterChip('Theater Managers',
                           AppConstants.roleTheaterManager, roleFilter, ref),
+                      const SizedBox(width: 8),
+                      _FilterChip('Event Managers',
+                          AppConstants.roleEventManager, roleFilter, ref),
                       const SizedBox(width: 8),
                       _FilterChip('Admins', AppConstants.roleAdmin,
                           roleFilter, ref),
@@ -64,7 +75,7 @@ class UserManagementScreen extends ConsumerWidget {
                 ),
               ],
             ),
-          ),
+          ).animate().fadeIn(duration: 300.ms),
           Expanded(
             child: usersAsync.when(
               loading: () =>
@@ -90,12 +101,15 @@ class UserManagementScreen extends ConsumerWidget {
                 return RefreshIndicator(
                   onRefresh: () => ref.refresh(_allUsersProvider.future),
                   child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) =>
                         const SizedBox(height: 4),
                     itemBuilder: (_, i) =>
-                        _UserTile(user: filtered[i]),
+                        _UserTile(user: filtered[i])
+                          .animate()
+                          .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                          .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                   ),
                 );
               },
@@ -157,6 +171,9 @@ class _UserTile extends ConsumerWidget {
       case AppConstants.roleTheaterManager:
         roleColor = ShowSnapColors.secondary;
         break;
+      case AppConstants.roleEventManager:
+        roleColor = Colors.deepPurple;
+        break;
       default:
         roleColor = ShowSnapColors.primary;
     }
@@ -210,6 +227,9 @@ class _UserTile extends ConsumerWidget {
                 if (user.role != AppConstants.roleTheaterManager)
                   const PopupMenuItem(
                       value: 'makeTM', child: Text('Make Theater Manager')),
+                if (user.role != AppConstants.roleEventManager)
+                  const PopupMenuItem(
+                      value: 'makeEM', child: Text('Make Event Manager')),
                 if (user.role != AppConstants.roleUser)
                   const PopupMenuItem(
                       value: 'makeUser', child: Text('Make User')),
@@ -237,6 +257,10 @@ class _UserTile extends ConsumerWidget {
         case 'makeTM':
           await db.updateUser(
               user.uid, {'role': AppConstants.roleTheaterManager});
+          break;
+        case 'makeEM':
+          await db.updateUser(
+              user.uid, {'role': AppConstants.roleEventManager});
           break;
         case 'makeUser':
           await db.updateUser(user.uid, {'role': AppConstants.roleUser});

@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../providers/auth_provider.dart';
 import '../../../core/config/router.dart';
 import '../../../core/config/theme.dart';
+import '../../../core/constants/app_constants.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/utils/validators.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -44,10 +46,40 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     if (mounted) setState(() => _loading = false);
   }
 
+  Future<void> _navigateByRole() async {
+    final authService = ref.read(authServiceProvider);
+
+    // Patch admin DB record to role='admin' if not already set.
+    // This must happen before any DB rule check that relies on role.
+    await authService.ensureAdminRole();
+
+    // 1. Email-based admin check (fastest — no DB call needed)
+    final email = authService.currentUser?.email ?? '';
+    if (email == 'admin@gmail.com') {
+      if (mounted) context.go(AppRoutes.adminDashboard);
+      return;
+    }
+
+    // 2. DB role check for theaterManager and other roles
+    final role = await authService.getCurrentUserRole();
+    if (!mounted) return;
+    if (role == AppConstants.roleAdmin) {
+      context.go(AppRoutes.adminDashboard);
+    } else if (role == AppConstants.roleTheaterManager) {
+      context.go(AppRoutes.tmDashboard);
+    } else {
+      context.go(AppRoutes.home);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(authNotifierProvider, (prev, next) {
       next.whenOrNull(
+        data: (_) {
+          // Login succeeded — navigate to the correct dashboard
+          _navigateByRole();
+        },
         error: (err, _) {
           _shakeKey.currentState?.shake();
           context.showErrorSnackbar(

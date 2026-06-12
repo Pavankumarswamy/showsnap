@@ -56,8 +56,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (!mounted) return;
 
     if (user != null) {
-      // Fetch role from DB to route to the correct dashboard
       final authService = ref.read(authServiceProvider);
+
+      // Patch admin DB record to role='admin' if not already set.
+      await authService.ensureAdminRole();
+
+      // 1. Email-based admin check (instant — no DB round-trip)
+      if (user.email == 'admin@gmail.com') {
+        context.go(AppRoutes.adminDashboard);
+        return;
+      }
+
+      // 2. DB role check for theaterManager / regular user
       final role = await authService.getCurrentUserRole();
       if (!mounted) return;
       if (role == AppConstants.roleAdmin) {

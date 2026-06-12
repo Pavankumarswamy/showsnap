@@ -26,6 +26,21 @@ class DatabaseService {
         .map((e) => ShowModel.fromJson(showId, e.snapshot.value as Map));
   }
 
+  Stream<List<ShowModel>> streamShowsForTheater(String theaterId) {
+    return _db
+        .ref(AppConstants.showsPath)
+        .orderByChild('theaterId')
+        .equalTo(theaterId)
+        .onValue
+        .map((e) {
+          if (!e.snapshot.exists || e.snapshot.value == null) return [];
+          final map = e.snapshot.value as Map;
+          return map.entries
+              .map((entry) => ShowModel.fromJson(entry.key.toString(), entry.value as Map))
+              .toList();
+        });
+  }
+
   Future<ShowModel?> getShow(String showId) async {
     final snap = await _db.ref('${AppConstants.showsPath}/$showId').get();
     if (!snap.exists || snap.value == null) return null;
@@ -146,6 +161,33 @@ class DatabaseService {
 
     await _db.ref().update(updates);
     return bookingId;
+  }
+
+  Future<void> createBookingWithId(String bookingId, BookingModel booking) async {
+    final updates = <String, dynamic>{};
+    updates['${AppConstants.bookingsPath}/$bookingId'] = booking.toJson()
+      ..['bookingId'] = bookingId;
+    for (final seat in booking.seats) {
+      updates['${AppConstants.showsPath}/${booking.showId}/seats/${seat.seatId}'] =
+          SeatStatusModel(status: SeatStatus.booked).toJson();
+    }
+    updates['${AppConstants.showsPath}/${booking.showId}/seatsAvailable'] =
+        ServerValue.increment(-booking.seats.length);
+
+    await _db.ref().update(updates);
+  }
+
+  Future<void> bookCounterSeats(String showId, List<String> seatIds) async {
+    // Atomic: mark seats booked, decrement seatsAvailable
+    final updates = <String, dynamic>{};
+    for (final seatId in seatIds) {
+      updates['${AppConstants.showsPath}/$showId/seats/$seatId'] =
+          const SeatStatusModel(status: SeatStatus.booked).toJson();
+    }
+    updates['${AppConstants.showsPath}/$showId/seatsAvailable'] =
+        ServerValue.increment(-seatIds.length);
+
+    await _db.ref().update(updates);
   }
 
   Future<void> updateBookingStatus(
@@ -286,6 +328,16 @@ class DatabaseService {
     return ScreenModel.fromJson(screenId, snap.value as Map);
   }
 
+  Stream<ScreenModel?> streamScreen(String screenId) {
+    return _db
+        .ref('${AppConstants.screensPath}/$screenId')
+        .onValue
+        .map((e) {
+          if (!e.snapshot.exists || e.snapshot.value == null) return null;
+          return ScreenModel.fromJson(screenId, e.snapshot.value as Map);
+        });
+  }
+
   Future<String> createScreen(ScreenModel screen) async {
     final ref = _db.ref(AppConstants.screensPath).push();
     await ref.set(screen.toJson());
@@ -356,6 +408,58 @@ class DatabaseService {
         .map((e) => EventModel.fromJson(e.key.toString(), e.value as Map))
         .where((e) => e.isActive)
         .toList();
+  }
+
+  Future<List<EventModel>> getEventsForManager(String managerId) async {
+    final snap = await _db.ref(AppConstants.eventsPath).get();
+    if (!snap.exists || snap.value == null) return [];
+    final map = snap.value as Map;
+    return map.entries
+        .map((e) => EventModel.fromJson(e.key.toString(), e.value as Map))
+        .where((e) => e.managerId == managerId)
+        .toList();
+  }
+
+  Future<String> saveEvent(EventModel event) async {
+    if (event.eventId.isEmpty) {
+      final ref = _db.ref(AppConstants.eventsPath).push();
+      await ref.set(event.toJson());
+      return ref.key!;
+    }
+    await _db
+        .ref('${AppConstants.eventsPath}/${event.eventId}')
+        .set(event.toJson());
+    return event.eventId;
+  }
+
+  Future<void> deleteEvent(String eventId) =>
+      _db.ref('${AppConstants.eventsPath}/$eventId').remove();
+
+  Future<void> bookEventTickets(
+      BookingModel booking, EventModel event, Map<int, int> tierQuantities) async {
+    final bookingId = booking.bookingId;
+    final updates = <String, dynamic>{};
+    
+    updates['${AppConstants.bookingsPath}/$bookingId'] = booking.toJson()
+      ..['bookingId'] = bookingId;
+    
+    final updatedTiers = List<TicketTier>.from(event.ticketTiers);
+    tierQuantities.forEach((tierIdx, qty) {
+      if (tierIdx >= 0 && tierIdx < updatedTiers.length) {
+        final tier = updatedTiers[tierIdx];
+        updatedTiers[tierIdx] = TicketTier(
+          name: tier.name,
+          price: tier.price,
+          totalSeats: tier.totalSeats,
+          availableSeats: (tier.availableSeats - qty).clamp(0, tier.totalSeats),
+        );
+      }
+    });
+    
+    updates['${AppConstants.eventsPath}/${event.eventId}/ticketTiers'] =
+        updatedTiers.map((t) => t.toJson()).toList();
+
+    await _db.ref().update(updates);
   }
 
   // ─── Ad Requests ──────────────────────────────────────────────────────────

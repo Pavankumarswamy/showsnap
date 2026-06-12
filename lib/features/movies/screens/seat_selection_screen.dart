@@ -25,7 +25,6 @@ class SeatSelectionScreen extends ConsumerStatefulWidget {
 class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
   Timer? _lockTimer;
   int _secondsLeft = AppConstants.seatLockMinutes * 60;
-  ScreenModel? _screen;
 
   @override
   void initState() {
@@ -75,13 +74,6 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
         ],
       ),
     );
-  }
-
-  Future<void> _loadScreen(String screenId) async {
-    if (_screen?.screenId == screenId) return;
-    final screen =
-        await ref.read(databaseServiceProvider).getScreen(screenId);
-    if (mounted) setState(() => _screen = screen);
   }
 
   @override
@@ -134,33 +126,43 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
               const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
           data: (show) {
-            _loadScreen(show.screenId);
-            final layout = _screen?.seatLayout ?? [];
-            return Column(
-              children: [
-                Expanded(
-                  child: SeatMapWidget(
-                    seatLayout: layout,
-                    show: show,
-                    selectedSeatIds: selectionState.selectedSeatIds,
-                    lockingInProgress: selectionState.lockInProgress.keys
-                        .where((k) =>
-                            selectionState.lockInProgress[k] == true)
-                        .toSet(),
-                    currentUid: uid,
-                    onSeatTap: (seat) => ref
-                        .read(seatSelectionProvider(widget.showId).notifier)
-                        .toggleSeat(seat, show),
-                  ),
-                ),
-                if (selectionState.selectedSeatIds.isNotEmpty)
-                  _SelectedSeatsPanel(
-                    showId: widget.showId,
-                    show: show,
-                    selectedSeatIds: selectionState.selectedSeatIds,
-                    layout: layout,
-                  ),
-              ],
+            final screenAsync = ref.watch(screenProvider(show.screenId));
+            return screenAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error loading screen layout: $e')),
+              data: (screen) {
+                if (screen == null) {
+                  return const Center(child: Text('Screen layout not found'));
+                }
+                final layout = screen.seatLayout;
+                return Column(
+                  children: [
+                    Expanded(
+                      child: SeatMapWidget(
+                        seatLayout: layout,
+                        show: show,
+                        selectedSeatIds: selectionState.selectedSeatIds,
+                        lockingInProgress: selectionState.lockInProgress.keys
+                            .where((k) =>
+                                selectionState.lockInProgress[k] == true)
+                            .toSet(),
+                        currentUid: uid,
+                        onSeatTap: (seat) => ref
+                            .read(seatSelectionProvider(widget.showId).notifier)
+                            .toggleSeat(seat, show),
+                      ),
+                    ),
+                    if (selectionState.selectedSeatIds.isNotEmpty)
+                      _SelectedSeatsPanel(
+                        showId: widget.showId,
+                        show: show,
+                        selectedSeatIds: selectionState.selectedSeatIds,
+                        layout: layout,
+                      ),
+                  ],
+                );
+              },
             );
           },
         ),

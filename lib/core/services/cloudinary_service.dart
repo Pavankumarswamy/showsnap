@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -9,6 +10,26 @@ class CloudinaryService {
 
   Future<String> uploadImage(File file, String folder) async {
     return _upload(file, folder, 'image');
+  }
+
+  Future<String> uploadImageBytes(Uint8List bytes, String filename, String folder) async {
+    final url = Uri.parse(
+        '$_baseUrl/${AppEnv.cloudinaryCloudName}/image/upload');
+
+    final request = http.MultipartRequest('POST', url)
+      ..fields['upload_preset'] = AppEnv.cloudinaryUploadPreset
+      ..fields['folder'] = folder
+      ..files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+
+    final response = await request.send();
+    final body = await response.stream.bytesToString();
+
+    if (response.statusCode != 200) {
+      throw Exception('Cloudinary upload failed: $body');
+    }
+
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    return json['secure_url'] as String;
   }
 
   Future<String> uploadVideo(File file, String folder) async {

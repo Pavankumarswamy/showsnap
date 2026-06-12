@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:confetti/confetti.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -1032,7 +1033,9 @@ class _Step4Creative extends StatelessWidget {
                       borderRadius:
                           BorderRadius.circular(ShowSnapRadius.lg - 2),
                       child: creativeType == 'image' && creativeFile != null
-                          ? Image.file(creativeFile!, fit: BoxFit.cover)
+                          ? kIsWeb
+                              ? Image.network(creativeFile!.path, fit: BoxFit.cover)
+                              : Image.file(creativeFile!, fit: BoxFit.cover)
                           : Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

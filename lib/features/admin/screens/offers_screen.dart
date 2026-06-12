@@ -5,6 +5,7 @@ import '../../../core/models/coupon_model.dart';
 import '../../../core/models/offer_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 final _couponsProvider = FutureProvider<List<CouponModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAllCoupons();
@@ -41,6 +42,13 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Offers & Coupons'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -269,7 +277,7 @@ class _MilestoneOffersTab extends ConsumerWidget {
       data: (offers) => offers.isEmpty
           ? const Center(child: Text('No milestone offers yet'))
           : ListView.separated(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
               itemCount: offers.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
@@ -286,7 +294,9 @@ class _MilestoneOffersTab extends ConsumerWidget {
                       onChanged: (_) {},
                     ),
                   ),
-                );
+                ).animate()
+                 .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                 .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
               },
             ),
     );
@@ -303,7 +313,7 @@ class _CouponCodesTab extends ConsumerWidget {
       data: (coupons) => coupons.isEmpty
           ? const Center(child: Text('No coupons yet'))
           : ListView.separated(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
               itemCount: coupons.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
@@ -349,7 +359,9 @@ class _CouponCodesTab extends ConsumerWidget {
                       onChanged: (_) {},
                     ),
                   ),
-                );
+                ).animate()
+                 .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                 .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
               },
             ),
     );

@@ -44,11 +44,28 @@ class AuthService {
     }
   }
 
+  /// Ensures the admin account has role='admin' in the DB.
+  /// Called on every admin login — safe because auth.uid === $uid allows
+  /// self-writes even before the DB role is set to 'admin'.
+  Future<void> ensureAdminRole() async {
+    final user = _auth.currentUser;
+    if (user == null || user.email != 'admin@gmail.com') return;
+    final roleRef = _db.ref('${AppConstants.usersPath}/${user.uid}/role');
+    final snap = await roleRef.get();
+    if (snap.value?.toString() != AppConstants.roleAdmin) {
+      await roleRef.set(AppConstants.roleAdmin);
+    }
+  }
+
+  /// Returns the current user's role.
+  /// Short-circuits for admin@gmail.com without a DB call.
   Future<String> getCurrentUserRole() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return AppConstants.roleUser;
+    final user = _auth.currentUser;
+    if (user == null) return AppConstants.roleUser;
+    // Fast-path: admin email is always admin
+    if (user.email == 'admin@gmail.com') return AppConstants.roleAdmin;
     final snapshot =
-        await _db.ref('${AppConstants.usersPath}/$uid/role').get();
+        await _db.ref('${AppConstants.usersPath}/${user.uid}/role').get();
     return snapshot.value?.toString() ?? AppConstants.roleUser;
   }
 

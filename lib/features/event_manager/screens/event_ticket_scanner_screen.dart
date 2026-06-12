@@ -4,17 +4,19 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 
-class TicketScannerScreen extends ConsumerStatefulWidget {
-  const TicketScannerScreen({super.key});
+class EventTicketScannerScreen extends ConsumerStatefulWidget {
+  const EventTicketScannerScreen({super.key});
 
   @override
-  ConsumerState<TicketScannerScreen> createState() =>
-      _TicketScannerScreenState();
+  ConsumerState<EventTicketScannerScreen> createState() =>
+      _EventTicketScannerScreenState();
 }
 
-class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen> {
+class _EventTicketScannerScreenState
+    extends ConsumerState<EventTicketScannerScreen> {
   final MobileScannerController _controller = MobileScannerController();
   bool _isProcessing = false;
   BookingModel? _lastScanned;
@@ -46,10 +48,23 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen> {
         return;
       }
 
+      // Verify that this event booking belongs to an event managed by this manager
+      final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
+      final events = await db.getEventsForManager(uid);
+      final ownsEvent = events.any((e) => e.eventId == booking.showId);
+
+      if (!ownsEvent) {
+        setState(() {
+          _error = 'Unauthorized: This ticket is for a different manager\'s event';
+          _isProcessing = false;
+        });
+        return;
+      }
+
       if (booking.status == BookingStatus.redeemed) {
         setState(() {
           _lastScanned = booking;
-          _error = '⚠️ Already redeemed!';
+          _error = '⚠️ Already checked-in!';
           _isProcessing = false;
         });
         return;
@@ -71,7 +86,7 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen> {
         return;
       }
 
-      // Mark as redeemed
+      // Redeem booking
       await db.updateBookingStatus(bookingId, BookingStatus.redeemed);
 
       setState(() {
@@ -90,7 +105,7 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Scan Ticket'),
+        title: const Text('Scan Event Ticket'),
         toolbarHeight: 70,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
@@ -99,8 +114,7 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen> {
         ),
         clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+          decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
         ),
         actions: [
           IconButton(
@@ -141,7 +155,7 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen> {
                           ? _ErrorCard(message: _error!)
                           : const Center(
                               child: Text(
-                                'Point camera at ticket QR code',
+                                'Point camera at event ticket QR code',
                                 style: TextStyle(
                                     color: ShowSnapColors.grey600,
                                     fontSize: 16),
@@ -172,7 +186,7 @@ class _SuccessCard extends StatelessWidget {
               children: [
                 Icon(Icons.check_circle, color: ShowSnapColors.secondary, size: 28),
                 SizedBox(width: 8),
-                Text('Valid Ticket',
+                Text('Valid Event Ticket',
                     style: TextStyle(
                         color: ShowSnapColors.secondary,
                         fontWeight: FontWeight.bold,
@@ -182,9 +196,9 @@ class _SuccessCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(booking.movieTitle,
                 style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-            Text('${booking.theaterName} • ${booking.screenName}'),
-            Text('Seats: ${booking.seats.map((s) => s.label).join(', ')}'),
-            Text('Amount: ₹${booking.totalAmount}'),
+            Text('Venue: ${booking.theaterName} • Category: ${booking.screenName}'),
+            Text('Tickets: ${booking.seats.map((s) => '${s.row} #${s.number}').join(', ')}'),
+            Text('Amount Paid: ₹${booking.totalAmount}'),
           ],
         ),
       ),

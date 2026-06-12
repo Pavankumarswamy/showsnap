@@ -41,6 +41,7 @@ class EventModel {
   final String description;
   final String posterUrl;
   final List<TicketTier> ticketTiers;
+  final String managerId;
   final bool isActive;
 
   const EventModel({
@@ -58,6 +59,7 @@ class EventModel {
     this.description = '',
     this.posterUrl = '',
     this.ticketTiers = const [],
+    this.managerId = '',
     this.isActive = true,
   });
 
@@ -87,6 +89,7 @@ class EventModel {
       description: json['description']?.toString() ?? '',
       posterUrl: json['posterUrl']?.toString() ?? '',
       ticketTiers: tiers,
+      managerId: json['managerId']?.toString() ?? '',
       isActive: json['isActive'] as bool? ?? true,
     );
   }
@@ -105,6 +108,7 @@ class EventModel {
         'description': description,
         'posterUrl': posterUrl,
         'ticketTiers': ticketTiers.map((t) => t.toJson()).toList(),
+        'managerId': managerId,
         'isActive': isActive,
       };
 

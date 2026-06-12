@@ -23,6 +23,7 @@ import '../../features/admin/screens/user_management_screen.dart';
 import '../../features/admin/screens/ticket_audit_screen.dart';
 import '../../features/admin/screens/offers_screen.dart' as admin;
 import '../../features/admin/screens/ad_requests_screen.dart';
+import '../../features/admin/screens/add_theater_screen.dart';
 import '../../features/admin/screens/banners_screen.dart';
 import '../../features/theater_manager/screens/tm_dashboard_screen.dart';
 import '../../features/theater_manager/screens/screen_manager_screen.dart';
@@ -30,7 +31,12 @@ import '../../features/theater_manager/screens/seat_layout_editor_screen.dart';
 import '../../features/theater_manager/screens/movie_manager_screen.dart';
 import '../../features/theater_manager/screens/show_scheduler_screen.dart';
 import '../../features/theater_manager/screens/ticket_scanner_screen.dart';
+import '../../features/theater_manager/screens/tm_show_details_screen.dart';
 import '../../features/influencer/screens/ad_request_form_screen.dart';
+import '../../features/event_manager/screens/em_dashboard_screen.dart';
+import '../../features/event_manager/screens/add_event_screen.dart';
+import '../../features/event_manager/screens/em_event_details_screen.dart';
+import '../../features/event_manager/screens/event_ticket_scanner_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/onboarding/welcome_screen.dart';
 import '../navigation/main_shell.dart';
@@ -62,6 +68,7 @@ class AppRoutes {
   static const String ticketAudit = '/admin/tickets';
   static const String adminOffers = '/admin/offers';
   static const String adRequests = '/admin/ad-requests';
+  static const String addTheater = '/admin/add-theater';
   static const String adminBanners = '/admin/banners';
   static const String tmDashboard = '/tm';
   static const String screenManager = '/tm/screens';
@@ -69,6 +76,12 @@ class AppRoutes {
   static const String movieManager = '/tm/movies';
   static const String showScheduler = '/tm/shows';
   static const String ticketScanner = '/tm/scanner';
+  static const String tmShowDetails = '/tm/show-details/:id';
+  static const String emDashboard = '/em';
+  static const String addEvent = '/em/add-event';
+  static const String editEvent = '/em/edit-event/:id';
+  static const String emEventDetails = '/em/event-details/:id';
+  static const String eventTicketScanner = '/em/scanner';
   static const String adRequestForm = '/influencer/ad-request';
 }
 
@@ -142,34 +155,41 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (!isLoggedIn && !authRoutes.contains(loc)) return AppRoutes.login;
 
       if (isLoggedIn) {
+        final firebaseUser = ref.read(authStateProvider).valueOrNull;
+        final email = firebaseUser?.email ?? '';
         final userModel = ref.read(currentUserModelProvider).valueOrNull;
 
-        // Still loading the user model — stay put, redirect will re-fire
-        // once currentUserModelProvider emits the real value.
-        if (userModel == null) return null;
+        // Still loading the user model from DB — stay put.
+        // The _RouterNotifier will re-fire once the stream emits.
+        // Exception: if email is admin@gmail.com we can redirect immediately.
+        final isAdminByEmail = email == 'admin@gmail.com';
+        if (userModel == null && !isAdminByEmail) return null;
 
-        final role = userModel.role;
-        final isAdmin = role == AppConstants.roleAdmin;
-        final isTM = role == AppConstants.roleTheaterManager;
+        final role = userModel?.role ?? AppConstants.roleUser;
+        final isAdmin = isAdminByEmail || role == AppConstants.roleAdmin;
+        final isTM = !isAdmin && role == AppConstants.roleTheaterManager;
+        final isEM = !isAdmin && !isTM && role == AppConstants.roleEventManager;
 
-        // Admin must stay inside /admin
-        if (isAdmin &&
-            !loc.startsWith('/admin') &&
-            !authRoutes.contains(loc)) {
+        // Logged-in users should never see auth screens
+        final onAuthRoute = authRoutes.contains(loc);
+
+        // Admin must always be inside /admin
+        if (isAdmin && (!loc.startsWith('/admin') || onAuthRoute)) {
           return AppRoutes.adminDashboard;
         }
 
-        // Theater manager must stay inside /tm
-        if (isTM &&
-            !loc.startsWith('/tm') &&
-            !authRoutes.contains(loc)) {
+        // Theater manager must always be inside /tm
+        if (isTM && (!loc.startsWith('/tm') || onAuthRoute)) {
           return AppRoutes.tmDashboard;
         }
 
-        // Regular user away from auth screens
-        if (!isAdmin &&
-            !isTM &&
-            (loc == AppRoutes.login || loc == AppRoutes.register)) {
+        // Event manager must always be inside /em
+        if (isEM && (!loc.startsWith('/em') || onAuthRoute)) {
+          return AppRoutes.emDashboard;
+        }
+
+        // Regular user — redirect away from auth screens
+        if (!isAdmin && !isTM && !isEM && onAuthRoute) {
           return AppRoutes.home;
         }
       }
@@ -319,6 +339,19 @@ final routerProvider = Provider<GoRouter>((ref) {
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const AdRequestsScreen())),
       GoRoute(
+          path: AppRoutes.addTheater,
+          pageBuilder: (c, s) {
+            final extra = s.extra as Map<String, dynamic>?;
+            return _verticalPage(
+              c,
+              s,
+              AddTheaterScreen(
+                fixedManagerId: extra?['fixedManagerId'] as String?,
+                fixedManagerName: extra?['fixedManagerName'] as String?,
+              ),
+            );
+          }),
+      GoRoute(
           path: AppRoutes.adminBanners,
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const AdminBannersScreen())),
@@ -352,6 +385,35 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.ticketScanner,
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const TicketScannerScreen())),
+      GoRoute(
+        path: AppRoutes.tmShowDetails,
+        pageBuilder: (c, s) => _horizontalPage(
+            c,
+            s,
+            TmShowDetailsScreen(showId: s.pathParameters['id']!)),
+      ),
+
+      // ── Event Manager ─────────────────────────────────────────────────────
+      GoRoute(
+          path: AppRoutes.emDashboard,
+          pageBuilder: (c, s) =>
+              _fadePage(c, s, const EmDashboardScreen())),
+      GoRoute(
+          path: AppRoutes.addEvent,
+          pageBuilder: (c, s) =>
+              _verticalPage(c, s, const AddEventScreen())),
+      GoRoute(
+          path: AppRoutes.editEvent,
+          pageBuilder: (c, s) =>
+              _verticalPage(c, s, AddEventScreen(eventId: s.pathParameters['id']))),
+      GoRoute(
+          path: AppRoutes.emEventDetails,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, EmEventDetailsScreen(eventId: s.pathParameters['id']!))),
+      GoRoute(
+          path: AppRoutes.eventTicketScanner,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const EventTicketScannerScreen())),
 
       // ── Influencer ────────────────────────────────────────────────────────
       GoRoute(

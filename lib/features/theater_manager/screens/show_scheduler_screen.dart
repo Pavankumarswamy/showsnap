@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/movie_model.dart';
 import '../../../core/models/screen_model.dart';
@@ -9,6 +11,7 @@ import '../../../core/models/seat_status_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import '../../movies/providers/booking_provider.dart';
 
 final _schedulerDataProvider = FutureProvider<
     ({
@@ -57,6 +60,13 @@ class ShowSchedulerScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Show Scheduler'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
@@ -66,17 +76,28 @@ class ShowSchedulerScreen extends ConsumerWidget {
         loading: () =>
             const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),
-        data: (data) => data.screens.isEmpty
-            ? const Center(
-                child: Text('Add screens first before scheduling shows'))
-            : Column(
-                children: [
-                  Expanded(
-                    child: _ShowGrid(
-                        shows: data.shows, screens: data.screens),
-                  ),
-                ],
-              ),
+        data: (data) {
+          if (data.screens.isEmpty) {
+            return const Center(
+                child: Text('Add screens first before scheduling shows'));
+          }
+          final showsStream = ref.watch(theaterShowsStreamProvider(data.theaterId));
+          return showsStream.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Error loading shows: $e')),
+            data: (realTimeShows) => Column(
+              children: [
+                Expanded(
+                  child: _ShowGrid(
+                      shows: realTimeShows, screens: data.screens, movies: data.movies)
+                    .animate()
+                    .fadeIn(duration: 450.ms)
+                    .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
+                ),
+              ],
+            ),
+          );
+        },
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => dataAsync.whenData(
@@ -86,7 +107,7 @@ class ShowSchedulerScreen extends ConsumerWidget {
         label: const Text('Add Show'),
         icon: const Icon(Icons.add),
         backgroundColor: ShowSnapColors.primary,
-      ),
+      ).animate().scale(delay: 300.ms, duration: 400.ms, curve: Curves.elasticOut),
     );
   }
 
@@ -108,66 +129,246 @@ class ShowSchedulerScreen extends ConsumerWidget {
   }
 }
 
-class _ShowGrid extends StatelessWidget {
+
+
+class _ShowGrid extends StatefulWidget {
   final List<ShowModel> shows;
   final List<ScreenModel> screens;
-  const _ShowGrid({required this.shows, required this.screens});
+  final List<MovieModel> movies;
+  const _ShowGrid({required this.shows, required this.screens, required this.movies});
+
+  @override
+  State<_ShowGrid> createState() => _ShowGridState();
+}
+
+class _ShowGridState extends State<_ShowGrid> {
+  late DateTime _selectedDate;
+  final _dates = <DateTime>[];
+
+  @override
+  void initState() {
+    super.initState();
+    final today = DateTime.now();
+    _selectedDate = today;
+    for (var i = 0; i < 30; i++) {
+      _dates.add(today.add(Duration(days: i)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (shows.isEmpty) {
+    if (widget.shows.isEmpty) {
       return const Center(child: Text('No shows scheduled yet'));
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: screens.length,
-      itemBuilder: (_, si) {
-        final screen = screens[si];
-        final screenShows = shows
-            .where((s) => s.screenId == screen.screenId)
-            .toList()
-          ..sort((a, b) => a.startTs.compareTo(b.startTs));
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(screen.name,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleSmall
-                      ?.copyWith(fontWeight: FontWeight.bold)),
-            ),
-            if (screenShows.isEmpty)
-              const Text('No shows for this screen',
-                  style:
-                      TextStyle(color: ShowSnapColors.grey600, fontSize: 12))
-            else
-              ...screenShows.map((s) => Card(
-                    child: ListTile(
-                      title: Text(s.movieId,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w500)),
-                      subtitle: Text(
-                          '${s.startTs.epochToDateTimeLabel} → ${s.endTs.epochToTimeLabel}'),
-                      trailing: Text(
-                        s.isSoldOut
-                            ? 'SOLD OUT'
-                            : '${s.seatsAvailable} seats',
-                        style: TextStyle(
-                          color: s.isSoldOut
-                              ? ShowSnapColors.error
-                              : ShowSnapColors.secondary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
+
+    final dateShows = widget.shows.where((s) {
+      final dt = DateTime.fromMillisecondsSinceEpoch(s.startTs);
+      return dt.year == _selectedDate.year &&
+          dt.month == _selectedDate.month &&
+          dt.day == _selectedDate.day;
+    }).toList();
+
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        _DateSelector(
+          dates: _dates,
+          selected: _selectedDate,
+          onSelect: (d) => setState(() => _selectedDate = d),
+        ),
+        Expanded(
+          child: dateShows.isEmpty
+              ? Center(child: Text('No shows on ${_selectedDate.dateLabel}'))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: widget.screens.length,
+                  itemBuilder: (_, si) {
+                    final screen = widget.screens[si];
+                    final screenShows = dateShows
+                        .where((s) => s.screenId == screen.screenId)
+                        .toList()
+                      ..sort((a, b) => a.startTs.compareTo(b.startTs));
+
+                    if (screenShows.isEmpty) return const SizedBox.shrink();
+
+                    // Group by movieId
+                    final movieShows = <String, List<ShowModel>>{};
+                    for (final s in screenShows) {
+                      movieShows.putIfAbsent(s.movieId, () => []).add(s);
+                    }
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Text(screen.name,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold)),
                         ),
-                      ),
+                        ...movieShows.entries.map((entry) {
+                          final movieId = entry.key;
+                          final shows = entry.value;
+                          final movie = widget.movies.firstWhere((m) => m.movieId == movieId, orElse: () => MovieModel(movieId: movieId, title: 'Unknown Movie'));
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    movie.title,
+                                    style: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: shows.map((s) {
+                                      final dt = DateTime.fromMillisecondsSinceEpoch(s.startTs);
+                                      Color bg;
+                                      Color fg;
+                                      
+                                      final noLayout = s.seats.isEmpty;
+                                      final soldOut = s.isSoldOut && !noLayout;
+
+                                      if (!s.bookingOpen || soldOut || noLayout) {
+                                        bg = ShowSnapColors.grey300;
+                                        fg = ShowSnapColors.grey600;
+                                      } else if (s.seatsAvailable < 20) {
+                                        bg = Colors.orange.shade100;
+                                        fg = Colors.orange.shade800;
+                                      } else {
+                                        bg = Colors.green.shade100;
+                                        fg = Colors.green.shade800;
+                                      }
+                                      return GestureDetector(
+                                        onTap: () => context.push('/tm/show-details/${s.showId}'),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: bg,
+                                            borderRadius: BorderRadius.circular(8),
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              Text(
+                                                DateFormat('h:mm a').format(dt),
+                                                style: TextStyle(
+                                                  color: fg,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                              Text(
+                                                noLayout
+                                                    ? 'NO LAYOUT'
+                                                    : soldOut
+                                                        ? 'SOLD OUT'
+                                                        : !s.bookingOpen
+                                                            ? 'CLOSED'
+                                                            : '${s.seatsAvailable} left',
+                                                style: TextStyle(
+                                                  color: fg,
+                                                  fontSize: 10,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                        const Divider(),
+                      ],
+                    );
+                  },
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DateSelector extends StatelessWidget {
+  final List<DateTime> dates;
+  final DateTime selected;
+  final ValueChanged<DateTime> onSelect;
+
+  const _DateSelector({
+    required this.dates,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 80,
+      color: ShowSnapColors.grey100,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        itemCount: dates.length,
+        itemBuilder: (_, i) {
+          final d = dates[i];
+          final isSelected = d.year == selected.year &&
+              d.month == selected.month &&
+              d.day == selected.day;
+          return GestureDetector(
+            onTap: () => onSelect(d),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? ShowSnapColors.primary
+                    : ShowSnapColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? ShowSnapColors.primary
+                      : ShowSnapColors.grey300,
+                ),
+              ),
+              child: Column(
+                children: [
+                  Text(
+                    d.dayShort,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isSelected
+                          ? ShowSnapColors.onPrimary
+                          : ShowSnapColors.grey600,
                     ),
-                  )),
-            const Divider(),
-          ],
-        );
-      },
+                  ),
+                  Text(
+                    d.dayNum,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: isSelected
+                          ? ShowSnapColors.onPrimary
+                          : ShowSnapColors.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }

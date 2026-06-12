@@ -4,6 +4,7 @@ import '../../../core/config/theme.dart';
 import '../../../core/models/banner_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 final _allBannersProvider = FutureProvider<List<BannerModel>>((ref) =>
     ref.watch(databaseServiceProvider).getAllBanners());
@@ -19,6 +20,13 @@ class AdminBannersScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Manage Banners',
             style: TextStyle(fontWeight: FontWeight.w800)),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
         flexibleSpace: Container(
           decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
         ),
@@ -59,7 +67,7 @@ class AdminBannersScreen extends ConsumerWidget {
           return RefreshIndicator(
             onRefresh: () => ref.refresh(_allBannersProvider.future),
             child: ReorderableListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
               itemCount: banners.length,
               onReorder: (oldIndex, newIndex) async {
                 if (newIndex > oldIndex) newIndex -= 1;
@@ -137,7 +145,9 @@ class AdminBannersScreen extends ConsumerWidget {
                         );
                     ref.invalidate(_allBannersProvider);
                   },
-                );
+                ).animate()
+                 .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                 .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
               },
             ),
           );

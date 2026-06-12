@@ -14,10 +14,10 @@ class SeatColors {
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
 class ShowSnapColors {
-  static const Color primary = Color(0xFFF5A800);
-  static const Color primaryLight = Color(0xFFFFD000);
-  static const Color primaryLighter = Color(0xFFFFF176);
-  static const Color secondary = Color(0xFF43A047);
+  static const Color primary = Color(0xFFC2E812);
+  static const Color primaryLight = Color(0xFFD2F500);
+  static const Color primaryLighter = Color(0xFFEEFF41);
+  static const Color secondary = Color(0xFF388E3C);
   static const Color background = Color(0xFFFFFFFF);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color error = Color(0xFFD32F2F);

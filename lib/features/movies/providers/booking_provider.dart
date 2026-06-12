@@ -1,6 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/models/show_model.dart';
 import '../../../core/models/seat_model.dart';
+import '../../../core/models/screen_model.dart';
+import '../../../core/models/movie_model.dart';
+import '../../../core/models/theater_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 
@@ -9,6 +12,10 @@ import '../../../core/services/database_service.dart';
 final showStreamProvider =
     StreamProvider.family<ShowModel, String>((ref, showId) {
   return ref.watch(databaseServiceProvider).streamShow(showId);
+});
+
+final screenProvider = StreamProvider.family<ScreenModel?, String>((ref, screenId) {
+  return ref.watch(databaseServiceProvider).streamScreen(screenId);
 });
 
 // ─── Seat Selection State ─────────────────────────────────────────────────────
@@ -151,4 +158,16 @@ final showsForMovieProvider = FutureProvider.family<
     }
   }));
   return result;
+});
+
+final movieProvider = FutureProvider.family<MovieModel?, String>((ref, movieId) {
+  return ref.watch(databaseServiceProvider).getMovie(movieId);
+});
+
+final theaterProvider = FutureProvider.family<TheaterModel?, String>((ref, theaterId) {
+  return ref.watch(databaseServiceProvider).getTheater(theaterId);
+});
+
+final theaterShowsStreamProvider = StreamProvider.family<List<ShowModel>, String>((ref, theaterId) {
+  return ref.watch(databaseServiceProvider).streamShowsForTheater(theaterId);
 });
