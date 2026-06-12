@@ -1,30 +1,42 @@
 {
   "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+
     "users": {
+      ".indexOn": ["role"],
       "$uid": {
         ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
         ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
       }
     },
+
     "theaters": {
       ".read": "auth != null",
       "$theaterId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('theaters').child($theaterId).child('managerId').val() === auth.uid)"
       }
     },
+
     "screens": {
+      ".indexOn": ["theaterId"],
       ".read": "auth != null",
       "$theaterId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('theaters').child($theaterId).child('managerId').val() === auth.uid)"
+        "$screenId": {
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('theaters').child($theaterId).child('managerId').val() === auth.uid)"
+        }
       }
     },
+
     "movies": {
       ".read": "auth != null",
       "$movieId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
       }
     },
+
     "shows": {
+      ".indexOn": ["movieId", "screenId", "theaterId"],
       ".read": "auth != null",
       "$showId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')",
@@ -35,30 +47,58 @@
         }
       }
     },
+
     "bookings": {
+      ".indexOn": ["uid", "showId", "theaterName"],
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
       "$bookingId": {
         ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')",
-        ".write": "auth != null"
+        ".write": "auth != null && (data.child('uid').val() === auth.uid || !data.exists() && auth.uid != null || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
       }
     },
-    "coupons": {
+
+    "banners": {
       ".read": "auth != null",
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      "$bannerId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      }
     },
+
     "offers": {
       ".read": "auth != null",
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
-    },
-    "adRequests": {
-      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
-      "$requestId": {
-        ".read": "auth != null && data.child('uid').val() === auth.uid",
-        ".write": "auth != null && (data.child('uid').val() === auth.uid || !data.exists() || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      "$offerId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
       }
     },
+
+    "coupons": {
+      ".read": "auth != null",
+      "$couponId": {
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+      }
+    },
+
     "events": {
       ".read": "auth != null",
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
+      "$eventId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
+      }
+    },
+
+    "adRequests": {
+      ".indexOn": ["uid"],
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      "$requestId": {
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')",
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
+    },
+
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('role').val() === 'admin')"
+      }
     }
   }
 }
