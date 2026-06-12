@@ -1,0 +1,275 @@
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/theme.dart';
+import '../../../core/models/booking_model.dart';
+import '../../../core/services/database_service.dart';
+
+class _AdminStats {
+  final int totalUsers;
+  final int todayBookings;
+  final int totalRevenue;
+  final int pendingAdRequests;
+  final List<FlSpot> bookingSpots; // last 30 days
+  final Map<String, int> revenueByTheater;
+
+  const _AdminStats({
+    this.totalUsers = 0,
+    this.todayBookings = 0,
+    this.totalRevenue = 0,
+    this.pendingAdRequests = 0,
+    this.bookingSpots = const [],
+    this.revenueByTheater = const {},
+  });
+}
+
+final _adminStatsProvider = FutureProvider<_AdminStats>((ref) async {
+  final db = ref.watch(databaseServiceProvider);
+  final users = await db.getAllUsers();
+  final bookings = await db.getAllBookings();
+  final adRequests = await db.getAdRequests();
+
+  final today = DateTime.now();
+  final todayStart = DateTime(today.year, today.month, today.day)
+      .millisecondsSinceEpoch;
+
+  final todayBookings = bookings
+      .where((b) =>
+          b.createdAt >= todayStart &&
+          b.status == BookingStatus.confirmed)
+      .length;
+
+  final totalRevenue = bookings
+      .where((b) => b.status == BookingStatus.confirmed ||
+          b.status == BookingStatus.redeemed)
+      .fold(0, (sum, b) => sum + b.totalAmount);
+
+  final pendingAdRequests =
+      adRequests.where((r) => r.status.name == 'pending').length;
+
+  // Build last 30 days booking count spots
+  final dayCount = <int, int>{};
+  final thirtyDaysAgo = today
+      .subtract(const Duration(days: 30))
+      .millisecondsSinceEpoch;
+  for (final b in bookings.where((b) => b.createdAt >= thirtyDaysAgo)) {
+    final day = DateTime.fromMillisecondsSinceEpoch(b.createdAt).day;
+    dayCount[day] = (dayCount[day] ?? 0) + 1;
+  }
+  final spots = dayCount.entries
+      .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+      .toList()
+    ..sort((a, b) => a.x.compareTo(b.x));
+
+  // Revenue by theater
+  final theaterRevenue = <String, int>{};
+  for (final b in bookings.where(
+      (b) => b.status == BookingStatus.confirmed)) {
+    theaterRevenue[b.theaterName] =
+        (theaterRevenue[b.theaterName] ?? 0) + b.totalAmount;
+  }
+
+  return _AdminStats(
+    totalUsers: users.length,
+    todayBookings: todayBookings,
+    totalRevenue: totalRevenue,
+    pendingAdRequests: pendingAdRequests,
+    bookingSpots: spots,
+    revenueByTheater: theaterRevenue,
+  );
+});
+
+class AdminDashboardScreen extends ConsumerWidget {
+  const AdminDashboardScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final statsAsync = ref.watch(_adminStatsProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Admin Dashboard'),
+        flexibleSpace: Container(
+          decoration:
+              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        ),
+      ),
+      body: RefreshIndicator(
+        onRefresh: () => ref.refresh(_adminStatsProvider.future),
+        child: statsAsync.when(
+          loading: () =>
+              const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (stats) => ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Stats grid
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 1.6,
+                children: [
+                  _StatCard('Total Users', '${stats.totalUsers}',
+                      Icons.people_outlined, ShowSnapColors.primary),
+                  _StatCard("Today's Bookings",
+                      '${stats.todayBookings}',
+                      Icons.confirmation_number_outlined,
+                      ShowSnapColors.secondary),
+                  _StatCard('Total Revenue', '₹${stats.totalRevenue}',
+                      Icons.currency_rupee_outlined, Colors.purple),
+                  _StatCard('Pending Ads',
+                      '${stats.pendingAdRequests}',
+                      Icons.campaign_outlined, Colors.orange),
+                ],
+              ),
+              const SizedBox(height: 20),
+              // Bookings chart
+              if (stats.bookingSpots.isNotEmpty) ...[
+                Text('Bookings — Last 30 Days',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 180,
+                  child: LineChart(
+                    LineChartData(
+                      lineBarsData: [
+                        LineChartBarData(
+                          spots: stats.bookingSpots,
+                          isCurved: true,
+                          color: ShowSnapColors.primary,
+                          belowBarData: BarAreaData(
+                              show: true,
+                              color: ShowSnapColors.primary.withOpacity(0.2)),
+                          dotData: const FlDotData(show: false),
+                        ),
+                      ],
+                      gridData: const FlGridData(show: false),
+                      titlesData: const FlTitlesData(show: false),
+                      borderData: FlBorderData(show: false),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
+              // Quick actions
+              Text('Quick Actions',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              GridView.count(
+                crossAxisCount: 2,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                childAspectRatio: 2.2,
+                children: [
+                  _ActionButton('Users',
+                      Icons.people_outlined,
+                      () => context.push(AppRoutes.userManagement)),
+                  _ActionButton('Tickets',
+                      Icons.confirmation_number_outlined,
+                      () => context.push(AppRoutes.ticketAudit)),
+                  _ActionButton('Offers',
+                      Icons.local_offer_outlined,
+                      () => context.push(AppRoutes.offers)),
+                  _ActionButton('Ad Requests',
+                      Icons.campaign_outlined,
+                      () => context.push(AppRoutes.adRequests)),
+                ],
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+  const _StatCard(this.label, this.value, this.icon, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(value,
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: color)),
+                  Text(label,
+                      style: const TextStyle(
+                          fontSize: 11, color: ShowSnapColors.grey600)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  const _ActionButton(this.label, this.icon, this.onTap);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Icon(icon, color: ShowSnapColors.primary, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+              const Icon(Icons.chevron_right, color: ShowSnapColors.grey600),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
