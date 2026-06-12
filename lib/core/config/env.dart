@@ -1,21 +1,15 @@
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 class AppEnv {
-  // Cloudinary — unsigned upload only (API secret lives in Cloud Functions)
-  static const String cloudinaryCloudName = 'dfvoosm9v';
-  static const String cloudinaryUploadPreset = 'ml_default';
-  static const String cloudinaryApiKey = '329914567685393';
+  static String get cloudinaryCloudName => dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
+  static String get cloudinaryUploadPreset => dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
+  static String get cloudinaryApiKey => dotenv.env['CLOUDINARY_API_KEY'] ?? '';
 
-  // Firebase project
-  static const String firebaseProjectId = 'showsnap-2';
-  static const String firebaseDatabaseUrl =
-      'https://showsnap-2-default-rtdb.firebaseio.com';
+  static String get firebaseProjectId => dotenv.env['FIREBASE_PROJECT_ID'] ?? '';
+  static String get firebaseDatabaseUrl => dotenv.env['FIREBASE_DATABASE_URL'] ?? '';
 
-  // Razorpay — replace with live key for production
-  // TODO: Add your Razorpay Key ID (test mode) from razorpay.com → API Keys
-  static const String razorpayKeyId = 'rzp_test_REPLACE_WITH_YOUR_KEY';
+  static String get razorpayKeyId => dotenv.env['RAZORPAY_KEY_ID'] ?? '';
 
-  // Convenience fee applied per booking (in paise for Razorpay, shown as ₹)
-  static const int convenienceFeeRupees = 20;
-
-  // Seat lock TTL in minutes
-  static const int seatLockTtlMinutes = 8;
+  static int get convenienceFeeRupees => int.tryParse(dotenv.env['CONVENIENCE_FEE_RUPEES'] ?? '') ?? 20;
+  static int get seatLockTtlMinutes => int.tryParse(dotenv.env['SEAT_LOCK_TTL_MINUTES'] ?? '') ?? 8;
 }

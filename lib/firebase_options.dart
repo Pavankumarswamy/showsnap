@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
@@ -16,34 +17,32 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyA2FtqIjZRSHP2eOGKDC4a98kFQrnBScS0',
-    appId: '1:332127348645:web:232531e07e94545bc72a4c',
-    messagingSenderId: '332127348645',
-    projectId: 'showsnap-2',
-    authDomain: 'showsnap-2.firebaseapp.com',
-    databaseURL: 'https://showsnap-2-default-rtdb.firebaseio.com',
-    storageBucket: 'showsnap-2.firebasestorage.app',
+  static FirebaseOptions get web => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
+    appId: dotenv.env['FIREBASE_APP_ID_WEB'] ?? '',
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
+    projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
+    authDomain: dotenv.env['FIREBASE_AUTH_DOMAIN'],
+    databaseURL: dotenv.env['FIREBASE_DATABASE_URL'],
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'],
   );
 
-  // TODO: Replace appId with the one from google-services.json (Android App)
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyA2FtqIjZRSHP2eOGKDC4a98kFQrnBScS0',
-    appId: '1:332127348645:android:REPLACE_WITH_ANDROID_APP_ID',
-    messagingSenderId: '332127348645',
-    projectId: 'showsnap-2',
-    databaseURL: 'https://showsnap-2-default-rtdb.firebaseio.com',
-    storageBucket: 'showsnap-2.firebasestorage.app',
+  static FirebaseOptions get android => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
+    appId: dotenv.env['FIREBASE_APP_ID_ANDROID'] ?? '',
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
+    projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
+    databaseURL: dotenv.env['FIREBASE_DATABASE_URL'],
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'],
   );
 
-  // TODO: Replace appId with the one from GoogleService-Info.plist (iOS App)
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyA2FtqIjZRSHP2eOGKDC4a98kFQrnBScS0',
-    appId: '1:332127348645:ios:REPLACE_WITH_IOS_APP_ID',
-    messagingSenderId: '332127348645',
-    projectId: 'showsnap-2',
-    databaseURL: 'https://showsnap-2-default-rtdb.firebaseio.com',
-    storageBucket: 'showsnap-2.firebasestorage.app',
-    iosBundleId: 'com.tenx.showsnap',
+  static FirebaseOptions get ios => FirebaseOptions(
+    apiKey: dotenv.env['FIREBASE_API_KEY'] ?? '',
+    appId: dotenv.env['FIREBASE_APP_ID_IOS'] ?? '',
+    messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '',
+    projectId: dotenv.env['FIREBASE_PROJECT_ID'] ?? '',
+    databaseURL: dotenv.env['FIREBASE_DATABASE_URL'],
+    storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET'],
+    iosBundleId: dotenv.env['FIREBASE_IOS_BUNDLE_ID'],
   );
 }

@@ -78,6 +78,7 @@ dependencies:
   geocoding: ^3.0.0
   http: ^1.2.2
   url_launcher: ^6.3.2
+  flutter_dotenv: ^6.0.1
 
 dev_dependencies:
   flutter_test:
@@ -89,3 +90,4 @@ flutter:
   assets:
     - assets/images/
     - assets/lottie/
+    - .env
