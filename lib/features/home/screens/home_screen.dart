@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../providers/home_provider.dart';
+import '../providers/location_provider.dart';
+import '../widgets/location_bottom_sheet.dart';
 import '../../../core/models/banner_model.dart';
 import '../widgets/movie_card.dart';
 import '../widgets/event_card.dart';
@@ -18,14 +20,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../onboarding/feature_walkthrough.dart';
 
-// ─── City preference ─────────────────────────────────────────────────────────
-
-final selectedCityProvider = StateProvider<String>((ref) => 'Hyderabad');
-
-final _kMajorCities = [
-  'Hyderabad', 'Mumbai', 'Delhi', 'Bengaluru',
-  'Chennai', 'Kolkata', 'Pune', 'Ahmedabad',
-];
+// (City preferences removed in favor of LocationProvider)
 
 // ─── HomeScreen ───────────────────────────────────────────────────────────────
 
@@ -37,9 +32,13 @@ class HomeScreen extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  final _bannerCtrl = PageController();
+  final _bannerCtrl = PageController(initialPage: 10000);
   Timer? _bannerTimer;
   int _bannerPage = 0;
+
+  bool _isSearchVisible = false;
+  final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
 
   @override
   void initState() {
@@ -55,9 +54,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     _bannerTimer =
         Timer.periodic(const Duration(seconds: 4), (_) {
       if (_bannerCtrl.hasClients) {
-        _bannerPage = (_bannerPage + 1) % 3;
+        final current = _bannerCtrl.page?.round() ?? 10000;
         _bannerCtrl.animateToPage(
-          _bannerPage,
+          current + 1,
           duration: ShowSnapDuration.normal,
           curve: Curves.easeInOut,
         );
@@ -66,21 +65,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   Future<void> _loadCity() async {
-    final prefs = await SharedPreferences.getInstance();
-    final city = prefs.getString('selectedCity') ?? 'Hyderabad';
-    ref.read(selectedCityProvider.notifier).state = city;
+    // Left empty since LocationProvider handles loading
   }
 
   @override
   void dispose() {
     _bannerTimer?.cancel();
     _bannerCtrl.dispose();
+    _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final city = ref.watch(selectedCityProvider);
+    final address = ref.watch(selectedAddressProvider);
     final user = ref.watch(currentUserModelProvider).valueOrNull;
 
     return Scaffold(
@@ -92,19 +91,62 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             // ── App Bar ───────────────────────────────────────────────────
             SliverAppBar(
               pinned: true,
-              backgroundColor: Colors.white,
+              backgroundColor: ShowSnapColors.background,
               elevation: 0,
               titleSpacing: 0,
+              bottom: _isSearchVisible
+                  ? PreferredSize(
+                      preferredSize: const Size.fromHeight(60),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                        child: TextField(
+                          controller: _searchCtrl,
+                          focusNode: _searchFocus,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: 'Search movies...',
+                            prefixIcon: const Icon(Icons.search, color: ShowSnapColors.grey600, size: 20),
+                            suffixIcon: _searchCtrl.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: ShowSnapColors.grey600, size: 16),
+                                    onPressed: () {
+                                      _searchCtrl.clear();
+                                      setState(() {});
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: ShowSnapColors.grey100,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                              borderSide: BorderSide.none,
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                              borderSide: const BorderSide(color: ShowSnapColors.primary, width: 2),
+                            ),
+                          ),
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                    )
+                  : null,
               title: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
                   children: [
                     // City selector
-                    ShowcaseTarget(
+                    Expanded(
+                      child: ShowcaseTarget(
                       showcaseKey: walkthroughCityKey,
                       title: 'Your City',
                       description: 'Tap to switch city and see local shows.',
-                      child: GestureDetector(
+                      child: TappableScale(
                         onTap: () => _showCityPicker(context),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -112,85 +154,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             const Icon(Icons.location_on_rounded,
                                 color: ShowSnapColors.primary, size: 16),
                             const SizedBox(width: 4),
-                            Text(
-                              city,
-                              style: const TextStyle(
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
+                            Expanded(
+                              child: Text(
+                                address?.fullAddress ?? 'Select Location',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 14,
+                                ),
                               ),
-                          ),
-                          const Icon(Icons.keyboard_arrow_down_rounded,
-                              size: 18, color: Colors.black54),
-                        ],
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    // Search bar
-                    Expanded(
-                      child: ShowcaseTarget(
-                        showcaseKey: walkthroughSearchKey,
-                        title: 'Search',
-                        description:
-                            'Find movies, events, and theaters near you.',
-                        shape: const StadiumBorder(),
-                        child: GestureDetector(
-                          onTap: () => context.push('/explore'),
-                          child: Container(
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: ShowSnapColors.grey100,
-                              borderRadius:
-                                  BorderRadius.circular(ShowSnapRadius.pill),
-                            ),
-                            child: const Row(
-                              children: [
-                                SizedBox(width: 12),
-                                Icon(Icons.search,
-                                    color: ShowSnapColors.grey600,
-                                    size: 18),
-                                SizedBox(width: 8),
-                                Text('Movies, events, theaters...',
-                                    style: TextStyle(
-                                      color: ShowSnapColors.grey600,
-                                      fontSize: 12,
-                                    )),
-                              ],
-                            ),
-                          ),
-                        ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    // Search icon
+                    TappableScale(
+                      onTap: () {
+                        setState(() {
+                          _isSearchVisible = !_isSearchVisible;
+                          if (_isSearchVisible) {
+                            _searchFocus.requestFocus();
+                          } else {
+                            _searchCtrl.clear();
+                          }
+                        });
+                      },
+                      child: const Icon(Icons.search, color: Colors.white),
+                    ),
+                    const SizedBox(width: 16),
                     // Notification bell
-                    GestureDetector(
+                    TappableScale(
                       onTap: () {},
                       child: const Icon(Icons.notifications_outlined,
-                          color: Colors.black87),
-                    ),
-                    const SizedBox(width: 8),
-                    // Avatar
-                    GestureDetector(
-                      onTap: () => context.push(AppRoutes.userDashboard),
-                      child: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: ShowSnapColors.primaryLighter,
-                        backgroundImage: (user?.avatarUrl.isNotEmpty ?? false)
-                            ? CachedNetworkImageProvider(user!.avatarUrl)
-                            : null,
-                        child: (user?.avatarUrl.isEmpty ?? true)
-                            ? Text(
-                                user?.displayName.isNotEmpty == true
-                                    ? user!.displayName[0].toUpperCase()
-                                    : 'U',
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: ShowSnapColors.primary),
-                              )
-                            : null,
-                      ),
+                          color: Colors.white),
                     ),
                   ],
                 ),
@@ -198,7 +198,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
 
             // ── Body content ──────────────────────────────────────────────
-            SliverToBoxAdapter(child: _HomeBody(bannerCtrl: _bannerCtrl)),
+            SliverToBoxAdapter(
+                child: _HomeBody(
+                    bannerCtrl: _bannerCtrl,
+                    searchQuery: _searchCtrl.text)),
           ],
         ),
       ),
@@ -209,11 +212,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(ShowSnapRadius.lg)),
+      backgroundColor: Colors.transparent,
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+        child: const LocationBottomSheet(),
       ),
-      builder: (_) => _CityPickerSheet(),
     );
   }
 }
@@ -222,7 +225,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 class _HomeBody extends ConsumerStatefulWidget {
   final PageController bannerCtrl;
-  const _HomeBody({required this.bannerCtrl});
+  final String searchQuery;
+  const _HomeBody({required this.bannerCtrl, this.searchQuery = ''});
 
   @override
   ConsumerState<_HomeBody> createState() => _HomeBodyState();
@@ -230,7 +234,7 @@ class _HomeBody extends ConsumerStatefulWidget {
 
 class _HomeBodyState extends ConsumerState<_HomeBody> {
   String _activeCategory = 'Movies';
-  final _categories = ['Movies', 'Events', 'Plays', 'Concerts', 'Sports'];
+  final _categories = ['Movies', 'Events'];
 
   @override
   Widget build(BuildContext context) {
@@ -257,10 +261,48 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
           ],
         ),
       ),
-      data: (feed) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Promo Banner
+      data: (feed) {
+        if (widget.searchQuery.isNotEmpty) {
+          final allMovies = [...feed.nowShowing, ...feed.upcoming, ...feed.recommended];
+          final Map<String, dynamic> uniqueMovies = {};
+          for (var m in allMovies) {
+            uniqueMovies[m.movieId] = m;
+          }
+          final results = uniqueMovies.values
+              .where((m) =>
+                  m.title.toLowerCase().contains(widget.searchQuery.toLowerCase()))
+              .toList();
+
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Search Results',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+                const SizedBox(height: 16),
+                if (results.isEmpty)
+                  const Text('No movies found.',
+                      style: TextStyle(color: ShowSnapColors.grey600))
+                else
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 16,
+                    children: results
+                        .map((m) => MovieCard(movie: m, heroTagSuffix: 'search'))
+                        .toList(),
+                  ),
+                const SizedBox(height: 100),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 16),
+            // Promo Banner
           _PromoBanner(controller: widget.bannerCtrl),
           const SizedBox(height: 16),
 
@@ -277,166 +319,179 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
           ),
           const SizedBox(height: 16),
 
-          // Recommended
-          if (feed.recommended.isNotEmpty)
-            _SectionHeader(
-              title: 'Recommended for You',
-              onSeeAll: () => context.push('/explore?tab=movies'),
-            ),
-          if (feed.recommended.isNotEmpty)
-            _HorizontalMovieList(movies: feed.recommended
-                .map((m) => MovieCard(movie: m)).toList())
-                .animate()
-                .fadeIn(duration: ShowSnapDuration.normal)
-                .slideY(begin: 0.04, end: 0),
-          const SizedBox(height: 16),
-
-          // Now Showing
-          _SectionHeader(
-            title: 'Now Showing',
-            onSeeAll: () => context.push('/explore?tab=movies'),
-          ),
-          _HorizontalMovieList(movies: feed.nowShowing
-              .map((m) => MovieCard(movie: m)).toList())
-              .animate()
-              .fadeIn(
-                  duration: ShowSnapDuration.normal,
-                  delay: const Duration(milliseconds: 100))
-              .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 100)),
-          const SizedBox(height: 16),
-
-          // Upcoming
-          if (feed.upcoming.isNotEmpty) ...[
-            _SectionHeader(
-              title: 'Upcoming',
-              onSeeAll: () => context.push('/explore?tab=movies'),
-            ),
-            _HorizontalMovieList(movies: feed.upcoming
-                .map((m) => MovieCard(movie: m)).toList())
-                .animate()
-                .fadeIn(
-                    duration: ShowSnapDuration.normal,
-                    delay: const Duration(milliseconds: 200))
-                .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 200)),
-            const SizedBox(height: 16),
-          ],
-
-          // Events
-          if (feed.events.isNotEmpty) ...[
-            _SectionHeader(
-              title: 'Events Near You',
-              onSeeAll: () => context.push('/explore?tab=events'),
-            ),
-            SizedBox(
-              height: 210,
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                scrollDirection: Axis.horizontal,
-                itemCount: feed.events.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (_, i) => EventCard(event: feed.events[i]),
+          if (_activeCategory == 'Movies') ...[
+            // Recommended
+            if (feed.recommended.isNotEmpty)
+              _SectionHeader(
+                title: 'Recommended for You',
+                onSeeAll: () => context.push('/explore?tab=movies'),
               ),
-            )
+            if (feed.recommended.isNotEmpty)
+              _HorizontalMovieList(movies: feed.recommended
+                  .map((m) => MovieCard(movie: m, heroTagSuffix: 'recommended')).toList())
+                  .animate()
+                  .fadeIn(duration: ShowSnapDuration.normal)
+                  .slideY(begin: 0.04, end: 0),
+            const SizedBox(height: 16),
+
+            // Now Showing
+            _SectionHeader(
+              title: 'Now Showing',
+              onSeeAll: () => context.push('/explore?tab=movies'),
+            ),
+            _HorizontalMovieList(movies: feed.nowShowing
+                .map((m) => MovieCard(movie: m, heroTagSuffix: 'now_showing')).toList())
                 .animate()
                 .fadeIn(
                     duration: ShowSnapDuration.normal,
-                    delay: const Duration(milliseconds: 300))
-                .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 300)),
+                    delay: const Duration(milliseconds: 100))
+                .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 100)),
             const SizedBox(height: 16),
-          ],
 
-          // Trending (ranked list style)
-          if (feed.trending.isNotEmpty) ...[
-            _SectionHeader(title: 'Trending This Week'),
-            ...feed.trending.take(5).toList().asMap().entries.map((e) {
-              final rank = e.key + 1;
-              final movie = e.value;
-              return TappableScale(
-                onTap: () => context.push('/movie/${movie.movieId}'),
-                child: Container(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-                    boxShadow: ShowSnapShadow.card,
-                  ),
-                  child: Row(
-                    children: [
-                      Text(
-                        '$rank',
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w900,
-                          color: rank == 1
-                              ? ShowSnapColors.primary
-                              : ShowSnapColors.grey300,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: CachedNetworkImage(
-                          imageUrl: movie.posterUrl,
-                          width: 44,
-                          height: 60,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Container(
-                            width: 44,
-                            height: 60,
-                            color: ShowSnapColors.grey300,
+            // Upcoming
+            if (feed.upcoming.isNotEmpty) ...[
+              _SectionHeader(
+                title: 'Upcoming',
+                onSeeAll: () => context.push('/explore?tab=movies'),
+              ),
+              _HorizontalMovieList(movies: feed.upcoming
+                  .map((m) => MovieCard(movie: m, heroTagSuffix: 'upcoming')).toList())
+                  .animate()
+                  .fadeIn(
+                      duration: ShowSnapDuration.normal,
+                      delay: const Duration(milliseconds: 200))
+                  .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 200)),
+              const SizedBox(height: 16),
+            ],
+
+            // Trending (ranked list style)
+            if (feed.trending.isNotEmpty) ...[
+              _SectionHeader(title: 'Trending This Week'),
+              ...feed.trending.take(5).toList().asMap().entries.map((e) {
+                final rank = e.key + 1;
+                final movie = e.value;
+                return TappableScale(
+                  onTap: () => context.push('/movie/${movie.movieId}'),
+                  child: Container(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: ShowSnapColors.surface,
+                      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                      boxShadow: ShowSnapShadow.card,
+                    ),
+                    child: Row(
+                      children: [
+                        Text(
+                          '$rank',
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w900,
+                            color: rank == 1
+                                ? ShowSnapColors.primary
+                                : ShowSnapColors.grey300,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(movie.title,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                            const SizedBox(height: 2),
-                            Text(
-                              movie.genres.take(2).join(' • '),
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: ShowSnapColors.grey600),
+                        const SizedBox(width: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: CachedNetworkImage(
+                            imageUrl: movie.posterUrl,
+                            width: 44,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Container(
+                              width: 44,
+                              height: 60,
+                              color: ShowSnapColors.grey300,
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                      if (movie.rating > 0) ...[
-                        const Icon(Icons.star_rounded,
-                            size: 14, color: ShowSnapColors.primary),
-                        const SizedBox(width: 2),
-                        Text(movie.rating.toStringAsFixed(1),
-                            style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(movie.title,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 14),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 2),
+                              Text(
+                                movie.genres.take(2).join(' • '),
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: ShowSnapColors.grey600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (movie.rating > 0) ...[
+                          const Icon(Icons.star_rounded,
+                              size: 14, color: ShowSnapColors.primary),
+                          const SizedBox(width: 2),
+                          Text(movie.rating.toStringAsFixed(1),
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600)),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
+                )
+                    .animate()
+                    .fadeIn(
+                        duration: ShowSnapDuration.normal,
+                        delay: Duration(milliseconds: 400 + 50 * e.key))
+                    .slideX(
+                        begin: 0.05,
+                        end: 0,
+                        delay: Duration(milliseconds: 400 + 50 * e.key));
+              }),
+            ],
+          ] else if (_activeCategory == 'Events') ...[
+            // Events
+            if (feed.events.isNotEmpty) ...[
+              _SectionHeader(
+                title: 'Events Near You',
+                onSeeAll: () => context.push('/explore?tab=events'),
+              ),
+              SizedBox(
+                height: 210,
+                child: ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  scrollDirection: Axis.horizontal,
+                  itemCount: feed.events.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 12),
+                  itemBuilder: (_, i) => EventCard(event: feed.events[i]),
                 ),
               )
                   .animate()
                   .fadeIn(
                       duration: ShowSnapDuration.normal,
-                      delay: Duration(milliseconds: 400 + 50 * e.key))
-                  .slideX(
-                      begin: 0.05,
-                      end: 0,
-                      delay: Duration(milliseconds: 400 + 50 * e.key));
-            }),
+                      delay: const Duration(milliseconds: 300))
+                  .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 300)),
+              const SizedBox(height: 16),
+            ] else ...[
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    'No events found near you',
+                    style: TextStyle(color: ShowSnapColors.grey600),
+                  ),
+                ),
+              ),
+            ],
           ],
 
           const SizedBox(height: 100), // FAB clearance
         ],
-      ),
+      );
+      },
     );
   }
 
@@ -462,25 +517,28 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
         // Movie card shimmer row
         Padding(
           padding: const EdgeInsets.only(left: 16),
-          child: Row(
-            children: List.generate(
-                3,
-                (i) => Padding(
-                      padding: const EdgeInsets.only(right: 12),
-                      child: Shimmer.fromColors(
-                        baseColor: ShowSnapColors.grey300,
-                        highlightColor: ShowSnapColors.grey100,
-                        child: Container(
-                          width: 120,
-                          height: 200,
-                          decoration: BoxDecoration(
-                            color: ShowSnapColors.grey300,
-                            borderRadius:
-                                BorderRadius.circular(ShowSnapRadius.sm),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(
+                  3,
+                  (i) => Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Shimmer.fromColors(
+                          baseColor: ShowSnapColors.grey300,
+                          highlightColor: ShowSnapColors.grey100,
+                          child: Container(
+                            width: 120,
+                            height: 200,
+                            decoration: BoxDecoration(
+                              color: ShowSnapColors.grey300,
+                              borderRadius:
+                                  BorderRadius.circular(ShowSnapRadius.sm),
+                            ),
                           ),
                         ),
-                      ),
-                    )),
+                      )),
+            ),
           ),
         ),
       ],
@@ -496,19 +554,24 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
 const _kDefaultBanners = [
   BannerModel(
       bannerId: 'd1',
-      title: 'Book Early, Save More',
-      subtitle: 'Use code EARLY20 for 20% off',
-      ctaText: 'Explore'),
+      imageUrl: 'https://i.ibb.co/9C1fqLR/Gemini-Generated-Image-2fn32w2fn32w2fn3-clean.png',
+  ),
   BannerModel(
       bannerId: 'd2',
-      title: 'Weekend Special',
-      subtitle: 'Family packages from ₹599',
-      ctaText: 'Book Now'),
+      imageUrl: 'https://i.ibb.co/FknMNP8W/Gemini-Generated-Image-dx6kf2dx6kf2dx6k-clean.png',
+  ),
   BannerModel(
       bannerId: 'd3',
-      title: 'IMAX Experience',
-      subtitle: 'Now available at 12 theaters',
-      ctaText: 'View Theaters'),
+      imageUrl: 'https://i.ibb.co/Y73TgH6b/Gemini-Generated-Image-fewa0mfewa0mfewa-clean.png',
+  ),
+  BannerModel(
+      bannerId: 'd4',
+      imageUrl: 'https://i.ibb.co/vxBjkf7n/Gemini-Generated-Image-mixq9xmixq9xmixq-clean.png',
+  ),
+  BannerModel(
+      bannerId: 'd5',
+      imageUrl: 'https://i.ibb.co/h12pLGKL/Gemini-Generated-Image-tpggextpggextpgg-clean.png',
+  ),
 ];
 
 class _PromoBanner extends ConsumerWidget {
@@ -528,24 +591,15 @@ class _PromoBanner extends ConsumerWidget {
           height: 165,
           child: PageView.builder(
             controller: controller,
-            itemCount: banners.length,
-            itemBuilder: (_, i) => _BannerCard(
-              banner: banners[i],
-              onTap: banners[i].ctaRoute.isNotEmpty
-                  ? () => context.push(banners[i].ctaRoute)
-                  : null,
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        SmoothPageIndicator(
-          controller: controller,
-          count: banners.length,
-          effect: const WormEffect(
-            dotWidth: 8,
-            dotHeight: 8,
-            activeDotColor: ShowSnapColors.primary,
-            dotColor: ShowSnapColors.grey300,
+            itemBuilder: (_, i) {
+              final banner = banners[i % banners.length];
+              return _BannerCard(
+                banner: banner,
+                onTap: banner.ctaRoute.isNotEmpty
+                    ? () => context.push(banner.ctaRoute)
+                    : null,
+              );
+            },
           ),
         ),
       ],
@@ -583,7 +637,7 @@ class _BannerCard extends StatelessWidget {
               if (banner.imageUrl.isNotEmpty)
                 CachedNetworkImage(
                   imageUrl: banner.imageUrl,
-                  fit: BoxFit.cover,
+                  fit: BoxFit.fill,
                   errorWidget: (_, __, ___) => Container(
                     decoration: BoxDecoration(gradient: _gradients[idx]),
                   ),
@@ -592,7 +646,7 @@ class _BannerCard extends StatelessWidget {
                 Container(decoration: BoxDecoration(gradient: _gradients[idx])),
 
               // Gradient overlay so text is always readable on images
-              if (banner.imageUrl.isNotEmpty)
+              if (banner.imageUrl.isNotEmpty && (banner.title.isNotEmpty || banner.subtitle.isNotEmpty))
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -685,52 +739,48 @@ class _CategoryPills extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final cat = categories[i];
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: categories.map((cat) {
           final isActive = cat == active;
-          return TappableScale(
-            onTap: () => onSelect(cat),
-            child: AnimatedContainer(
-              duration: ShowSnapDuration.fast,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: isActive ? ShowSnapColors.primary : Colors.white,
-                borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                border: Border.all(
-                    color: isActive
-                        ? ShowSnapColors.primary
-                        : ShowSnapColors.grey300),
-                boxShadow: isActive ? ShowSnapShadow.card : [],
-              ),
-              child: Row(
-                children: [
-                  Icon(_iconFor(cat),
-                      size: 16,
-                      color:
-                          isActive ? Colors.black87 : ShowSnapColors.grey600),
-                  const SizedBox(width: 6),
-                  Text(cat,
+          return Expanded(
+            child: TappableScale(
+              onTap: () => onSelect(cat),
+              child: AnimatedContainer(
+                duration: ShowSnapDuration.fast,
+                height: 44,
+                margin: EdgeInsets.only(
+                  right: cat == categories.first ? 6 : 0,
+                  left: cat == categories.last && categories.length > 1 ? 6 : 0,
+                ),
+                decoration: BoxDecoration(
+                  color: isActive ? ShowSnapColors.primary : ShowSnapColors.surface,
+                  borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                  border: Border.all(
+                      color: isActive ? ShowSnapColors.primary : ShowSnapColors.grey300),
+                  boxShadow: isActive ? ShowSnapShadow.card : [],
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(_iconFor(cat),
+                        size: 16, color: isActive ? Colors.black87 : Colors.white70),
+                    const SizedBox(width: 6),
+                    Text(
+                      cat,
                       style: TextStyle(
-                        fontWeight: isActive
-                            ? FontWeight.w700
-                            : FontWeight.normal,
-                        fontSize: 13,
-                        color: isActive
-                            ? Colors.black87
-                            : ShowSnapColors.grey600,
-                      )),
-                ],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? Colors.black87 : Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
-        },
+        }).toList(),
       ),
     );
   }
@@ -785,7 +835,7 @@ class _HorizontalMovieList extends StatelessWidget {
       );
     }
     return SizedBox(
-      height: 240,
+      height: 310,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
@@ -797,54 +847,4 @@ class _HorizontalMovieList extends StatelessWidget {
   }
 }
 
-// ─── City Picker Sheet ────────────────────────────────────────────────────────
 
-class _CityPickerSheet extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (_, ctrl) => Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: ShowSnapColors.grey300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text('Select City',
-              style: TextStyle(
-                  fontWeight: FontWeight.w800, fontSize: 18)),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
-              controller: ctrl,
-              itemCount: _kMajorCities.length,
-              itemBuilder: (_, i) {
-                final city = _kMajorCities[i];
-                return ListTile(
-                  leading: const Icon(Icons.location_city_rounded,
-                      color: ShowSnapColors.primary),
-                  title: Text(city),
-                  onTap: () async {
-                    ref.read(selectedCityProvider.notifier).state = city;
-                    final prefs = await SharedPreferences.getInstance();
-                    await prefs.setString('selectedCity', city);
-                    if (context.mounted) Navigator.pop(context);
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

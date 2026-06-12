@@ -1,3 +1,5 @@
+import 'address_model.dart';
+
 class UserModel {
   final String uid;
   final String displayName;
@@ -12,6 +14,7 @@ class UserModel {
   final int totalUniqueMoviesBooked;
   final bool isActive;
   final int createdAt;
+  final List<AddressModel> savedAddresses;
 
   const UserModel({
     required this.uid,
@@ -27,6 +30,7 @@ class UserModel {
     this.totalUniqueMoviesBooked = 0,
     this.isActive = true,
     this.createdAt = 0,
+    this.savedAddresses = const [],
   });
 
   factory UserModel.fromJson(String uid, Map<dynamic, dynamic> json) {
@@ -45,6 +49,21 @@ class UserModel {
           (json['preferredGenres'] as Map).values.map((e) => e.toString()));
     }
 
+    final addresses = <AddressModel>[];
+    if (json['savedAddresses'] is Map) {
+      (json['savedAddresses'] as Map).forEach((k, v) {
+        if (v is Map) {
+          addresses.add(AddressModel.fromMap(v));
+        }
+      });
+    } else if (json['savedAddresses'] is List) {
+      for (final v in json['savedAddresses'] as List) {
+        if (v is Map) {
+          addresses.add(AddressModel.fromMap(v));
+        }
+      }
+    }
+
     return UserModel(
       uid: uid,
       displayName: json['displayName']?.toString() ?? '',
@@ -59,6 +78,7 @@ class UserModel {
       totalUniqueMoviesBooked: (json['totalUniqueMoviesBooked'] as num?)?.toInt() ?? 0,
       isActive: json['isActive'] as bool? ?? true,
       createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
+      savedAddresses: addresses,
     );
   }
 
@@ -75,6 +95,7 @@ class UserModel {
         'totalUniqueMoviesBooked': totalUniqueMoviesBooked,
         'isActive': isActive,
         'createdAt': createdAt,
+        'savedAddresses': savedAddresses.map((a) => a.toMap()).toList(),
       };
 
   UserModel copyWith({
@@ -88,6 +109,7 @@ class UserModel {
     Map<String, dynamic>? rewards,
     int? totalUniqueMoviesBooked,
     bool? isActive,
+    List<AddressModel>? savedAddresses,
   }) =>
       UserModel(
         uid: uid,
@@ -104,5 +126,6 @@ class UserModel {
             totalUniqueMoviesBooked ?? this.totalUniqueMoviesBooked,
         isActive: isActive ?? this.isActive,
         createdAt: createdAt,
+        savedAddresses: savedAddresses ?? this.savedAddresses,
       );
 }

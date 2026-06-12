@@ -25,12 +25,14 @@ class SeatSelectionState {
   final Map<String, bool> lockInProgress; // seatId → loading
   final String? error;
   final bool timerExpired;
+  final int requestedTickets;
 
   const SeatSelectionState({
     this.selectedSeatIds = const {},
     this.lockInProgress = const {},
     this.error,
     this.timerExpired = false,
+    this.requestedTickets = 1,
   });
 
   SeatSelectionState copyWith({
@@ -38,6 +40,7 @@ class SeatSelectionState {
     Map<String, bool>? lockInProgress,
     String? error,
     bool? timerExpired,
+    int? requestedTickets,
     bool clearError = false,
   }) =>
       SeatSelectionState(
@@ -45,6 +48,7 @@ class SeatSelectionState {
         lockInProgress: lockInProgress ?? this.lockInProgress,
         error: clearError ? null : error ?? this.error,
         timerExpired: timerExpired ?? this.timerExpired,
+        requestedTickets: requestedTickets ?? this.requestedTickets,
       );
 }
 
@@ -55,6 +59,81 @@ class SeatSelectionNotifier extends StateNotifier<SeatSelectionState> {
 
   SeatSelectionNotifier(this._db, this._showId, this._uid)
       : super(const SeatSelectionState());
+
+  void setRequestedTickets(int count) {
+    state = state.copyWith(requestedTickets: count);
+  }
+
+  Future<void> lockSeats(List<SeatModel> seatsToLock, ShowModel show) async {
+    // Check max seats overall
+    if (seatsToLock.length > 10) {
+      state = state.copyWith(error: 'Maximum 10 seats per booking');
+      return;
+    }
+
+    // Release all current locks before making new ones
+    await releaseAllLocks();
+
+    // Re-verify availability for all requested seats first
+    for (final seat in seatsToLock) {
+      final seatStatus = show.seats[seat.seatId];
+      if (seatStatus != null) {
+        if (seatStatus.status.name == 'booked') {
+          state = state.copyWith(error: 'Some seats are already booked');
+          return;
+        }
+        if (seatStatus.status.name == 'locked' &&
+            seatStatus.lockedBy != _uid &&
+            !seatStatus.isExpiredLock) {
+          state = state.copyWith(error: 'Some seats were just taken');
+          return;
+        }
+      }
+    }
+
+    // Show lock in progress for all
+    final newProgress = Map<String, bool>.from(state.lockInProgress);
+    for (final seat in seatsToLock) {
+      newProgress[seat.seatId] = true;
+    }
+    state = state.copyWith(lockInProgress: newProgress, clearError: true);
+
+    // Try to lock all seats in parallel
+    final results = await Future.wait(
+      seatsToLock.map((s) => _db.lockSeat(_showId, s.seatId, _uid))
+    );
+
+    final clearedProgress = Map<String, bool>.from(state.lockInProgress);
+    for (final seat in seatsToLock) {
+      clearedProgress.remove(seat.seatId);
+    }
+
+    final allSuccess = !results.contains(false);
+
+    if (allSuccess) {
+      final newSelected = Set<String>.from(seatsToLock.map((s) => s.seatId));
+      state = state.copyWith(
+        selectedSeatIds: newSelected,
+        lockInProgress: clearedProgress,
+      );
+    } else {
+      // If any failed, release the ones that succeeded
+      final successfulSeats = <String>[];
+      for (int i = 0; i < seatsToLock.length; i++) {
+        if (results[i]) {
+          successfulSeats.add(seatsToLock[i].seatId);
+        }
+      }
+      if (successfulSeats.isNotEmpty) {
+        await _db.unlockSeats(_showId, successfulSeats, _uid);
+      }
+
+      state = state.copyWith(
+        lockInProgress: clearedProgress,
+        error: 'One or more seats just taken — please choose another set',
+      );
+    }
+  }
 
   Future<void> toggleSeat(SeatModel seat, ShowModel show) async {
     final seatId = seat.seatId;
@@ -119,7 +198,11 @@ class SeatSelectionNotifier extends StateNotifier<SeatSelectionState> {
 
   Future<void> releaseAllLocks() async {
     final seats = Set<String>.from(state.selectedSeatIds);
-    state = const SeatSelectionState();
+    state = state.copyWith(
+      selectedSeatIds: const {},
+      lockInProgress: const {},
+      clearError: true,
+    );
     if (seats.isNotEmpty) {
       await _db.unlockSeats(_showId, seats.toList(), _uid);
     }

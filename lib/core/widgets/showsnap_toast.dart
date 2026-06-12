@@ -164,6 +164,7 @@ class _ToastWidgetState extends State<_ToastWidget>
                           child: Text(
                             widget.message,
                             style: const TextStyle(
+                                color: Colors.black87,
                                 fontSize: 14, fontWeight: FontWeight.w500),
                           ),
                         ),

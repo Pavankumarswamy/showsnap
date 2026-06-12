@@ -36,9 +36,9 @@ class UserOffersScreen extends ConsumerWidget {
     final rewards = user?.rewards.length ?? 0;
 
     return Scaffold(
-      backgroundColor: ShowSnapColors.grey100,
+      backgroundColor: ShowSnapColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: ShowSnapColors.background,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text('Offers & Rewards',
@@ -103,13 +103,15 @@ class _RewardsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
+          Row(
+            children: const [
               Icon(Icons.stars_rounded, color: Colors.black87),
               SizedBox(width: 8),
               Text('ShowSnap Rewards',
                   style: TextStyle(
-                      fontWeight: FontWeight.w800, fontSize: 16)),
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: Colors.black87)),
             ],
           ),
           const SizedBox(height: 16),
@@ -166,7 +168,7 @@ class _ReferralCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(ShowSnapRadius.md),
         boxShadow: ShowSnapShadow.card,
       ),
@@ -333,7 +335,7 @@ class _CouponCard extends StatelessWidget {
         radius: const Radius.circular(ShowSnapRadius.md),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: ShowSnapColors.surface,
             borderRadius: BorderRadius.circular(ShowSnapRadius.md),
           ),
           child: Row(
@@ -360,13 +362,13 @@ class _CouponCard extends StatelessWidget {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
-                              color: ShowSnapColors.primaryLighter,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
+                                color: ShowSnapColors.primaryLighter,
+                                borderRadius: BorderRadius.circular(4)),
                             child: Text(coupon.code,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w900,
                                     fontSize: 14,
+                                    color: Colors.black87,
                                     letterSpacing: 2)),
                           ),
                           const Spacer(),

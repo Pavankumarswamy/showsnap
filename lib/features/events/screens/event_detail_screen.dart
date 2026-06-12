@@ -635,7 +635,7 @@ class _EventTicketCard extends StatelessWidget {
       width: 320,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: ShowSnapColors.grey300),
         boxShadow: const [
@@ -668,7 +668,7 @@ class _EventTicketCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(eventName,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.black87)),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -694,7 +694,7 @@ class _EventTicketCard extends StatelessWidget {
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ShowSnapColors.grey600)),
           const SizedBox(height: 4),
           ...ticketDetails.map((detail) => Text(detail,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87))),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70))),
           const Divider(height: 24, thickness: 1),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -708,11 +708,19 @@ class _EventTicketCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: ShowSnapColors.primary)),
                 ],
               ),
-              QrImageView(
-                data: bookingId,
-                version: QrVersions.auto,
-                size: 70,
-                gapless: false,
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: QrImageView(
+                  data: bookingId,
+                  version: QrVersions.auto,
+                  size: 70,
+                  gapless: false,
+                  backgroundColor: Colors.white,
+                ),
               ),
             ],
           ),
@@ -733,7 +741,7 @@ class _InfoCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(ShowSnapRadius.md),
         boxShadow: ShowSnapShadow.card,
       ),
@@ -822,7 +830,7 @@ class _TierRowState extends State<_TierRow>
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(ShowSnapRadius.md),
         boxShadow: ShowSnapShadow.card,
         border: widget.quantity > 0

@@ -145,14 +145,16 @@ class AdminDashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
             children: [
               // Stats grid
-              GridView.count(
-                crossAxisCount: 2,
+              LayoutBuilder(builder: (context, constraints) {
+                final isDesktop = constraints.maxWidth > 800;
+                return GridView.count(
+                  crossAxisCount: isDesktop ? 4 : 2,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.6,
-                children: [
+                  mainAxisSpacing: 12,
+                  childAspectRatio: isDesktop ? 2.5 : 1.6,
+                  children: [
                   _StatCard('Total Users', '${stats.totalUsers}',
                       Icons.people_outlined, ShowSnapColors.primary)
                     .animate()
@@ -177,7 +179,8 @@ class AdminDashboardScreen extends ConsumerWidget {
                     .fadeIn(duration: 400.ms, delay: 350.ms)
                     .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                 ],
-              ),
+              );
+              }),
               const SizedBox(height: 20),
               // Bookings chart
               if (stats.bookingSpots.isNotEmpty) ...[
@@ -221,14 +224,16 @@ class AdminDashboardScreen extends ConsumerWidget {
                 .animate()
                 .fadeIn(duration: 300.ms, delay: 500.ms),
               const SizedBox(height: 12),
-              GridView.count(
-                crossAxisCount: 2,
+              LayoutBuilder(builder: (context, constraints) {
+                final isDesktop = constraints.maxWidth > 800;
+                return GridView.count(
+                  crossAxisCount: isDesktop ? 6 : (constraints.maxWidth > 500 ? 4 : 2),
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 2.2,
-                children: [
+                  mainAxisSpacing: 12,
+                  childAspectRatio: isDesktop ? 3.0 : 2.2,
+                  children: [
                   _ActionButton('Users',
                       Icons.people_outlined,
                       () => context.push(AppRoutes.userManagement))
@@ -266,7 +271,8 @@ class AdminDashboardScreen extends ConsumerWidget {
                     .fadeIn(duration: 300.ms, delay: 800.ms)
                     .slideY(begin: 0.1, end: 0),
                 ],
-              ),
+              );
+              }),
               const SizedBox(height: 32),
             ],
           ),

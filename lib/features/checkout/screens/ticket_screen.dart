@@ -36,7 +36,7 @@ class TicketScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bookingAsync = ref.watch(_bookingProvider(bookingId));
     return Scaffold(
-      backgroundColor: ShowSnapColors.grey100,
+      backgroundColor: ShowSnapColors.background,
       appBar: AppBar(
         title: const Text('Your Ticket'),
         flexibleSpace: Container(
@@ -269,7 +269,7 @@ class _ActionBtn extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ShowSnapColors.surface,
           borderRadius: BorderRadius.circular(ShowSnapRadius.md),
           boxShadow: ShowSnapShadow.card,
         ),
@@ -389,8 +389,8 @@ class _JourneyTimeline extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
                           color: step.isDone
-                              ? ShowSnapColors.secondary
-                              : Colors.black87,
+                              ? ShowSnapColors.primary
+                              : Colors.white70,
                         ),
                       ),
                       if (step.time != null)
@@ -455,7 +455,7 @@ class _TicketCard extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: ShowSnapColors.surface,
             borderRadius: BorderRadius.circular(ShowSnapRadius.md),
             boxShadow: ShowSnapShadow.elevated,
           ),
@@ -643,7 +643,7 @@ class _TicketDivider extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: const BoxDecoration(
-                    color: ShowSnapColors.grey100,
+                    color: ShowSnapColors.background,
                     shape: BoxShape.circle))),
         Positioned(
             right: -12,
@@ -652,7 +652,7 @@ class _TicketDivider extends StatelessWidget {
                 width: 24,
                 height: 24,
                 decoration: const BoxDecoration(
-                    color: ShowSnapColors.grey100,
+                    color: ShowSnapColors.background,
                     shape: BoxShape.circle))),
       ],
     );

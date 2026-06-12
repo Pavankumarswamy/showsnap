@@ -9,43 +9,47 @@ import '../../../core/widgets/tappable_scale.dart';
 class MovieCard extends StatelessWidget {
   final MovieModel movie;
   final double width;
+  final String? heroTagSuffix;
 
-  const MovieCard({super.key, required this.movie, this.width = 150});
+  const MovieCard({
+    super.key,
+    required this.movie,
+    this.width = 150,
+    this.heroTagSuffix,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final heroTag = 'movie_poster_${movie.movieId}${heroTagSuffix != null ? '_$heroTagSuffix' : ''}';
     return TappableScale(
-      onTap: () => context.push('/movie/${movie.movieId}'),
+      onTap: () => context.push('/movie/${movie.movieId}', extra: heroTag),
       child: SizedBox(
         width: width,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Hero(
-              tag: 'movie_poster_${movie.movieId}',
+              tag: heroTag,
               child: ClipRRect(
                 borderRadius:
                     BorderRadius.circular(ShowSnapRadius.sm),
-                child: CachedNetworkImage(
-                  imageUrl: movie.posterUrl,
-                  width: width,
-                  height: width * 1.5,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Shimmer.fromColors(
-                    baseColor: ShowSnapColors.grey300,
-                    highlightColor: ShowSnapColors.grey100,
-                    child: Container(
-                      width: width,
-                      height: width * 1.5,
-                      color: ShowSnapColors.grey300,
+                child: AspectRatio(
+                  aspectRatio: 2 / 3,
+                  child: CachedNetworkImage(
+                    imageUrl: movie.posterUrl,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Shimmer.fromColors(
+                      baseColor: ShowSnapColors.grey300,
+                      highlightColor: ShowSnapColors.grey100,
+                      child: Container(
+                        color: ShowSnapColors.grey300,
+                      ),
                     ),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    width: width,
-                    height: width * 1.5,
-                    color: ShowSnapColors.grey300,
-                    child: const Icon(Icons.movie_outlined,
-                        size: 40, color: ShowSnapColors.grey600),
+                    errorWidget: (_, __, ___) => Container(
+                      color: ShowSnapColors.grey300,
+                      child: const Icon(Icons.movie_outlined,
+                          size: 40, color: ShowSnapColors.grey600),
+                    ),
                   ),
                 ),
               ),

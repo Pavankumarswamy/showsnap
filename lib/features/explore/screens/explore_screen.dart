@@ -24,39 +24,7 @@ final _allEventsProvider = FutureProvider<List<EventModel>>((ref) =>
 final _allTheatersProvider = FutureProvider<List<TheaterModel>>((ref) =>
     ref.watch(databaseServiceProvider).getAllTheaters());
 
-// Filter state
-class _MovieFilters {
-  final List<String> genres;
-  final List<String> languages;
-  final List<String> certificates;
-  final String sortBy;
-  const _MovieFilters({
-    this.genres = const [],
-    this.languages = const [],
-    this.certificates = const [],
-    this.sortBy = 'Relevance',
-  });
-  _MovieFilters copyWith({
-    List<String>? genres,
-    List<String>? languages,
-    List<String>? certificates,
-    String? sortBy,
-  }) =>
-      _MovieFilters(
-        genres: genres ?? this.genres,
-        languages: languages ?? this.languages,
-        certificates: certificates ?? this.certificates,
-        sortBy: sortBy ?? this.sortBy,
-      );
-  bool get hasFilters =>
-      genres.isNotEmpty ||
-      languages.isNotEmpty ||
-      certificates.isNotEmpty ||
-      sortBy != 'Relevance';
-}
 
-final _movieFiltersProvider =
-    StateProvider<_MovieFilters>((ref) => const _MovieFilters());
 
 // ─── ExploreScreen ────────────────────────────────────────────────────────────
 
@@ -91,7 +59,8 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
     return Scaffold(
       backgroundColor: ShowSnapColors.grey100,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(),
+        backgroundColor: ShowSnapColors.background,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: _searchActive
@@ -226,13 +195,13 @@ class _SearchResults extends ConsumerWidget {
         return GridView.builder(
           padding: const EdgeInsets.all(16),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
+            crossAxisCount: 3,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 0.55,
+            childAspectRatio: 0.48,
           ),
           itemCount: results.length,
-          itemBuilder: (_, i) => MovieCard(movie: results[i]),
+          itemBuilder: (_, i) => MovieCard(movie: results[i], heroTagSuffix: 'explore_search'),
         );
       },
     );
@@ -245,133 +214,35 @@ class _MoviesTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final moviesAsync = ref.watch(_allMoviesProvider);
-    final filters = ref.watch(_movieFiltersProvider);
 
-    return Column(
-      children: [
-        // Filter bar
-        Container(
-          color: Colors.white,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: [
-              TappableScale(
-                onTap: () => _showFilterSheet(context, ref, filters),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: filters.hasFilters
-                        ? ShowSnapColors.primaryLighter
-                        : ShowSnapColors.grey100,
-                    borderRadius:
-                        BorderRadius.circular(ShowSnapRadius.pill),
-                    border: Border.all(
-                        color: filters.hasFilters
-                            ? ShowSnapColors.primary
-                            : ShowSnapColors.grey300),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.tune_rounded, size: 16),
-                      const SizedBox(width: 6),
-                      Text(
-                        filters.hasFilters
-                            ? 'Filters (${_filterCount(filters)})'
-                            : 'Filter',
-                        style:
-                            const TextStyle(fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+    return moviesAsync.when(
+      loading: () => _GridShimmer(),
+      error: (e, _) => Center(child: Text('Error loading movies: $e')),
+      data: (movies) {
+        if (movies.isEmpty) {
+          return const Center(
+            child: Text('No movies available',
+                style: TextStyle(color: ShowSnapColors.grey600)),
+          );
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.48,
           ),
-        ),
-        Expanded(
-          child: moviesAsync.when(
-            loading: () => _GridShimmer(),
-            error: (e, _) =>
-                Center(child: Text('Error loading movies: $e')),
-            data: (movies) {
-              final filtered = _applyFilters(movies, filters);
-              if (filtered.isEmpty) {
-                return const Center(
-                  child: Text('No movies match your filters',
-                      style: TextStyle(color: ShowSnapColors.grey600)),
-                );
-              }
-              return GridView.builder(
-                padding: const EdgeInsets.all(16),
-                gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 0.55,
-                ),
-                itemCount: filtered.length,
-                itemBuilder: (_, i) => MovieCard(movie: filtered[i])
-                    .animate()
-                    .fadeIn(
-                        duration: ShowSnapDuration.normal,
-                        delay: Duration(milliseconds: 30 * i))
-                    .slideY(begin: 0.05, end: 0,
-                        delay: Duration(milliseconds: 30 * i)),
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-
-  int _filterCount(_MovieFilters f) =>
-      f.genres.length +
-      f.languages.length +
-      f.certificates.length +
-      (f.sortBy != 'Relevance' ? 1 : 0);
-
-  List<MovieModel> _applyFilters(List<MovieModel> movies, _MovieFilters f) {
-    var list = movies.toList();
-    if (f.genres.isNotEmpty) {
-      list = list.where((m) => m.genres.any(f.genres.contains)).toList();
-    }
-    if (f.languages.isNotEmpty) {
-      list = list.where((m) => f.languages.contains(m.language)).toList();
-    }
-    if (f.certificates.isNotEmpty) {
-      list = list
-          .where((m) => f.certificates.contains(m.certificate))
-          .toList();
-    }
-    switch (f.sortBy) {
-      case 'Rating':
-        list.sort((a, b) => b.rating.compareTo(a.rating));
-        break;
-      case 'Release Date':
-        list.sort(
-            (a, b) => b.releaseDateTs.compareTo(a.releaseDateTs));
-        break;
-    }
-    return list;
-  }
-
-  void _showFilterSheet(
-      BuildContext context, WidgetRef ref, _MovieFilters current) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-              top: Radius.circular(ShowSnapRadius.lg))),
-      builder: (_) => _MovieFilterSheet(
-        current: current,
-        onApply: (f) =>
-            ref.read(_movieFiltersProvider.notifier).state = f,
-      ),
+          itemCount: movies.length,
+          itemBuilder: (_, i) => MovieCard(movie: movies[i], heroTagSuffix: 'explore_movies')
+              .animate()
+              .fadeIn(
+                  duration: ShowSnapDuration.normal,
+                  delay: Duration(milliseconds: 30 * i))
+              .slideY(begin: 0.05, end: 0,
+                  delay: Duration(milliseconds: 30 * i)),
+        );
+      },
     );
   }
 }
@@ -484,7 +355,7 @@ class _TheaterRow extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 12),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: ShowSnapColors.surface,
           borderRadius: BorderRadius.circular(ShowSnapRadius.md),
           boxShadow: ShowSnapShadow.card,
         ),
@@ -524,193 +395,7 @@ class _TheaterRow extends StatelessWidget {
   }
 }
 
-// ─── Movie Filter Sheet ───────────────────────────────────────────────────────
 
-class _MovieFilterSheet extends StatefulWidget {
-  final _MovieFilters current;
-  final void Function(_MovieFilters) onApply;
-  const _MovieFilterSheet(
-      {required this.current, required this.onApply});
-
-  @override
-  State<_MovieFilterSheet> createState() => _MovieFilterSheetState();
-}
-
-class _MovieFilterSheetState extends State<_MovieFilterSheet> {
-  late _MovieFilters _draft;
-  static const _genres = [
-    'Action', 'Drama', 'Comedy', 'Thriller',
-    'Horror', 'Romance', 'Sci-Fi',
-  ];
-  static const _langs = [
-    'Telugu', 'Hindi', 'English', 'Tamil', 'Malayalam',
-  ];
-  static const _certs = ['U', 'UA', 'A'];
-  static const _sorts = [
-    'Relevance', 'Release Date', 'Rating',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    _draft = widget.current;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.85,
-      expand: false,
-      builder: (_, ctrl) => Column(
-        children: [
-          const SizedBox(height: 12),
-          Container(width: 40, height: 4,
-              decoration: BoxDecoration(
-                  color: ShowSnapColors.grey300,
-                  borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Filter Movies',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 18)),
-                TextButton(
-                    onPressed: () {
-                      setState(() => _draft = const _MovieFilters());
-                    },
-                    child: const Text('Clear All')),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              controller: ctrl,
-              padding: const EdgeInsets.all(16),
-              children: [
-                _FilterSection(
-                    title: 'Genre',
-                    items: _genres,
-                    selected: _draft.genres,
-                    onToggle: (g) => setState(() {
-                          final l = List<String>.from(_draft.genres);
-                          l.contains(g) ? l.remove(g) : l.add(g);
-                          _draft = _draft.copyWith(genres: l);
-                        })),
-                const SizedBox(height: 16),
-                _FilterSection(
-                    title: 'Language',
-                    items: _langs,
-                    selected: _draft.languages,
-                    onToggle: (l) => setState(() {
-                          final list =
-                              List<String>.from(_draft.languages);
-                          list.contains(l) ? list.remove(l) : list.add(l);
-                          _draft = _draft.copyWith(languages: list);
-                        })),
-                const SizedBox(height: 16),
-                _FilterSection(
-                    title: 'Certificate',
-                    items: _certs,
-                    selected: _draft.certificates,
-                    onToggle: (c) => setState(() {
-                          final l =
-                              List<String>.from(_draft.certificates);
-                          l.contains(c) ? l.remove(c) : l.add(c);
-                          _draft = _draft.copyWith(certificates: l);
-                        })),
-                const SizedBox(height: 16),
-                const Text('Sort By',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w700, fontSize: 14)),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: _sorts.map((s) {
-                    final isActive = _draft.sortBy == s;
-                    return ChoiceChip(
-                      label: Text(s),
-                      selected: isActive,
-                      selectedColor: ShowSnapColors.primaryLighter,
-                      onSelected: (_) =>
-                          setState(() => _draft = _draft.copyWith(sortBy: s)),
-                    );
-                  }).toList(),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            child: SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: DecoratedBox(
-                decoration: ShowSnapTheme.primaryButtonDecoration,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                            ShowSnapRadius.md)),
-                  ),
-                  onPressed: () {
-                    widget.onApply(_draft);
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Apply Filters',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterSection extends StatelessWidget {
-  final String title;
-  final List<String> items;
-  final List<String> selected;
-  final void Function(String) onToggle;
-  const _FilterSection(
-      {required this.title,
-      required this.items,
-      required this.selected,
-      required this.onToggle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title,
-            style: const TextStyle(
-                fontWeight: FontWeight.w700, fontSize: 14)),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: items.map((item) {
-            final isSelected = selected.contains(item);
-            return FilterChip(
-              label: Text(item),
-              selected: isSelected,
-              selectedColor: ShowSnapColors.primaryLighter,
-              checkmarkColor: ShowSnapColors.primary,
-              onSelected: (_) => onToggle(item),
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-}
 
 // ─── Grid Shimmer ─────────────────────────────────────────────────────────────
 
@@ -720,10 +405,10 @@ class _GridShimmer extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
+        crossAxisCount: 3,
         mainAxisSpacing: 12,
         crossAxisSpacing: 12,
-        childAspectRatio: 0.55,
+        childAspectRatio: 0.48,
       ),
       itemCount: 6,
       itemBuilder: (_, __) => Shimmer.fromColors(

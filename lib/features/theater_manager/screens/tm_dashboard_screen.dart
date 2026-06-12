@@ -100,6 +100,37 @@ class TmDashboardScreen extends ConsumerWidget {
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) {
+                await ref.read(authServiceProvider).signOut();
+                if (context.mounted) context.go(AppRoutes.login);
+              }
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: statsAsync.when(
         loading: () =>
@@ -227,36 +258,75 @@ class TmDashboardScreen extends ConsumerWidget {
                   ),
                 ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
                 const SizedBox(height: 16),
-                // Stats
-                Row(
-                  children: [
-                    Expanded(
-                      child: _StatCard("Today's Shows",
-                          '${stats.todayShows}',
-                          Icons.movie_outlined,
-                          ShowSnapColors.primary)
+                LayoutBuilder(builder: (context, constraints) {
+                  final isDesktop = constraints.maxWidth > 800;
+                  if (isDesktop) {
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: _StatCard("Today's Shows",
+                              '${stats.todayShows}',
+                              Icons.movie_outlined,
+                              ShowSnapColors.primary)
+                            .animate()
+                            .fadeIn(duration: 400.ms, delay: 100.ms)
+                            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _StatCard('Seats Sold',
+                              '${stats.todaySeatsSold}',
+                              Icons.event_seat_outlined,
+                              ShowSnapColors.secondary)
+                            .animate()
+                            .fadeIn(duration: 400.ms, delay: 200.ms)
+                            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _StatCard('Today\'s Revenue', '₹${stats.todayRevenue}',
+                              Icons.currency_rupee_outlined, Colors.purple)
+                            .animate()
+                            .fadeIn(duration: 400.ms, delay: 300.ms)
+                            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                        ),
+                      ],
+                    );
+                  }
+                  return Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StatCard("Today's Shows",
+                                '${stats.todayShows}',
+                                Icons.movie_outlined,
+                                ShowSnapColors.primary)
+                              .animate()
+                              .fadeIn(duration: 400.ms, delay: 100.ms)
+                              .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _StatCard('Seats Sold',
+                                '${stats.todaySeatsSold}',
+                                Icons.event_seat_outlined,
+                                ShowSnapColors.secondary)
+                              .animate()
+                              .fadeIn(duration: 400.ms, delay: 200.ms)
+                              .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _StatCard('Today\'s Revenue', '₹${stats.todayRevenue}',
+                          Icons.currency_rupee_outlined, Colors.purple)
                         .animate()
-                        .fadeIn(duration: 400.ms, delay: 100.ms)
+                        .fadeIn(duration: 400.ms, delay: 300.ms)
                         .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _StatCard('Seats Sold',
-                          '${stats.todaySeatsSold}',
-                          Icons.event_seat_outlined,
-                          ShowSnapColors.secondary)
-                        .animate()
-                        .fadeIn(duration: 400.ms, delay: 200.ms)
-                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                _StatCard('Today\'s Revenue', '₹${stats.todayRevenue}',
-                    Icons.currency_rupee_outlined, Colors.purple)
-                  .animate()
-                  .fadeIn(duration: 400.ms, delay: 300.ms)
-                  .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                    ],
+                  );
+                }),
                 const SizedBox(height: 24),
                 // Quick actions
                 Text('Quick Actions',
@@ -266,15 +336,16 @@ class TmDashboardScreen extends ConsumerWidget {
                         ?.copyWith(fontWeight: FontWeight.bold))
                   .animate()
                   .fadeIn(duration: 300.ms, delay: 400.ms),
-                const SizedBox(height: 12),
-                GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 2.2,
-                  children: [
+                LayoutBuilder(builder: (context, constraints) {
+                  final isDesktop = constraints.maxWidth > 800;
+                  return GridView.count(
+                    crossAxisCount: isDesktop ? 4 : 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: isDesktop ? 3.0 : 2.2,
+                    children: [
                     _ActionCard('Screens',
                         Icons.theaters_outlined,
                         () => context.push(AppRoutes.screenManager)),
@@ -287,8 +358,9 @@ class TmDashboardScreen extends ConsumerWidget {
                     _ActionCard('Scan Ticket',
                         Icons.qr_code_scanner_outlined,
                         () => context.push(AppRoutes.ticketScanner)),
-                  ],
-                ).animate().fadeIn(duration: 400.ms, delay: 450.ms).slideY(begin: 0.05, end: 0),
+                    ],
+                  ).animate().fadeIn(duration: 400.ms, delay: 450.ms).slideY(begin: 0.05, end: 0);
+                }),
                 const SizedBox(height: 20),
               ],
             ),
@@ -315,18 +387,31 @@ class _StatCard extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 28),
             const SizedBox(width: 12),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(value,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
                     style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: color)),
-                Text(label,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    label,
                     style: const TextStyle(
-                        fontSize: 12, color: ShowSnapColors.grey600)),
-              ],
+                      fontSize: 12,
+                      color: ShowSnapColors.grey600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ],
         ),

@@ -242,8 +242,8 @@ class _ShowGridState extends State<_ShowGrid> {
                                         bg = Colors.orange.shade100;
                                         fg = Colors.orange.shade800;
                                       } else {
-                                        bg = Colors.green.shade100;
-                                        fg = Colors.green.shade800;
+                                        bg = ShowSnapColors.secondary.withOpacity(0.12);
+                                        fg = ShowSnapColors.secondary;
                                       }
                                       return GestureDetector(
                                         onTap: () => context.push('/tm/show-details/${s.showId}'),

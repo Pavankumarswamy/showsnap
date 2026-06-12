@@ -27,28 +27,32 @@ class EventCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(ShowSnapRadius.md)),
-                child: CachedNetworkImage(
-                  imageUrl: event.posterUrl,
-                  width: 200,
-                  height: 120,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => Shimmer.fromColors(
-                    baseColor: ShowSnapColors.grey300,
-                    highlightColor: ShowSnapColors.grey100,
-                    child: Container(
-                        width: 200,
-                        height: 120,
-                        color: ShowSnapColors.grey300),
-                  ),
-                  errorWidget: (_, __, ___) => Container(
-                    width: 200,
-                    height: 120,
-                    color: ShowSnapColors.grey300,
-                    child: const Icon(Icons.event_outlined,
-                        size: 40, color: ShowSnapColors.grey600),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(ShowSnapRadius.md)),
+                  child: event.posterUrl.isNotEmpty ? CachedNetworkImage(
+                    imageUrl: event.posterUrl,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Shimmer.fromColors(
+                      baseColor: ShowSnapColors.grey300,
+                      highlightColor: ShowSnapColors.grey100,
+                      child: Container(
+                          width: double.infinity,
+                          color: ShowSnapColors.grey300),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      width: double.infinity,
+                      color: ShowSnapColors.grey300,
+                      child: const Icon(Icons.event_outlined,
+                          size: 40, color: ShowSnapColors.grey600),
+                    ),
+                  ) : Container(
+                      width: double.infinity,
+                      color: ShowSnapColors.grey300,
+                      child: const Icon(Icons.event_outlined,
+                          size: 40, color: ShowSnapColors.grey600),
                   ),
                 ),
               ),

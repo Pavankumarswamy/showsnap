@@ -3,6 +3,7 @@ import '../../../core/config/env.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/models/screen_model.dart';
 import '../../../core/models/show_model.dart';
+import '../../../core/models/seat_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 

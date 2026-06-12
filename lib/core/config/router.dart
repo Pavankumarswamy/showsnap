@@ -242,28 +242,29 @@ final routerProvider = Provider<GoRouter>((ref) {
                   _fadePage(c, s, const MyBookingsScreen()),
             ),
           ]),
-          // Tab 3 — Offers
+          // Tab 3 — Profile
           StatefulShellBranch(routes: [
             GoRoute(
-              path: AppRoutes.offers,
+              path: AppRoutes.userDashboard,
               pageBuilder: (c, s) =>
-                  _fadePage(c, s, const UserOffersScreen()),
+                  _fadePage(c, s, const UserDashboardScreen()),
             ),
           ]),
         ],
       ),
 
-      // ── User Dashboard (standalone — outside shell, no bottom nav) ─────────
-      GoRoute(
-          path: AppRoutes.userDashboard,
-          pageBuilder: (c, s) =>
-              _verticalPage(c, s, const UserDashboardScreen())),
-
       // ── Booking drill-down (horizontal) ───────────────────────────────────
       GoRoute(
         path: AppRoutes.movieDetail,
-        pageBuilder: (c, s) => _horizontalPage(
-            c, s, MovieDetailScreen(movieId: s.pathParameters['movieId']!)),
+        pageBuilder: (c, s) {
+          final movieId = s.pathParameters['movieId']!;
+          final heroTag = s.extra as String?;
+          return _horizontalPage(
+            c,
+            s,
+            MovieDetailScreen(movieId: movieId, heroTag: heroTag),
+          );
+        },
       ),
       GoRoute(
         path: AppRoutes.showSelection,

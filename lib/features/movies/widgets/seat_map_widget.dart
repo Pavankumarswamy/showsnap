@@ -5,7 +5,7 @@ import '../../../core/models/seat_model.dart';
 import '../../../core/models/seat_status_model.dart';
 import '../../../core/models/show_model.dart';
 
-class SeatMapWidget extends StatelessWidget {
+class SeatMapWidget extends StatefulWidget {
   final List<SeatModel> seatLayout;
   final ShowModel show;
   final Set<String> selectedSeatIds;
@@ -24,107 +24,158 @@ class SeatMapWidget extends StatelessWidget {
   });
 
   @override
+  State<SeatMapWidget> createState() => _SeatMapWidgetState();
+}
+
+class _SeatMapWidgetState extends State<SeatMapWidget> {
+  late TransformationController _transformationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _transformationController = TransformationController();
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final size = MediaQuery.of(context).size;
+      int maxCol = 0;
+      for (final seat in widget.seatLayout) {
+        if (seat.x > maxCol) maxCol = seat.x;
+      }
+      final layoutWidth = (maxCol + 1) * 34.0 + 64.0 + 24.0;
+      if (layoutWidth > size.width) {
+        final scale = size.width / layoutWidth;
+        _transformationController.value = Matrix4.identity()..scale(scale);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (seatLayout.isEmpty) {
+    if (widget.seatLayout.isEmpty) {
       return const Center(child: Text('No seat layout configured'));
     }
 
     final rows = <String, List<SeatModel>>{};
-    for (final seat in seatLayout) {
+    for (final seat in widget.seatLayout) {
       rows.putIfAbsent(seat.row, () => []).add(seat);
     }
     final sortedRows = rows.keys.toList()..sort();
 
+    int maxCol = 0;
+    for (final seat in widget.seatLayout) {
+      if (seat.x > maxCol) maxCol = seat.x;
+    }
+
     return Column(
       children: [
-        // Curved movie screen indicator with scale entrance animation
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: double.infinity,
-                height: 20,
-                child: CustomPaint(
-                  painter: _CurvedScreenPainter(
-                    color: ShowSnapColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'SCREEN',
-                style: TextStyle(
-                  letterSpacing: 8,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                  color: ShowSnapColors.grey600,
-                ),
-              ),
-            ],
-          ),
-        )
-            .animate()
-            .scaleX(
-              begin: 0.6,
-              end: 1.0,
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.elasticOut,
-            )
-            .fadeIn(duration: ShowSnapDuration.normal),
 
-        const SizedBox(height: 12),
-
-        // Legend with stagger
-        _Legend(rowCount: sortedRows.length),
-
-        const SizedBox(height: 12),
 
         // Seat grid
         Expanded(
           child: InteractiveViewer(
-            minScale: 0.5,
+            transformationController: _transformationController,
+            minScale: 0.1,
             maxScale: 2.5,
             constrained: false, // Allows child to be larger than screen (perfect for desktop)
-            boundaryMargin: const EdgeInsets.all(double.infinity), // Allow infinite panning
+            boundaryMargin: const EdgeInsets.all(200.0), // Allow panning and zooming out freely
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
-                children: sortedRows.map((row) {
-                  final seats = rows[row]!
-                    ..sort((a, b) => a.number.compareTo(b.number));
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
+                children: [
+                  // Curved movie screen indicator (attached to seats)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 32),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min, // Hug content
+                      mainAxisSize: MainAxisSize.min,
                       children: [
+                        const SizedBox(width: 24), // Offset for row header
                         SizedBox(
-                          width: 24,
-                          child: Text(
-                            row,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: ShowSnapColors.grey600,
-                            ),
+                          width: (maxCol + 1) * 34.0,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: double.infinity,
+                                height: 20,
+                                child: CustomPaint(
+                                  painter: _CurvedScreenPainter(
+                                    color: ShowSnapColors.grey300,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              const Center(
+                                child: Text(
+                                  'SCREEN',
+                                  style: TextStyle(
+                                    letterSpacing: 8,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 10,
+                                    color: ShowSnapColors.grey600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        ...seats.map((seat) => _AnimatedSeatCell(
-                              seat: seat,
-                              status: show.seats[seat.seatId],
-                              isSelected: selectedSeatIds
-                                  .contains(seat.seatId),
-                              isLocking: lockingInProgress
-                                  .contains(seat.seatId),
-                              currentUid: currentUid,
-                              onTap: () => onSeatTap(seat),
-                            )),
                       ],
                     ),
-                  );
-                }).toList(),
+                  )
+                      .animate()
+                      .scaleX(
+                        begin: 0.6,
+                        end: 1.0,
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.elasticOut,
+                      )
+                      .fadeIn(duration: ShowSnapDuration.normal),
+
+                  ...sortedRows.map((row) {
+                    final seatsInRow = rows[row]!;
+                    final seatMap = {for (final s in seatsInRow) s.x: s};
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min, // Hug content
+                        children: [
+                          SizedBox(
+                            width: 24,
+                            child: Text(
+                              row,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: ShowSnapColors.grey600,
+                              ),
+                            ),
+                          ),
+                          ...List.generate(maxCol + 1, (x) {
+                            final seat = seatMap[x];
+                            if (seat == null) {
+                              return const SizedBox(width: 34, height: 34);
+                            }
+                            return _AnimatedSeatCell(
+                              seat: seat,
+                              status: widget.show.seats[seat.seatId],
+                              isSelected: widget.selectedSeatIds.contains(seat.seatId),
+                              isLocking: widget.lockingInProgress.contains(seat.seatId),
+                              currentUid: widget.currentUid,
+                              onTap: () => widget.onSeatTap(seat),
+                            );
+                          }),
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ],
               ),
             ),
           ),
@@ -193,25 +244,27 @@ class _AnimatedSeatCellState extends State<_AnimatedSeatCell>
     super.dispose();
   }
 
+  Color get _availableColor {
+    switch (widget.seat.category) {
+      case SeatCategory.silver:
+        return SeatColors.silver;
+      case SeatCategory.gold:
+        return SeatColors.gold;
+      case SeatCategory.platinum:
+        return SeatColors.platinum;
+    }
+  }
+
   Color get _color {
     if (widget.isSelected) return SeatColors.selected;
-    if (widget.seat.isAccessible) {
-      final st = widget.status?.status ?? SeatStatus.available;
-      if (st == SeatStatus.booked) return SeatColors.booked;
-      if (st == SeatStatus.locked &&
-          widget.status?.lockedBy != widget.currentUid) {
-        return SeatColors.booked;
-      }
-      return SeatColors.accessible;
-    }
     final st = widget.status?.status ?? SeatStatus.available;
     if (st == SeatStatus.booked) return SeatColors.booked;
     if (st == SeatStatus.locked) {
       if (widget.status?.lockedBy == widget.currentUid) return SeatColors.selected;
-      if (widget.status?.isExpiredLock == true) return SeatColors.available;
+      if (widget.status?.isExpiredLock == true) return _availableColor;
       return SeatColors.booked;
     }
-    return SeatColors.available;
+    return _availableColor;
   }
 
   bool get _isInteractable {
@@ -268,13 +321,14 @@ class _AnimatedSeatCellState extends State<_AnimatedSeatCell>
                 )
               : Center(
                   child: Text(
-                    '${widget.seat.row}${widget.seat.number}',
+                    '${widget.seat.number}',
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 8,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: widget.isSelected || _color == SeatColors.booked
+                      color: _color == SeatColors.booked
                           ? Colors.white
-                          : ShowSnapColors.onSurface,
+                          : Colors.black,
                     ),
                   ),
                 ),
@@ -296,15 +350,16 @@ class _Legend extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 16),
       child: Wrap(
         spacing: 16,
+        runSpacing: 8,
         children: [
           _LegendItem(
-              color: SeatColors.available,
+              color: SeatColors.silver,
               border: SeatColors.availableBorder,
-              label: 'Available'),
+              label: 'Silver'),
+          _LegendItem(color: SeatColors.gold, label: 'Gold'),
+          _LegendItem(color: SeatColors.platinum, label: 'Platinum'),
           _LegendItem(color: SeatColors.selected, label: 'Selected'),
           _LegendItem(color: SeatColors.booked, label: 'Booked'),
-          _LegendItem(
-              color: SeatColors.accessible, label: 'Accessible'),
         ],
       ),
     );
@@ -353,8 +408,8 @@ class _CurvedScreenPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final glowPath = Path()
-      ..moveTo(0, 2)
-      ..quadraticBezierTo(size.width / 2, size.height, size.width, 2);
+      ..moveTo(0, size.height - 2)
+      ..quadraticBezierTo(size.width / 2, 2, size.width, size.height - 2);
 
     canvas.drawPath(glowPath, glowPaint);
 
@@ -366,8 +421,8 @@ class _CurvedScreenPainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final path = Path()
-      ..moveTo(0, 2)
-      ..quadraticBezierTo(size.width / 2, size.height - 2, size.width, 2);
+      ..moveTo(0, size.height - 2)
+      ..quadraticBezierTo(size.width / 2, 4, size.width, size.height - 2);
 
     canvas.drawPath(path, paint);
   }

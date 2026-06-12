@@ -578,14 +578,14 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
                 trailing: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: (b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : ShowSnapColors.secondary).withOpacity(0.1),
+                    color: (b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : Colors.green).withOpacity(0.1),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : ShowSnapColors.secondary),
+                    border: Border.all(color: b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : Colors.green),
                   ),
                   child: Text(
                     b.status == BookingStatus.redeemed ? 'Redeemed' : 'Confirmed',
                     style: TextStyle(
-                      color: b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : ShowSnapColors.secondary,
+                      color: b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : Colors.green,
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
                     ),
@@ -625,7 +625,7 @@ class _EventTicketCard extends StatelessWidget {
       width: 320,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: ShowSnapColors.grey300),
         boxShadow: const [
@@ -658,7 +658,7 @@ class _EventTicketCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(eventName,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.black87)),
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -684,7 +684,7 @@ class _EventTicketCard extends StatelessWidget {
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: ShowSnapColors.grey600)),
           const SizedBox(height: 4),
           ...ticketDetails.map((detail) => Text(detail,
-              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87))),
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70))),
           const Divider(height: 24, thickness: 1),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -698,11 +698,19 @@ class _EventTicketCard extends StatelessWidget {
                       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: ShowSnapColors.primary)),
                 ],
               ),
-              QrImageView(
-                data: bookingId,
-                version: QrVersions.auto,
-                size: 70,
-                gapless: false,
+              Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: QrImageView(
+                  data: bookingId,
+                  version: QrVersions.auto,
+                  size: 70,
+                  gapless: false,
+                  backgroundColor: Colors.white,
+                ),
               ),
             ],
           ),

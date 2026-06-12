@@ -1,6 +1,7 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
+import '../models/address_model.dart';
 import '../models/booking_model.dart';
 import '../models/coupon_model.dart';
 import '../models/event_model.dart';
@@ -39,6 +40,19 @@ class DatabaseService {
               .map((entry) => ShowModel.fromJson(entry.key.toString(), entry.value as Map))
               .toList();
         });
+  }
+
+  Future<List<ShowModel>> getShowsForTheater(String theaterId) async {
+    final snap = await _db
+        .ref(AppConstants.showsPath)
+        .orderByChild('theaterId')
+        .equalTo(theaterId)
+        .get();
+    if (!snap.exists || snap.value == null) return [];
+    final map = snap.value as Map;
+    return map.entries
+        .map((entry) => ShowModel.fromJson(entry.key.toString(), entry.value as Map))
+        .toList();
   }
 
   Future<ShowModel?> getShow(String showId) async {
@@ -574,6 +588,11 @@ class DatabaseService {
 
   Future<void> updateUser(String uid, Map<String, dynamic> updates) =>
       _db.ref('${AppConstants.usersPath}/$uid').update(updates);
+
+  Future<void> addSavedAddress(String uid, AddressModel address) async {
+    final ref = _db.ref('${AppConstants.usersPath}/$uid/savedAddresses').push();
+    await ref.set(address.toMap());
+  }
 
   Future<void> updateAffinityScores(
       String uid, Map<String, double> scores) async {

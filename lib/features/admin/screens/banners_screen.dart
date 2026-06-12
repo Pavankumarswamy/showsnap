@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/banner_model.dart';
+import 'dart:io';
 import '../../../core/services/database_service.dart';
+import '../../../core/services/cloudinary_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 final _allBannersProvider = FutureProvider<List<BannerModel>>((ref) =>
@@ -169,82 +172,124 @@ class AdminBannersScreen extends ConsumerWidget {
     final ctaRouteCtrl =
         TextEditingController(text: existing?.ctaRoute ?? '');
 
+    bool isUploading = false;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(existing == null ? 'New Banner' : 'Edit Banner'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: titleCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Title *',
-                    hintText: 'e.g. Weekend Special'),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) {
+          return AlertDialog(
+            title: Text(existing == null ? 'New Banner' : 'Edit Banner'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Title *',
+                        hintText: 'e.g. Weekend Special'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: subtitleCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Subtitle',
+                        hintText: 'e.g. Family packages from ₹599'),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: imageCtrl,
+                          decoration: const InputDecoration(
+                              labelText: 'Image URL',
+                              hintText: 'Cloudinary or any HTTPS URL'),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      isUploading
+                          ? const Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : IconButton(
+                              icon: const Icon(Icons.upload_file, color: ShowSnapColors.primary),
+                              onPressed: () async {
+                                final picker = ImagePicker();
+                                final file = await picker.pickImage(source: ImageSource.gallery);
+                                if (file != null) {
+                                  setState(() => isUploading = true);
+                                  try {
+                                    final cloudinary = ref.read(cloudinaryServiceProvider);
+                                    final url = await cloudinary.uploadImage(File(file.path), 'banners');
+                                    imageCtrl.text = url;
+                                  } catch (e) {
+                                    if (ctx.mounted) {
+                                      ShowSnapToast.error(ctx, 'Upload failed: $e');
+                                    }
+                                  } finally {
+                                    if (ctx.mounted) setState(() => isUploading = false);
+                                  }
+                                }
+                              },
+                              tooltip: 'Upload Image',
+                            ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctaTextCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Button Label',
+                        hintText: 'e.g. Book Now, Explore'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctaRouteCtrl,
+                    decoration: const InputDecoration(
+                        labelText: 'Navigate To (optional)',
+                        hintText: 'e.g. /explore or /movie/abc123'),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: subtitleCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Subtitle',
-                    hintText: 'e.g. Family packages from ₹599'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: imageCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Image URL',
-                    hintText: 'Cloudinary or any HTTPS URL'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctaTextCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Button Label',
-                    hintText: 'e.g. Book Now, Explore'),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctaRouteCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Navigate To (optional)',
-                    hintText: 'e.g. /explore or /movie/abc123'),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: isUploading ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: isUploading
+                    ? null
+                    : () async {
+                  if (titleCtrl.text.trim().isEmpty) return;
+                  final db = ref.read(databaseServiceProvider);
+                  final count = (await db.getAllBanners()).length;
+                  await db.saveBanner(BannerModel(
+                    bannerId: existing?.bannerId ?? '',
+                    title: titleCtrl.text.trim(),
+                    subtitle: subtitleCtrl.text.trim(),
+                    imageUrl: imageCtrl.text.trim(),
+                    ctaText: ctaTextCtrl.text.trim(),
+                    ctaRoute: ctaRouteCtrl.text.trim(),
+                    order: existing?.order ?? count,
+                    isActive: existing?.isActive ?? true,
+                  ));
+                  ref.invalidate(_allBannersProvider);
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  if (context.mounted) {
+                    ShowSnapToast.show(context,
+                        message: existing == null
+                            ? 'Banner added'
+                            : 'Banner updated');
+                  }
+                },
+                child: Text(existing == null ? 'Add' : 'Save'),
               ),
             ],
-          ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (titleCtrl.text.trim().isEmpty) return;
-              final db = ref.read(databaseServiceProvider);
-              final count = (await db.getAllBanners()).length;
-              await db.saveBanner(BannerModel(
-                bannerId: existing?.bannerId ?? '',
-                title: titleCtrl.text.trim(),
-                subtitle: subtitleCtrl.text.trim(),
-                imageUrl: imageCtrl.text.trim(),
-                ctaText: ctaTextCtrl.text.trim(),
-                ctaRoute: ctaRouteCtrl.text.trim(),
-                order: existing?.order ?? count,
-                isActive: existing?.isActive ?? true,
-              ));
-              ref.invalidate(_allBannersProvider);
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              if (context.mounted) {
-                ShowSnapToast.show(context,
-                    message: existing == null
-                        ? 'Banner added'
-                        : 'Banner updated');
-              }
-            },
-            child: Text(existing == null ? 'Add' : 'Save'),
-          ),
-        ],
+          );
+        }
       ),
     );
   }

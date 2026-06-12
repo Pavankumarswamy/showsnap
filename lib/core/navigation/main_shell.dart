@@ -131,8 +131,8 @@ class _ShowSnapBottomNav extends StatelessWidget {
                   onTap: () => onTap(2),
                 ),
                 _NavItem(
-                  icon: Icons.local_offer_rounded,
-                  label: 'Offers',
+                  icon: Icons.person_rounded,
+                  label: 'Profile',
                   isActive: currentIndex == 3,
                   onTap: () => onTap(3),
                 ),

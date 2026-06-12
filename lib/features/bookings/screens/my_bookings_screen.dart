@@ -54,15 +54,13 @@ class _MyBookingsScreenState extends ConsumerState<MyBookingsScreen>
     return Scaffold(
       backgroundColor: ShowSnapColors.grey100,
       appBar: AppBar(
+        shape: const RoundedRectangleBorder(),
         title: const Text('My Bookings',
             style: TextStyle(fontWeight: FontWeight.w800)),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
-        ),
         bottom: TabBar(
           controller: _tabCtrl,
-          labelColor: Colors.black87,
-          unselectedLabelColor: Colors.black54,
+          labelColor: ShowSnapColors.primary,
+          unselectedLabelColor: ShowSnapColors.grey600,
           indicatorColor: ShowSnapColors.primary,
           indicatorWeight: 3,
           tabs: const [
@@ -227,7 +225,7 @@ class _BookingCardState extends ConsumerState<_BookingCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(ShowSnapRadius.md),
         boxShadow: ShowSnapShadow.card,
         border: booking.status == BookingStatus.cancelled

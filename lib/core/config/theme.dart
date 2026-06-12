@@ -4,8 +4,12 @@ import 'package:google_fonts/google_fonts.dart';
 // ─── Seat colours ─────────────────────────────────────────────────────────────
 
 class SeatColors {
+  static const Color silver = Color(0xFFFFFFFF);
+  static const Color gold = Color(0xFFFFD54F);
+  static const Color platinum = Color(0xFF90CAF9);
+
   static const Color available = Color(0xFFFFFFFF);
-  static const Color selected = Color(0xFFF5A800);
+  static const Color selected = ShowSnapColors.primary;
   static const Color booked = Color(0xFF9E9E9E);
   static const Color accessible = Color(0xFF1565C0);
   static const Color availableBorder = Color(0xFFBDBDBD);
@@ -14,20 +18,20 @@ class SeatColors {
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
 class ShowSnapColors {
-  static const Color primary = Color(0xFFC2E812);
-  static const Color primaryLight = Color(0xFFD2F500);
-  static const Color primaryLighter = Color(0xFFEEFF41);
-  static const Color secondary = Color(0xFF388E3C);
-  static const Color background = Color(0xFFFFFFFF);
-  static const Color surface = Color(0xFFFFFFFF);
+  static const Color primary = Color(0xFF939450);
+  static const Color primaryLight = Color(0xFFA7A864);
+  static const Color primaryLighter = Color(0xFFBBBC78);
+  static const Color secondary = Color(0xFF4A4B28);
+  static const Color background = Color(0xFF121314);
+  static const Color surface = Color(0xFF1E2124);
   static const Color error = Color(0xFFD32F2F);
   static const Color onPrimary = Color(0xFF000000);
   static const Color onSecondary = Color(0xFFFFFFFF);
-  static const Color onBackground = Color(0xFF212121);
-  static const Color onSurface = Color(0xFF212121);
-  static const Color grey100 = Color(0xFFF5F5F5);
-  static const Color grey300 = Color(0xFFE0E0E0);
-  static const Color grey600 = Color(0xFF757575);
+  static const Color onBackground = Color(0xFFFFFFFF);
+  static const Color onSurface = Color(0xFFFFFFFF);
+  static const Color grey100 = Color(0xFF1C1E20);
+  static const Color grey300 = Color(0xFF2D3135);
+  static const Color grey600 = Color(0xFF9AA0A6);
 }
 
 // ─── V2 Design Tokens ─────────────────────────────────────────────────────────
@@ -78,9 +82,9 @@ class ShowSnapTheme {
   static ThemeData get light => _build(); // backwards-compat alias
 
   static ThemeData _build() {
-    final base = ThemeData.light(useMaterial3: false);
+    final base = ThemeData.dark(useMaterial3: false);
     return base.copyWith(
-      colorScheme: const ColorScheme.light(
+      colorScheme: const ColorScheme.dark(
         primary: ShowSnapColors.primary,
         secondary: ShowSnapColors.secondary,
         surface: ShowSnapColors.surface,
@@ -90,16 +94,28 @@ class ShowSnapTheme {
         onSurface: ShowSnapColors.onSurface,
       ),
       scaffoldBackgroundColor: ShowSnapColors.background,
-      textTheme: GoogleFonts.poppinsTextTheme(base.textTheme),
+      cardColor: ShowSnapColors.surface,
+      dialogBackgroundColor: ShowSnapColors.surface,
+      textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(
+        bodyColor: Colors.white,
+        displayColor: Colors.white,
+      ),
       appBarTheme: AppBarTheme(
-        backgroundColor: ShowSnapColors.primary,
-        foregroundColor: ShowSnapColors.onPrimary,
+        backgroundColor: ShowSnapColors.background,
+        foregroundColor: Colors.white,
         elevation: 0,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(ShowSnapRadius.md),
+          ),
+        ),
         titleTextStyle: GoogleFonts.poppins(
           fontSize: 18,
           fontWeight: FontWeight.w600,
-          color: ShowSnapColors.onPrimary,
+          color: Colors.white,
         ),
+        iconTheme: const IconThemeData(color: Colors.white),
+        actionsIconTheme: const IconThemeData(color: Colors.white),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -159,11 +175,15 @@ class ShowSnapTheme {
         fillColor: ShowSnapColors.grey100,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        labelStyle: const TextStyle(color: ShowSnapColors.grey600),
+        hintStyle: const TextStyle(color: ShowSnapColors.grey600),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: ShowSnapColors.grey100,
         selectedColor: ShowSnapColors.primaryLighter,
-        labelStyle: GoogleFonts.poppins(fontSize: 12),
+        secondarySelectedColor: ShowSnapColors.primaryLighter,
+        labelStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.white),
+        secondaryLabelStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.black87),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
         ),
@@ -176,6 +196,7 @@ class ShowSnapTheme {
         elevation: 8,
       ),
       dialogTheme: DialogThemeData(
+        backgroundColor: ShowSnapColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(28),
         ),

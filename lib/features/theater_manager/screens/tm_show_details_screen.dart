@@ -371,7 +371,7 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
+                    backgroundColor: ShowSnapColors.secondary,
                     foregroundColor: Colors.white,
                   ),
                   onPressed: () async {
@@ -631,7 +631,7 @@ class _TicketCard extends StatelessWidget {
       width: 320,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
@@ -699,7 +699,7 @@ class _TicketCard extends StatelessWidget {
             style: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: ShowSnapColors.secondary,
+              color: ShowSnapColors.primary,
             ),
           ),
           const SizedBox(height: 16),
@@ -761,6 +761,7 @@ class _TicketCard extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
+                color: Colors.white,
                 border: Border.all(color: ShowSnapColors.grey300),
                 borderRadius: BorderRadius.circular(12),
               ),
@@ -769,6 +770,7 @@ class _TicketCard extends StatelessWidget {
                 version: QrVersions.auto,
                 size: 140.0,
                 gapless: false,
+                backgroundColor: Colors.white,
               ),
             ),
           ),

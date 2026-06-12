@@ -14,6 +14,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/models/screen_model.dart';
 import '../../../core/models/show_model.dart';
 import '../../../core/models/seat_status_model.dart';
+import '../../../core/models/theater_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
 
@@ -30,8 +31,21 @@ final _tmScreensProvider = FutureProvider<List<ScreenModel>>((ref) async {
 final _tmMoviesProvider = FutureProvider<List<MovieModel>>((ref) async {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
   if (uid == null) return [];
-  final movies = await ref.watch(databaseServiceProvider).getAllMovies();
-  return movies.where((m) => m.addedByTm == uid).toList();
+  final db = ref.watch(databaseServiceProvider);
+  final theaters = await db.getAllTheaters();
+  final theater =
+      theaters.cast<TheaterModel?>().firstWhere((t) => t?.managerId == uid, orElse: () => null);
+  
+  final Set<String> scheduledMovieIds = {};
+  if (theater != null) {
+    final shows = await db.getShowsForTheater(theater.theaterId);
+    for (final s in shows) {
+      scheduledMovieIds.add(s.movieId);
+    }
+  }
+
+  final movies = await db.getAllMovies();
+  return movies.where((m) => m.addedByTm == uid || scheduledMovieIds.contains(m.movieId)).toList();
 });
 
 class MovieManagerScreen extends ConsumerWidget {
@@ -100,7 +114,7 @@ class MovieManagerScreen extends ConsumerWidget {
 
   void _showAddMovieDialog(BuildContext context, WidgetRef ref) {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => _AddMovieForm()),
+      MaterialPageRoute(builder: (_) => const _AddMovieSelectionScreen()),
     );
   }
 }
@@ -524,6 +538,452 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
       }
     } catch (e) {
       if (mounted) context.showErrorSnackbar('Failed: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+}
+
+final _allGlobalMoviesProvider = FutureProvider<List<MovieModel>>((ref) async {
+  return ref.watch(databaseServiceProvider).getAllMovies();
+});
+
+class _AddMovieSelectionScreen extends ConsumerStatefulWidget {
+  const _AddMovieSelectionScreen();
+
+  @override
+  ConsumerState<_AddMovieSelectionScreen> createState() =>
+      _AddMovieSelectionScreenState();
+}
+
+class _AddMovieSelectionScreenState
+    extends ConsumerState<_AddMovieSelectionScreen> {
+  String _searchQuery = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final moviesAsync = ref.watch(_allGlobalMoviesProvider);
+
+    return Scaffold(
+      backgroundColor: ShowSnapColors.background,
+      appBar: AppBar(
+        title: const Text('Select Movie from Library'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        flexibleSpace: Container(
+          decoration:
+              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    onChanged: (v) => setState(() => _searchQuery = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search movie title...',
+                      prefixIcon: const Icon(Icons.search, color: ShowSnapColors.grey600),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ShowSnapColors.primary,
+                  foregroundColor: Colors.black87,
+                ),
+                icon: const Icon(Icons.add),
+                label: const Text('Create Brand New Movie',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => _AddMovieForm()),
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: moviesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+              data: (movies) {
+                final filtered = movies.where((m) {
+                  return m.title.toLowerCase().contains(_searchQuery.toLowerCase());
+                }).toList();
+
+                if (filtered.isEmpty) {
+                  return const Center(
+                    child: Text('No movies found in library',
+                        style: TextStyle(color: ShowSnapColors.grey600)),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filtered.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) {
+                    final movie = filtered[i];
+                    return Card(
+                      color: ShowSnapColors.surface,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => _ScheduleExistingMovieForm(movie: movie),
+                            ),
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Row(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: movie.posterUrl.isNotEmpty
+                                    ? CachedNetworkImage(
+                                        imageUrl: movie.posterUrl,
+                                        width: 50,
+                                        height: 75,
+                                        fit: BoxFit.cover,
+                                      )
+                                    : Container(
+                                        width: 50,
+                                        height: 75,
+                                        color: ShowSnapColors.grey300,
+                                        child: const Icon(Icons.movie_outlined),
+                                      ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      movie.title,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '${movie.language} • ${movie.certificate} • ${movie.durationMinutes} min',
+                                      style: const TextStyle(
+                                          fontSize: 12,
+                                          color: ShowSnapColors.grey600),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      movie.genres.join(', '),
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: ShowSnapColors.grey600),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right,
+                                  color: ShowSnapColors.grey600),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ).animate().fadeIn(duration: 350.ms, delay: (i * 50).ms);
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScheduleExistingMovieForm extends ConsumerStatefulWidget {
+  final MovieModel movie;
+  const _ScheduleExistingMovieForm({required this.movie});
+
+  @override
+  ConsumerState<_ScheduleExistingMovieForm> createState() =>
+      _ScheduleExistingMovieFormState();
+}
+
+class _ScheduleExistingMovieFormState
+    extends ConsumerState<_ScheduleExistingMovieForm> {
+  final _formKey = GlobalKey<FormState>();
+  DateTime _startDate = DateTime.now();
+  DateTime _endDate = DateTime.now().add(const Duration(days: 30));
+  ScreenModel? _selectedScreen;
+  final List<TimeOfDay> _timeStamps = [];
+  bool _saving = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ShowSnapColors.background,
+      appBar: AppBar(
+        title: const Text('Schedule Movie'),
+        toolbarHeight: 70,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(35),
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        flexibleSpace: Container(
+          decoration:
+              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        ),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.black))
+                : const Text('SAVE',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Card(
+              color: ShowSnapColors.surface,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: widget.movie.posterUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: widget.movie.posterUrl,
+                              width: 60,
+                              height: 90,
+                              fit: BoxFit.cover,
+                            )
+                          : Container(
+                              width: 60,
+                              height: 90,
+                              color: ShowSnapColors.grey300,
+                              child: const Icon(Icons.movie_outlined),
+                            ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.movie.title,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 18),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${widget.movie.language} • ${widget.movie.certificate} • ${widget.movie.durationMinutes} min',
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: ShowSnapColors.grey600),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.movie.genres.join(', '),
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: ShowSnapColors.grey600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            ref.watch(_tmScreensProvider).when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('Error loading screens: $e'),
+              data: (screens) {
+                if (screens.isEmpty) {
+                  return const Text('No screens available. Please create a screen first.',
+                      style: TextStyle(color: ShowSnapColors.error));
+                }
+                return DropdownButtonFormField<ScreenModel>(
+                  value: _selectedScreen,
+                  decoration: const InputDecoration(labelText: 'Schedule on Screen *'),
+                  items: screens
+                      .map((s) => DropdownMenuItem(value: s, child: Text(s.name)))
+                      .toList(),
+                  onChanged: (v) => setState(() => _selectedScreen = v),
+                  validator: (v) => v == null ? 'Screen is required' : null,
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(
+                        'Start: ${DateFormat('dd MMM yyyy').format(_startDate)}',
+                        style: const TextStyle(fontSize: 12)),
+                    onPressed: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: _startDate,
+                        firstDate: DateTime.now().subtract(const Duration(days: 1)),
+                        lastDate: DateTime(2100),
+                      );
+                      if (d != null) setState(() => _startDate = d);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.event, size: 18),
+                    label: Text(
+                        'End: ${DateFormat('dd MMM yyyy').format(_endDate)}',
+                        style: const TextStyle(fontSize: 12)),
+                    onPressed: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: _endDate,
+                        firstDate: _startDate,
+                        lastDate: DateTime(2100),
+                      );
+                      if (d != null) setState(() => _endDate = d);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Show Times *',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                TextButton.icon(
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add Time'),
+                  onPressed: () async {
+                    final t = await showTimePicker(
+                      context: context,
+                      initialTime: TimeOfDay.now(),
+                    );
+                    if (t != null) {
+                      setState(() => _timeStamps.add(t));
+                    }
+                  },
+                ),
+              ],
+            ),
+            if (_timeStamps.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('At least one show time is required',
+                    style: TextStyle(color: ShowSnapColors.grey600, fontSize: 12)),
+              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _timeStamps.map((t) {
+                return Chip(
+                  label: Text(t.format(context)),
+                  onDeleted: () => setState(() => _timeStamps.remove(t)),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 32),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_timeStamps.isEmpty) {
+      context.showErrorSnackbar('Please add at least one show time.');
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final screen = _selectedScreen!;
+      final pricing = {'silver': 200, 'gold': 300, 'platinum': 500};
+      
+      final seats = <String, SeatStatusModel>{};
+      for (final seat in screen.seatLayout) {
+        seats[seat.seatId] = const SeatStatusModel();
+      }
+
+      DateTime current = DateTime(_startDate.year, _startDate.month, _startDate.day);
+      final end = DateTime(_endDate.year, _endDate.month, _endDate.day);
+
+      while (!current.isAfter(end)) {
+        for (final t in _timeStamps) {
+          final startDt = DateTime(current.year, current.month, current.day, t.hour, t.minute);
+          final endDt = startDt.add(Duration(minutes: widget.movie.durationMinutes + 15));
+          
+          await db.createShow(ShowModel(
+            showId: '',
+            movieId: widget.movie.movieId,
+            theaterId: screen.theaterId,
+            screenId: screen.screenId,
+            startTs: startDt.millisecondsSinceEpoch,
+            endTs: endDt.millisecondsSinceEpoch,
+            pricing: pricing,
+            bookingOpen: true,
+            seats: seats,
+            seatsAvailable: screen.seatLayout.length,
+          ));
+        }
+        current = current.add(const Duration(days: 1));
+      }
+
+      if (mounted) {
+        context.showSnackbar('Movie scheduled successfully!');
+        ref.invalidate(_tmMoviesProvider);
+        Navigator.pop(context);
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) context.showErrorSnackbar('Failed to schedule: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }

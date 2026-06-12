@@ -38,17 +38,26 @@ class _ShowSelectionScreenState extends ConsumerState<ShowSelectionScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select Show'),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
         ),
-      ),
-      body: Column(
-        children: [
-          _DateSelector(
+        flexibleSpace: ClipRRect(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(25)),
+          child: Container(
+            decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+          ),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(72),
+          child: _DateSelector(
             dates: _dates,
             selected: _selectedDate,
             onSelect: (d) => setState(() => _selectedDate = d),
           ),
+        ),
+      ),
+      body: Column(
+        children: [
           Expanded(
             child: showsAsync.when(
               loading: () =>
@@ -108,7 +117,7 @@ class _DateSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 72,
-      color: ShowSnapColors.grey100,
+      color: Colors.transparent,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -124,16 +133,25 @@ class _DateSelector extends StatelessWidget {
               duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
               padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: isSelected
                     ? ShowSnapColors.primary
-                    : ShowSnapColors.surface,
-                borderRadius: BorderRadius.circular(8),
+                    : ShowSnapColors.surface.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: ShowSnapColors.primary.withOpacity(0.4),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        )
+                      ]
+                    : null,
                 border: Border.all(
                   color: isSelected
                       ? ShowSnapColors.primary
-                      : ShowSnapColors.grey300,
+                      : ShowSnapColors.grey300.withOpacity(0.3),
                 ),
               ),
               child: Column(
@@ -142,9 +160,10 @@ class _DateSelector extends StatelessWidget {
                     d.dayShort,
                     style: TextStyle(
                       fontSize: 11,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                       color: isSelected
-                          ? ShowSnapColors.onPrimary
-                          : ShowSnapColors.grey600,
+                          ? Colors.white
+                          : Colors.white70,
                     ),
                   ),
                   Text(
@@ -153,8 +172,8 @@ class _DateSelector extends StatelessWidget {
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: isSelected
-                          ? ShowSnapColors.onPrimary
-                          : ShowSnapColors.onSurface,
+                          ? Colors.white
+                          : Colors.white,
                     ),
                   ),
                 ],
@@ -219,6 +238,7 @@ class _TheaterShowList extends ConsumerWidget {
                             DateTime.fromMillisecondsSinceEpoch(s.startTs);
                         Color bg;
                         Color fg;
+                        Border? border;
                         if (!s.bookingOpen || s.isSoldOut) {
                           bg = ShowSnapColors.grey300;
                           fg = ShowSnapColors.grey600;
@@ -226,8 +246,9 @@ class _TheaterShowList extends ConsumerWidget {
                           bg = Colors.orange.shade100;
                           fg = Colors.orange.shade800;
                         } else {
-                          bg = Colors.green.shade100;
-                          fg = Colors.green.shade800;
+                          bg = Colors.grey.shade100;
+                          fg = ShowSnapColors.primary;
+                          border = Border.all(color: ShowSnapColors.primary.withOpacity(0.5), width: 1.5);
                         }
                         return GestureDetector(
                           onTap: s.bookingOpen && !s.isSoldOut
@@ -240,6 +261,7 @@ class _TheaterShowList extends ConsumerWidget {
                             decoration: BoxDecoration(
                               color: bg,
                               borderRadius: BorderRadius.circular(8),
+                              border: border,
                             ),
                             child: Column(
                               children: [

@@ -332,6 +332,7 @@ class _CouponCodesTab extends ConsumerWidget {
                           child: Text(c.code,
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
                                   fontSize: 14)),
                         ),
                         const SizedBox(width: 8),

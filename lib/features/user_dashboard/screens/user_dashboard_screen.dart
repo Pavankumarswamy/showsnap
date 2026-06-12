@@ -11,7 +11,11 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../../../core/models/ad_request_model.dart';
+import '../../../core/models/offer_model.dart';
 import '../../../core/widgets/showsnap_toast.dart';
 import '../../../core/config/router.dart';
 import '../../../core/config/theme.dart';
@@ -63,6 +67,10 @@ class _DashData {
   const _DashData({this.user, required this.bookings});
   factory _DashData.empty() => const _DashData(bookings: []);
 }
+
+final _offersProvider = FutureProvider.autoDispose<List<OfferModel>>((ref) {
+  return ref.watch(databaseServiceProvider).getAllOffers();
+});
 
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
@@ -182,29 +190,9 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // BookMyShow Quick Actions / Services Grid
-              _QuickServicesGrid(
-                onPurchasesTap: () => _scrollToSection(_purchasesKey),
-                onWishlistTap: () => _scrollToSection(_wishlistKey),
-                onRewardsTap: () => _scrollToSection(_rewardsKey),
-                onInfluencerTap: () => _scrollToSection(_influencerKey),
-              ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.1, end: 0),
-              
-              const SizedBox(height: 24),
-              
-              // Interactive Stats Numbers Cards
-              _StatsGrid(bookings: data.bookings),
-              
-              const SizedBox(height: 24),
-              
-              // Interactive Visualizations
-              _BookingChart(bookings: data.bookings),
-              
-              const SizedBox(height: 24),
-              
-              _GenreRadar(bookings: data.bookings),
-              
-              const SizedBox(height: 24),
+
+
+
               
               // Rewards & Milestone Section
               Container(
@@ -221,21 +209,7 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
               
               const SizedBox(height: 24),
               
-              // Wishlist Panel
-              Container(
-                key: _wishlistKey,
-                child: _WishlistSection(),
-              ),
-              
-              const SizedBox(height: 24),
-              
-              // Influencer Campaign panel
-              Container(
-                key: _influencerKey,
-                child: _InfluencerHubSection(),
-              ),
-              
-              const SizedBox(height: 24),
+
               
               // Purchases Section
               Container(
@@ -635,7 +609,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> with SingleTicke
     final user = widget.user;
     final nameCtrl = TextEditingController(text: user?.displayName ?? '');
     final cityCtrl = TextEditingController(text: user?.city ?? '');
-    final phoneCtrl = TextEditingController(text: user?.phone ?? '');
+    String completePhone = user?.phone ?? '';
 
     showModalBottomSheet(
       context: context,
@@ -670,20 +644,55 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> with SingleTicke
               TextFormField(
                 controller: cityCtrl,
                 style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'City',
-                  labelStyle: TextStyle(color: Colors.white70),
+                  labelStyle: const TextStyle(color: Colors.white70),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.my_location, color: ShowSnapColors.primary),
+                    onPressed: () async {
+                      try {
+                        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+                        if (!serviceEnabled) {
+                          if (sheetCtx.mounted) ShowSnapToast.error(sheetCtx, 'Location services disabled');
+                          return;
+                        }
+
+                        LocationPermission permission = await Geolocator.checkPermission();
+                        if (permission == LocationPermission.denied) {
+                          permission = await Geolocator.requestPermission();
+                          if (permission == LocationPermission.denied) return;
+                        }
+                        if (permission == LocationPermission.deniedForever) return;
+
+                        Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+                        List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+
+                        if (placemarks.isNotEmpty) {
+                          Placemark p = placemarks.first;
+                          cityCtrl.text = p.locality ?? p.subAdministrativeArea ?? 'Unknown';
+                        }
+                      } catch (e) {
+                        if (sheetCtx.mounted) {
+                          ShowSnapToast.error(sheetCtx, 'Could not fetch location');
+                        }
+                      }
+                    },
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: phoneCtrl,
-                keyboardType: TextInputType.phone,
+              IntlPhoneField(
+                initialValue: user?.phone,
                 style: const TextStyle(color: Colors.white),
+                dropdownTextStyle: const TextStyle(color: Colors.white),
+                initialCountryCode: 'IN',
                 decoration: const InputDecoration(
                   labelText: 'Phone',
                   labelStyle: TextStyle(color: Colors.white70),
                 ),
+                onChanged: (phone) {
+                  completePhone = phone.completeNumber;
+                },
               ),
               const SizedBox(height: 24),
               ElevatedButton(
@@ -698,7 +707,7 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> with SingleTicke
                   await ref.read(databaseServiceProvider).updateUser(uid, {
                     'displayName': nameCtrl.text.trim(),
                     'city': cityCtrl.text.trim(),
-                    'phone': phoneCtrl.text.trim(),
+                    'phone': completePhone,
                   });
                   widget.onRefresh();
                   if (sheetCtx.mounted) Navigator.of(sheetCtx).pop();
@@ -1138,7 +1147,7 @@ class _GenreRadar extends StatelessWidget {
 
 // ─── Rewards Section ──────────────────────────────────────────────────────────
 
-class _RewardsSection extends StatelessWidget {
+class _RewardsSection extends ConsumerWidget {
   final UserModel? user;
   final int bookingCount;
   final VoidCallback onCouponClaimed;
@@ -1150,18 +1159,63 @@ class _RewardsSection extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    // Logic: Milestones every 5 bookings
-    final currentMilestoneBase = (bookingCount ~/ 5) * 5;
-    final nextMilestone = currentMilestoneBase + 5;
-    final progress = ((bookingCount - currentMilestoneBase) / 5).clamp(0.0, 1.0);
-    final needed = nextMilestone - bookingCount;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final offersAsync = ref.watch(_offersProvider);
 
-    final rewards = [
-      _Coupon('BOOK50', '50% off next booking (up to ₹150)', 'Active'),
-      _Coupon('FREESHIP', 'Free popcorn combo on events', 'Unlocked'),
-      _Coupon('VIPSNAP', 'Flat ₹100 Off next Concert ticket', 'Active'),
-    ];
+    return offersAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => const SizedBox(),
+      data: (offers) {
+        final activeOffers = offers
+            .where((o) => o.isActive && o.milestoneType == MilestoneType.totalBookings)
+            .toList()
+          ..sort((a, b) => a.threshold.compareTo(b.threshold));
+
+        int nextMilestone = bookingCount + 5;
+        int prevThreshold = (bookingCount ~/ 5) * 5;
+        List<_Coupon> rewards = [];
+
+        if (activeOffers.isNotEmpty) {
+          OfferModel? nextOffer;
+          OfferModel? prevOffer;
+          for (final o in activeOffers) {
+            if (o.threshold > bookingCount) {
+              nextOffer = o;
+              break;
+            }
+            prevOffer = o;
+          }
+
+          nextMilestone = nextOffer?.threshold ?? (prevOffer?.threshold ?? bookingCount);
+          prevThreshold = prevOffer?.threshold ?? 0;
+
+          rewards = activeOffers.map((o) {
+            final isUnlocked = bookingCount >= o.threshold;
+            final status = isUnlocked ? 'Unlocked' : 'Locked';
+            String descr = '';
+            if (o.rewardType == RewardType.percentDiscount) {
+              descr = '${o.rewardValue.toInt()}% off next booking';
+            } else if (o.rewardType == RewardType.flatDiscount) {
+              descr = 'Flat ₹${o.rewardValue.toInt()} Off';
+            } else {
+              descr = 'Free Ticket';
+            }
+            return _Coupon(o.offerId.toUpperCase(), descr, status);
+          }).toList();
+        } else {
+          // Fallback if no admin offers
+          nextMilestone = prevThreshold + 5;
+          rewards = [
+            const _Coupon('BOOK50', '50% off next booking (up to ₹150)', 'Active'),
+            const _Coupon('FREESHIP', 'Free popcorn combo on events', 'Unlocked'),
+            const _Coupon('VIPSNAP', 'Flat ₹100 Off next Concert ticket', 'Active'),
+          ];
+        }
+
+        final progress = nextMilestone == prevThreshold
+            ? 1.0
+            : ((bookingCount - prevThreshold) / (nextMilestone - prevThreshold)).clamp(0.0, 1.0);
+        final needed = nextMilestone - bookingCount;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -1303,6 +1357,8 @@ class _RewardsSection extends StatelessWidget {
           ),
         ],
       ),
+    );
+    },
     );
   }
 }

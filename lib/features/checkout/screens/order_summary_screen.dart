@@ -177,8 +177,14 @@ class _OrderSummaryScreenState extends ConsumerState<OrderSummaryScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Order Summary'),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
+        ),
+        flexibleSpace: ClipRRect(
+          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(25)),
+          child: Container(
+            decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+          ),
         ),
         actions: [
           // Seat lock countdown
@@ -285,13 +291,13 @@ class _OrderSummaryScreenState extends ConsumerState<OrderSummaryScreen>
                   ? Row(
                       children: [
                         const Icon(Icons.check_circle,
-                            color: ShowSnapColors.secondary),
+                            color: Colors.green),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             '${checkout.appliedCoupon} applied — saved ₹${checkout.discount}',
                             style: const TextStyle(
-                                color: ShowSnapColors.secondary),
+                                color: Colors.green),
                           ),
                         ),
                         TextButton(
@@ -334,7 +340,7 @@ class _OrderSummaryScreenState extends ConsumerState<OrderSummaryScreen>
                       '₹${checkout.convenienceFee}'),
                   if (checkout.discount > 0)
                     _Row('Discount', '− ₹${checkout.discount}',
-                        valueColor: ShowSnapColors.secondary),
+                        valueColor: Colors.green),
                   const Divider(),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

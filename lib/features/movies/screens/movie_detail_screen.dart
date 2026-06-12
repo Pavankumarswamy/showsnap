@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,7 +48,8 @@ final _userMovieRatingProvider =
 
 class MovieDetailScreen extends ConsumerWidget {
   final String movieId;
-  const MovieDetailScreen({super.key, required this.movieId});
+  final String? heroTag;
+  const MovieDetailScreen({super.key, required this.movieId, this.heroTag});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -85,7 +87,7 @@ class MovieDetailScreen extends ConsumerWidget {
           return const Scaffold(
               body: Center(child: Text('Movie not found')));
         }
-        return _MovieDetailContent(movie: movie);
+        return _MovieDetailContent(movie: movie, heroTag: heroTag);
       },
     );
   }
@@ -95,7 +97,8 @@ class MovieDetailScreen extends ConsumerWidget {
 
 class _MovieDetailContent extends ConsumerStatefulWidget {
   final MovieModel movie;
-  const _MovieDetailContent({required this.movie});
+  final String? heroTag;
+  const _MovieDetailContent({required this.movie, this.heroTag});
 
   @override
   ConsumerState<_MovieDetailContent> createState() =>
@@ -104,6 +107,9 @@ class _MovieDetailContent extends ConsumerStatefulWidget {
 
 class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   YoutubePlayerController? _ytCtrl;
+  bool _playTrailer = false;
+  Timer? _trailerTimer;
+  bool _timerStarted = false;
 
   @override
   void initState() {
@@ -113,13 +119,36 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
       final videoId = YoutubePlayer.convertUrlToId(url) ?? url;
       _ytCtrl = YoutubePlayerController(
         initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(autoPlay: false, mute: false),
+        flags: const YoutubePlayerFlags(
+          autoPlay: true,
+          mute: true,
+          enableCaption: false,
+          hideControls: true,
+          hideThumbnail: true,
+        ),
       );
+      _ytCtrl!.addListener(_onYtListener);
+    }
+  }
+
+  void _onYtListener() {
+    if (_ytCtrl?.value.playerState == PlayerState.playing && !_playTrailer && !_timerStarted) {
+      _timerStarted = true;
+      _trailerTimer = Timer(const Duration(seconds: 3), () {
+        if (mounted) {
+          _ytCtrl?.unMute();
+          setState(() {
+            _playTrailer = true;
+          });
+        }
+      });
     }
   }
 
   @override
   void dispose() {
+    _trailerTimer?.cancel();
+    _ytCtrl?.removeListener(_onYtListener);
     _ytCtrl?.dispose();
     super.dispose();
   }
@@ -135,16 +164,75 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
         ),
       ),
       builder: (context, player) => Scaffold(
-        backgroundColor: Colors.white,
-        body: CustomScrollView(
-          slivers: [
+        backgroundColor: ShowSnapColors.background,
+        bottomNavigationBar: movie.status == 'nowShowing'
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: ShowSnapColors.background,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      blurRadius: 16,
+                      offset: const Offset(0, -4),
+                    ),
+                  ],
+                ),
+                child: SafeArea(
+                  child: TappableScale(
+                    onTap: () async {
+                      _ytCtrl?.pause();
+                      await context.push('/show-selection/${movie.movieId}');
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      height: 54,
+                      decoration: ShowSnapTheme.primaryButtonDecoration,
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                          onTap: () async {
+                            _ytCtrl?.pause();
+                            await context.push('/show-selection/${movie.movieId}');
+                          },
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.local_activity_outlined, color: Colors.black87),
+                              SizedBox(width: 8),
+                              Text(
+                                'Book Tickets',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            : null,
+        body: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+          child: CustomScrollView(
+            slivers: [
             SliverAppBar(
-              expandedHeight: 340,
+              expandedHeight: MediaQuery.of(context).size.width / (4 / 3),
               pinned: true,
               systemOverlayStyle: SystemUiOverlayStyle.light,
+              shape: const RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
+              ),
               flexibleSpace: FlexibleSpaceBar(
+                centerTitle: false,
                 titlePadding:
-                    const EdgeInsets.only(left: 56, bottom: 16, right: 16),
+                    const EdgeInsets.only(left: 16, bottom: 16, right: 16),
                 title: Text(
                   movie.title,
                   style: const TextStyle(
@@ -154,46 +242,120 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Hero(
-                      tag: 'movie_poster_${movie.movieId}',
-                      child: CachedNetworkImage(
-                        imageUrl: movie.posterUrl,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Shimmer.fromColors(
-                          baseColor: ShowSnapColors.grey300,
-                          highlightColor: ShowSnapColors.grey100,
-                          child: Container(color: ShowSnapColors.grey300),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          color: ShowSnapColors.grey300,
-                          child: const Icon(Icons.movie_outlined, size: 80),
+                background: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(25)),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                    if (_ytCtrl != null)
+                      SizedBox.expand(
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(
+                            width: 1600,
+                            height: 900,
+                            child: Transform.scale(
+                              scale: 1.45,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  if (_playTrailer && _ytCtrl != null) {
+                                    if (_ytCtrl!.value.isPlaying) {
+                                      _ytCtrl!.pause();
+                                    } else {
+                                      _ytCtrl!.play();
+                                    }
+                                  }
+                                },
+                                child: IgnorePointer(
+                                  ignoring: true,
+                                  child: player,
+                                ),
+                              ),
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                    Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 0.5, 1.0],
-                          colors: [
-                            Colors.transparent,
-                            Colors.transparent,
-                            Colors.black87,
-                          ],
+                    if (!_playTrailer) ...[
+                      Hero(
+                        tag: widget.heroTag ?? 'movie_poster_${movie.movieId}',
+                        child: movie.posterUrl.isNotEmpty ? CachedNetworkImage(
+                          imageUrl: movie.posterUrl,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Shimmer.fromColors(
+                            baseColor: ShowSnapColors.grey300,
+                            highlightColor: ShowSnapColors.grey100,
+                            child: Container(color: ShowSnapColors.grey300),
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            color: ShowSnapColors.grey300,
+                            child: const Icon(Icons.movie_outlined, size: 80),
+                          ),
+                        ) : Container(
+                            color: ShowSnapColors.grey300,
+                            child: const Icon(Icons.movie_outlined, size: 80),
                         ),
                       ),
+                    ],
+                    IgnorePointer(
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 120,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.6),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    if (!_playTrailer && _ytCtrl != null)
+                      Center(
+                        child: TappableScale(
+                          onTap: () {
+                            _trailerTimer?.cancel();
+                            _ytCtrl?.unMute();
+                            _ytCtrl?.play();
+                            setState(() {
+                              _playTrailer = true;
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: ShowSnapColors.primary, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.play_arrow_rounded,
+                              color: ShowSnapColors.primary,
+                              size: 48,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
             ),
+          ),
 
-            SliverToBoxAdapter(
-              child: Padding(
+          SliverToBoxAdapter(
+            child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,29 +391,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                               delay: const Duration(milliseconds: 80)),
 
                     const SizedBox(height: 16),
-
-                    // Trailer
-                    if (_ytCtrl != null) ...[
-                      Text('Trailer',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.bold))
-                          .animate()
-                          .fadeIn(duration: ShowSnapDuration.normal),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius:
-                            BorderRadius.circular(ShowSnapRadius.md),
-                        child: player,
-                      )
-                          .animate()
-                          .fadeIn(
-                              duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 60))
-                          .slideY(begin: 0.05, end: 0),
-                      const SizedBox(height: 16),
-                    ],
 
                     // Synopsis
                     if (movie.synopsis.isNotEmpty) ...[
@@ -344,50 +483,6 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                             duration: ShowSnapDuration.normal,
                             delay: const Duration(milliseconds: 400)),
 
-                    // Book Tickets CTA
-                    if (movie.status == 'nowShowing') ...[
-                      const SizedBox(height: 24),
-                      TappableScale(
-                        onTap: () =>
-                            context.push('/show-selection/${movie.movieId}'),
-                        child: Container(
-                          width: double.infinity,
-                          height: 54,
-                          decoration: ShowSnapTheme.primaryButtonDecoration,
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(
-                                  ShowSnapRadius.md),
-                              onTap: () => context
-                                  .push('/show-selection/${movie.movieId}'),
-                              child: const Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.local_activity_outlined,
-                                      color: Colors.black87),
-                                  SizedBox(width: 8),
-                                  Text(
-                                    'Book Tickets',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      )
-                          .animate()
-                          .fadeIn(
-                              duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 440))
-                          .slideY(begin: 0.1, end: 0),
-                    ],
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -396,7 +491,8 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

@@ -53,7 +53,7 @@ class _TheaterDetailContent extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
-      backgroundColor: ShowSnapColors.grey100,
+      backgroundColor: ShowSnapColors.background,
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -88,7 +88,7 @@ class _TheaterDetailContent extends ConsumerWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: ShowSnapColors.surface,
                       borderRadius:
                           BorderRadius.circular(ShowSnapRadius.md),
                       boxShadow: ShowSnapShadow.card,
@@ -185,12 +185,12 @@ class _NowShowingSection extends ConsumerWidget {
               style: TextStyle(color: ShowSnapColors.grey600));
         }
         return SizedBox(
-          height: 240,
+          height: 310,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             itemCount: movies.length,
             separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (_, i) => MovieCard(movie: movies[i]),
+            itemBuilder: (_, i) => MovieCard(movie: movies[i], heroTagSuffix: 'theater_detail'),
           ),
         );
       },

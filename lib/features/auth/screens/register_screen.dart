@@ -28,7 +28,7 @@ Color _strengthColor(int strength) {
     case 3:
       return ShowSnapColors.primary;
     case 4:
-      return Colors.green;
+      return ShowSnapColors.secondary;
     default:
       return ShowSnapColors.grey300;
   }
@@ -123,6 +123,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             // Gradient header
@@ -257,7 +258,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                                 ? Icons.check_circle_outline
                                                 : Icons.cancel_outlined,
                                             color: _passwordsMatch
-                                                ? Colors.green
+                                                ? ShowSnapColors.secondary
                                                 : ShowSnapColors.error,
                                             size: 20,
                                           ),

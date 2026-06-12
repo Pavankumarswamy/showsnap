@@ -317,34 +317,6 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
           : Column(
               children: [
                 if (!_previewMode) _buildToolbar().animate().fadeIn(duration: 300.ms),
-                // Curved movie screen indicator
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 12),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        height: 20,
-                        child: CustomPaint(
-                          painter: _CurvedScreenPainter(
-                            color: ShowSnapColors.primary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'SCREEN',
-                        style: TextStyle(
-                          letterSpacing: 8,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                          color: ShowSnapColors.grey600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ).animate().scaleX(begin: 0.6, end: 1.0, duration: 400.ms, curve: Curves.elasticOut).fadeIn(),
                 Expanded(
                   child: Stack(
                     children: [
@@ -353,12 +325,60 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
                         minScale: 0.1,
                         maxScale: 3.0,
                         constrained: false, // Fixes RenderFlex overflow!
-                        boundaryMargin: const EdgeInsets.all(double.infinity), // Allow panning and zooming out freely
+                        boundaryMargin: const EdgeInsets.all(200.0), // Allow panning and zooming out freely
                         child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        children: List.generate(_gridRows, (y) {
+                        children: [
+                          // Curved movie screen indicator (attached to seats)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 32),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(width: _previewMode ? 0 : 42.0), // Row header offset
+                                SizedBox(
+                                  width: _gridCols * 32.0,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      SizedBox(
+                                        width: double.infinity,
+                                        height: 20,
+                                        child: CustomPaint(
+                                          painter: _CurvedScreenPainter(
+                                            color: ShowSnapColors.primary,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      const Center(
+                                        child: Text(
+                                          'SCREEN',
+                                          style: TextStyle(
+                                            letterSpacing: 8,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 10,
+                                            color: ShowSnapColors.grey600,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                              .animate()
+                              .scaleX(
+                                begin: 0.6,
+                                end: 1.0,
+                                duration: const Duration(milliseconds: 400),
+                                curve: Curves.elasticOut,
+                              )
+                              .fadeIn(),
+                          ...List.generate(_gridRows, (y) {
                           return Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -416,7 +436,8 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
                             ],
                           );
                         }),
-                      ),
+                      ],
+                    ),
                       ),
                     ),
                       Positioned(
@@ -456,11 +477,11 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
     if (cell.seat!.isAccessible) return SeatColors.accessible;
     switch (cell.seat!.category) {
       case SeatCategory.gold:
-        return Colors.amber.shade200;
+        return SeatColors.gold;
       case SeatCategory.platinum:
-        return Colors.blue.shade200;
-      default:
-        return ShowSnapColors.grey300;
+        return SeatColors.platinum;
+      case SeatCategory.silver:
+        return SeatColors.silver;
     }
   }
 

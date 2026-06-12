@@ -1,6 +1,17 @@
 enum SeatCategory { silver, gold, platinum }
 
 extension SeatCategoryExt on SeatCategory {
+  String get name {
+    switch (this) {
+      case SeatCategory.silver:
+        return 'silver';
+      case SeatCategory.gold:
+        return 'gold';
+      case SeatCategory.platinum:
+        return 'platinum';
+    }
+  }
+
   String get label {
     switch (this) {
       case SeatCategory.silver:

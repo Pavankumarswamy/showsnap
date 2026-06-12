@@ -91,6 +91,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         body: Stack(
           children: [
             // Gradient header
