@@ -1,4 +1,5 @@
 import 'package:animations/animations.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -33,6 +34,7 @@ import '../../features/influencer/screens/ad_request_form_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/onboarding/welcome_screen.dart';
 import '../navigation/main_shell.dart';
+import '../models/user_model.dart';
 import '../services/auth_service.dart';
 import '../constants/app_constants.dart';
 import '../config/theme.dart';
@@ -110,16 +112,27 @@ Page<T> _fadePage<T>(BuildContext context, GoRouterState state, Widget child) {
   );
 }
 
+// Notifies GoRouter to re-run redirect whenever auth or user-model changes.
+// Creating this separately avoids recreating the entire GoRouter on each emit.
+class _RouterNotifier extends ChangeNotifier {
+  _RouterNotifier(Ref ref) {
+    ref.listen<AsyncValue<User?>>(authStateProvider, (_, __) => notifyListeners());
+    ref.listen<AsyncValue<UserModel?>>(currentUserModelProvider, (_, __) => notifyListeners());
+  }
+}
+
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final currentUserAsync = ref.watch(currentUserModelProvider);
+  final notifier = _RouterNotifier(ref);
 
   return GoRouter(
     initialLocation: AppRoutes.splash,
+    refreshListenable: notifier,
     redirect: (context, state) {
-      final isLoggedIn = authState.valueOrNull != null;
+      // Use ref.read so the redirect always sees the *current* value without
+      // creating a new GoRouter on each stream emission.
+      final isLoggedIn = ref.read(authStateProvider).valueOrNull != null;
       final loc = state.matchedLocation;
-      final authRoutes = {
+      const authRoutes = {
         AppRoutes.login,
         AppRoutes.register,
         AppRoutes.welcome,
@@ -129,28 +142,31 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (!isLoggedIn && !authRoutes.contains(loc)) return AppRoutes.login;
 
       if (isLoggedIn) {
-        // Wait for the user model to be loaded before redirecting by role
-        final userModel = currentUserAsync.valueOrNull;
-        final role = userModel?.role ?? AppConstants.roleUser;
+        final userModel = ref.read(currentUserModelProvider).valueOrNull;
 
+        // Still loading the user model — stay put, redirect will re-fire
+        // once currentUserModelProvider emits the real value.
+        if (userModel == null) return null;
+
+        final role = userModel.role;
         final isAdmin = role == AppConstants.roleAdmin;
         final isTM = role == AppConstants.roleTheaterManager;
 
-        // Redirect admin away from non-admin routes
+        // Admin must stay inside /admin
         if (isAdmin &&
             !loc.startsWith('/admin') &&
             !authRoutes.contains(loc)) {
           return AppRoutes.adminDashboard;
         }
 
-        // Redirect theaterManager away from non-TM / non-admin routes
+        // Theater manager must stay inside /tm
         if (isTM &&
             !loc.startsWith('/tm') &&
             !authRoutes.contains(loc)) {
           return AppRoutes.tmDashboard;
         }
 
-        // Regular user redirected away from login/register
+        // Regular user away from auth screens
         if (!isAdmin &&
             !isTM &&
             (loc == AppRoutes.login || loc == AppRoutes.register)) {
