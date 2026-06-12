@@ -6,6 +6,7 @@ import '../../../core/config/router.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/services/database_service.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class _AdminStats {
   final int totalUsers;
@@ -95,6 +96,36 @@ class AdminDashboardScreen extends ConsumerWidget {
           decoration:
               BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Logout',
+            icon: const Icon(Icons.logout_rounded),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('Logout'),
+                  content: const Text('Are you sure you want to logout?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Logout',
+                          style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true) {
+                await ref.read(authNotifierProvider.notifier).signOut();
+                if (context.mounted) context.go(AppRoutes.login);
+              }
+            },
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(_adminStatsProvider.future),
@@ -182,10 +213,13 @@ class AdminDashboardScreen extends ConsumerWidget {
                       () => context.push(AppRoutes.ticketAudit)),
                   _ActionButton('Offers',
                       Icons.local_offer_outlined,
-                      () => context.push(AppRoutes.offers)),
+                      () => context.push(AppRoutes.adminOffers)),
                   _ActionButton('Ad Requests',
                       Icons.campaign_outlined,
                       () => context.push(AppRoutes.adRequests)),
+                  _ActionButton('Banners',
+                      Icons.image_outlined,
+                      () => context.push(AppRoutes.adminBanners)),
                 ],
               ),
               const SizedBox(height: 32),

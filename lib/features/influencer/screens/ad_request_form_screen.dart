@@ -261,7 +261,7 @@ class _AdRequestFormScreenState extends ConsumerState<AdRequestFormScreen> {
         campaignTitle: _campaignTitleCtrl.text.trim(),
         onDone: () {
           Navigator.pop(context);
-          context.go('/dashboard');
+          context.go('/home');
         },
       ),
     );

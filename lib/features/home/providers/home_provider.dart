@@ -1,9 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/models/banner_model.dart';
 import '../../../core/models/event_model.dart';
 import '../../../core/models/movie_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
+
+final bannersProvider = FutureProvider<List<BannerModel>>((ref) =>
+    ref.watch(databaseServiceProvider).getBanners());
 
 class HomeData {
   final List<MovieModel> recommended;

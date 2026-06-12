@@ -4,7 +4,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/config/router.dart';
 import '../../core/config/theme.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/services/auth_service.dart';
 
 class SplashScreen extends ConsumerStatefulWidget {
@@ -54,7 +56,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     if (!mounted) return;
 
     if (user != null) {
-      context.go('/home');
+      // Fetch role from DB to route to the correct dashboard
+      final authService = ref.read(authServiceProvider);
+      final role = await authService.getCurrentUserRole();
+      if (!mounted) return;
+      if (role == AppConstants.roleAdmin) {
+        context.go(AppRoutes.adminDashboard);
+      } else if (role == AppConstants.roleTheaterManager) {
+        context.go(AppRoutes.tmDashboard);
+      } else {
+        context.go(AppRoutes.home);
+      }
     } else if (!hasSeenWelcome) {
       context.go('/welcome');
     } else {

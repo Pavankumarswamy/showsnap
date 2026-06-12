@@ -10,6 +10,7 @@ class AppConstants {
   static const String offersPath = 'offers';
   static const String adRequestsPath = 'adRequests';
   static const String eventsPath = 'events';
+  static const String bannersPath = 'banners';
 
   // User roles
   static const String roleAdmin = 'admin';

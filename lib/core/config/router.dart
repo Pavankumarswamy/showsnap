@@ -22,6 +22,7 @@ import '../../features/admin/screens/user_management_screen.dart';
 import '../../features/admin/screens/ticket_audit_screen.dart';
 import '../../features/admin/screens/offers_screen.dart' as admin;
 import '../../features/admin/screens/ad_requests_screen.dart';
+import '../../features/admin/screens/banners_screen.dart';
 import '../../features/theater_manager/screens/tm_dashboard_screen.dart';
 import '../../features/theater_manager/screens/screen_manager_screen.dart';
 import '../../features/theater_manager/screens/seat_layout_editor_screen.dart';
@@ -33,6 +34,7 @@ import '../../features/splash/splash_screen.dart';
 import '../../features/onboarding/welcome_screen.dart';
 import '../navigation/main_shell.dart';
 import '../services/auth_service.dart';
+import '../constants/app_constants.dart';
 import '../config/theme.dart';
 
 class AppRoutes {
@@ -58,6 +60,7 @@ class AppRoutes {
   static const String ticketAudit = '/admin/tickets';
   static const String adminOffers = '/admin/offers';
   static const String adRequests = '/admin/ad-requests';
+  static const String adminBanners = '/admin/banners';
   static const String tmDashboard = '/tm';
   static const String screenManager = '/tm/screens';
   static const String seatLayoutEditor = '/tm/seat-layout/:screenId';
@@ -109,6 +112,7 @@ Page<T> _fadePage<T>(BuildContext context, GoRouterState state, Widget child) {
 
 final routerProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
+  final currentUserAsync = ref.watch(currentUserModelProvider);
 
   return GoRouter(
     initialLocation: AppRoutes.splash,
@@ -125,15 +129,30 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (!isLoggedIn && !authRoutes.contains(loc)) return AppRoutes.login;
 
       if (isLoggedIn) {
-        final email = authState.valueOrNull?.email ?? '';
-        final isAdmin = email == 'admin@gmail.com';
+        // Wait for the user model to be loaded before redirecting by role
+        final userModel = currentUserAsync.valueOrNull;
+        final role = userModel?.role ?? AppConstants.roleUser;
 
-        // Admin always lands on admin dashboard, blocked from user shell
-        if (isAdmin && !loc.startsWith('/admin') && !authRoutes.contains(loc)) {
+        final isAdmin = role == AppConstants.roleAdmin;
+        final isTM = role == AppConstants.roleTheaterManager;
+
+        // Redirect admin away from non-admin routes
+        if (isAdmin &&
+            !loc.startsWith('/admin') &&
+            !authRoutes.contains(loc)) {
           return AppRoutes.adminDashboard;
         }
+
+        // Redirect theaterManager away from non-TM / non-admin routes
+        if (isTM &&
+            !loc.startsWith('/tm') &&
+            !authRoutes.contains(loc)) {
+          return AppRoutes.tmDashboard;
+        }
+
         // Regular user redirected away from login/register
         if (!isAdmin &&
+            !isTM &&
             (loc == AppRoutes.login || loc == AppRoutes.register)) {
           return AppRoutes.home;
         }
@@ -195,16 +214,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                   _fadePage(c, s, const UserOffersScreen()),
             ),
           ]),
-          // Tab 4 — Profile / Dashboard
-          StatefulShellBranch(routes: [
-            GoRoute(
-              path: AppRoutes.userDashboard,
-              pageBuilder: (c, s) =>
-                  _fadePage(c, s, const UserDashboardScreen()),
-            ),
-          ]),
         ],
       ),
+
+      // ── User Dashboard (standalone — outside shell, no bottom nav) ─────────
+      GoRoute(
+          path: AppRoutes.userDashboard,
+          pageBuilder: (c, s) =>
+              _verticalPage(c, s, const UserDashboardScreen())),
 
       // ── Booking drill-down (horizontal) ───────────────────────────────────
       GoRoute(
@@ -285,6 +302,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.adRequests,
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const AdRequestsScreen())),
+      GoRoute(
+          path: AppRoutes.adminBanners,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const AdminBannersScreen())),
 
       // ── Theater Manager ───────────────────────────────────────────────────
       GoRoute(

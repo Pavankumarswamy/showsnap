@@ -1,3 +1,12 @@
+enum AdRequestType { influencer, theater }
+
+extension AdRequestTypeExt on AdRequestType {
+  static AdRequestType fromString(String s) =>
+      s == 'theater' ? AdRequestType.theater : AdRequestType.influencer;
+
+  String get label => this == AdRequestType.theater ? 'Theater' : 'Influencer';
+}
+
 enum AdRequestStatus { pending, approved, rejected }
 
 extension AdRequestStatusExt on AdRequestStatus {
@@ -27,6 +36,7 @@ extension AdRequestStatusExt on AdRequestStatus {
 class AdRequestModel {
   final String requestId;
   final String uid;
+  final AdRequestType requestType;
   final String brandName;
   final String campaignTitle;
   final String description;
@@ -43,6 +53,7 @@ class AdRequestModel {
   const AdRequestModel({
     required this.requestId,
     required this.uid,
+    this.requestType = AdRequestType.influencer,
     required this.brandName,
     required this.campaignTitle,
     this.description = '',
@@ -68,6 +79,8 @@ class AdRequestModel {
     return AdRequestModel(
       requestId: requestId,
       uid: json['uid']?.toString() ?? '',
+      requestType: AdRequestTypeExt.fromString(
+          json['requestType']?.toString() ?? 'influencer'),
       brandName: json['brandName']?.toString() ?? '',
       campaignTitle: json['campaignTitle']?.toString() ?? '',
       description: json['description']?.toString() ?? '',
@@ -86,6 +99,7 @@ class AdRequestModel {
 
   Map<String, dynamic> toJson() => {
         'uid': uid,
+        'requestType': requestType.name,
         'brandName': brandName,
         'campaignTitle': campaignTitle,
         'description': description,
@@ -104,6 +118,7 @@ class AdRequestModel {
       AdRequestModel(
         requestId: requestId,
         uid: uid,
+        requestType: requestType,
         brandName: brandName,
         campaignTitle: campaignTitle,
         description: description,

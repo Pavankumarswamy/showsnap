@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../providers/home_provider.dart';
+import '../../../core/models/banner_model.dart';
 import '../widgets/movie_card.dart';
 import '../widgets/event_card.dart';
 import '../../../core/config/router.dart';
@@ -171,7 +172,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(width: 8),
                     // Avatar
                     GestureDetector(
-                      onTap: () => context.go(AppRoutes.userDashboard),
+                      onTap: () => context.push(AppRoutes.userDashboard),
                       child: CircleAvatar(
                         radius: 16,
                         backgroundColor: ShowSnapColors.primaryLighter,
@@ -489,90 +490,57 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
 
 // ─── Promo Banner ─────────────────────────────────────────────────────────────
 
-class _PromoBanner extends StatelessWidget {
+// ─── Promo Banner ─────────────────────────────────────────────────────────────
+
+// Fallback banners shown while RTDB loads or when admin has added none yet
+const _kDefaultBanners = [
+  BannerModel(
+      bannerId: 'd1',
+      title: 'Book Early, Save More',
+      subtitle: 'Use code EARLY20 for 20% off',
+      ctaText: 'Explore'),
+  BannerModel(
+      bannerId: 'd2',
+      title: 'Weekend Special',
+      subtitle: 'Family packages from ₹599',
+      ctaText: 'Book Now'),
+  BannerModel(
+      bannerId: 'd3',
+      title: 'IMAX Experience',
+      subtitle: 'Now available at 12 theaters',
+      ctaText: 'View Theaters'),
+];
+
+class _PromoBanner extends ConsumerWidget {
   final PageController controller;
   const _PromoBanner({required this.controller});
 
-  static const _banners = [
-    _BannerData(
-        title: 'Book Early, Save More',
-        subtitle: 'Use code EARLY20 for 20% off',
-        color: Color(0xFFFFF8E1)),
-    _BannerData(
-        title: 'Weekend Special',
-        subtitle: 'Family packages from ₹599',
-        color: Color(0xFFE8F5E9)),
-    _BannerData(
-        title: 'IMAX Experience',
-        subtitle: 'Now available at 12 theaters',
-        color: Color(0xFFE3F2FD)),
-  ];
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final bannersAsync = ref.watch(bannersProvider);
+    final banners = bannersAsync.valueOrNull?.isNotEmpty == true
+        ? bannersAsync.value!
+        : _kDefaultBanners;
+
     return Column(
       children: [
         SizedBox(
           height: 165,
           child: PageView.builder(
             controller: controller,
-            itemCount: _banners.length,
-            itemBuilder: (_, i) {
-              final b = _banners[i];
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: TappableScale(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: b.color,
-                      borderRadius:
-                          BorderRadius.circular(ShowSnapRadius.md),
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFFFFF8E1), Color(0xFFFFE082)],
-                      ),
-                    ),
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: ShowSnapColors.primary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text('OFFER',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold)),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(b.title,
-                            style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                color: Colors.black87)),
-                        const SizedBox(height: 4),
-                        Text(b.subtitle,
-                            style: const TextStyle(
-                                fontSize: 13,
-                                color: Colors.black54)),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+            itemCount: banners.length,
+            itemBuilder: (_, i) => _BannerCard(
+              banner: banners[i],
+              onTap: banners[i].ctaRoute.isNotEmpty
+                  ? () => context.push(banners[i].ctaRoute)
+                  : null,
+            ),
           ),
         ),
         const SizedBox(height: 10),
         SmoothPageIndicator(
           controller: controller,
-          count: _banners.length,
+          count: banners.length,
           effect: const WormEffect(
             dotWidth: 8,
             dotHeight: 8,
@@ -585,12 +553,106 @@ class _PromoBanner extends StatelessWidget {
   }
 }
 
-class _BannerData {
-  final String title;
-  final String subtitle;
-  final Color color;
-  const _BannerData(
-      {required this.title, required this.subtitle, required this.color});
+class _BannerCard extends StatelessWidget {
+  final BannerModel banner;
+  final VoidCallback? onTap;
+  const _BannerCard({required this.banner, this.onTap});
+
+  static const _gradients = [
+    LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFFFFF8E1), Color(0xFFFFE082)]),
+    LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFFE8F5E9), Color(0xFFA5D6A7)]),
+    LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFFE3F2FD), Color(0xFF90CAF9)]),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final idx = banner.bannerId.hashCode.abs() % _gradients.length;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TappableScale(
+        onTap: onTap,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Background: image if available, else gradient
+              if (banner.imageUrl.isNotEmpty)
+                CachedNetworkImage(
+                  imageUrl: banner.imageUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(
+                    decoration: BoxDecoration(gradient: _gradients[idx]),
+                  ),
+                )
+              else
+                Container(decoration: BoxDecoration(gradient: _gradients[idx])),
+
+              // Gradient overlay so text is always readable on images
+              if (banner.imageUrl.isNotEmpty)
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerRight,
+                      end: Alignment.centerLeft,
+                      colors: [Colors.transparent, Colors.black54],
+                    ),
+                  ),
+                ),
+
+              // Text content
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (banner.ctaText.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: ShowSnapColors.primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(banner.ctaText.toUpperCase(),
+                            style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    const SizedBox(height: 10),
+                    Text(
+                      banner.title,
+                      style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: banner.imageUrl.isNotEmpty
+                              ? Colors.white
+                              : Colors.black87),
+                    ),
+                    if (banner.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        banner.subtitle,
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: banner.imageUrl.isNotEmpty
+                                ? Colors.white70
+                                : Colors.black54),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─── Category Pills ───────────────────────────────────────────────────────────

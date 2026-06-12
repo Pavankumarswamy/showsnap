@@ -12,6 +12,7 @@ import '../models/show_model.dart';
 import '../models/theater_model.dart';
 import '../models/user_model.dart';
 import '../models/ad_request_model.dart';
+import '../models/banner_model.dart';
 
 class DatabaseService {
   final FirebaseDatabase _db = FirebaseDatabase.instance;
@@ -416,6 +417,45 @@ class DatabaseService {
       _db
           .ref('${AppConstants.adRequestsPath}/$requestId')
           .update(updates);
+
+  // ─── Banners ─────────────────────────────────────────────────────────────
+
+  Future<List<BannerModel>> getBanners() async {
+    final snap = await _db.ref(AppConstants.bannersPath).get();
+    if (!snap.exists || snap.value == null) return [];
+    final map = snap.value as Map;
+    final list = map.entries
+        .map((e) => BannerModel.fromJson(e.key.toString(), e.value as Map))
+        .where((b) => b.isActive)
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+    return list;
+  }
+
+  Future<List<BannerModel>> getAllBanners() async {
+    final snap = await _db.ref(AppConstants.bannersPath).get();
+    if (!snap.exists || snap.value == null) return [];
+    final map = snap.value as Map;
+    return map.entries
+        .map((e) => BannerModel.fromJson(e.key.toString(), e.value as Map))
+        .toList()
+      ..sort((a, b) => a.order.compareTo(b.order));
+  }
+
+  Future<String> saveBanner(BannerModel banner) async {
+    if (banner.bannerId.isEmpty) {
+      final ref = _db.ref(AppConstants.bannersPath).push();
+      await ref.set(banner.toJson());
+      return ref.key!;
+    }
+    await _db
+        .ref('${AppConstants.bannersPath}/${banner.bannerId}')
+        .set(banner.toJson());
+    return banner.bannerId;
+  }
+
+  Future<void> deleteBanner(String bannerId) =>
+      _db.ref('${AppConstants.bannersPath}/$bannerId').remove();
 
   // ─── Users ────────────────────────────────────────────────────────────────
 

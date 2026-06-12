@@ -13,6 +13,9 @@ final _adRequestsProvider = FutureProvider<List<AdRequestModel>>((ref) {
 final _adStatusTabProvider = StateProvider<AdRequestStatus>((ref) =>
     AdRequestStatus.pending);
 
+final _adTypeFilterProvider = StateProvider<AdRequestType?>(
+    (ref) => null); // null = all types
+
 class AdRequestsScreen extends ConsumerWidget {
   const AdRequestsScreen({super.key});
 
@@ -20,6 +23,7 @@ class AdRequestsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final requestsAsync = ref.watch(_adRequestsProvider);
     final tabStatus = ref.watch(_adStatusTabProvider);
+    final typeFilter = ref.watch(_adTypeFilterProvider);
 
     return DefaultTabController(
       length: 3,
@@ -45,31 +49,120 @@ class AdRequestsScreen extends ConsumerWidget {
             ],
           ),
         ),
-        body: requestsAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (requests) {
-            final filtered = requests
-                .where((r) => r.status == tabStatus)
-                .toList();
-            if (filtered.isEmpty) {
-              return Center(
-                child: Text('No ${tabStatus.label.toLowerCase()} requests'),
-              );
-            }
-            return RefreshIndicator(
-              onRefresh: () => ref.refresh(_adRequestsProvider.future),
-              child: ListView.separated(
-                padding: const EdgeInsets.all(12),
-                itemCount: filtered.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (_, i) =>
-                    _AdRequestCard(request: filtered[i]),
+        body: Column(
+          children: [
+            // ── Type filter chips ─────────────────────────────────────────
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              child: Row(
+                children: [
+                  const Text('Type:',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 12)),
+                  const SizedBox(width: 8),
+                  _TypeChip(
+                    label: 'All',
+                    selected: typeFilter == null,
+                    onTap: () => ref
+                        .read(_adTypeFilterProvider.notifier)
+                        .state = null,
+                  ),
+                  const SizedBox(width: 6),
+                  _TypeChip(
+                    label: 'Influencer',
+                    color: Colors.deepPurple,
+                    selected: typeFilter == AdRequestType.influencer,
+                    onTap: () => ref
+                        .read(_adTypeFilterProvider.notifier)
+                        .state = AdRequestType.influencer,
+                  ),
+                  const SizedBox(width: 6),
+                  _TypeChip(
+                    label: 'Theater',
+                    color: Colors.teal,
+                    selected: typeFilter == AdRequestType.theater,
+                    onTap: () => ref
+                        .read(_adTypeFilterProvider.notifier)
+                        .state = AdRequestType.theater,
+                  ),
+                ],
               ),
-            );
-          },
+            ),
+            const Divider(height: 1),
+            // ── Requests list ─────────────────────────────────────────────
+            Expanded(
+              child: requestsAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Error: $e')),
+                data: (requests) {
+                  var filtered = requests
+                      .where((r) => r.status == tabStatus)
+                      .toList();
+                  if (typeFilter != null) {
+                    filtered = filtered
+                        .where((r) => r.requestType == typeFilter)
+                        .toList();
+                  }
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: Text(
+                          'No ${tabStatus.label.toLowerCase()} ${typeFilter?.label.toLowerCase() ?? ''} requests'),
+                    );
+                  }
+                  return RefreshIndicator(
+                    onRefresh: () async =>
+                        ref.invalidate(_adRequestsProvider),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.all(12),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(height: 8),
+                      itemBuilder: (_, i) =>
+                          _AdRequestCard(request: filtered[i]),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+}
+
+class _TypeChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+  const _TypeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.color = ShowSnapColors.primary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.12) : ShowSnapColors.grey100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+              color: selected ? color : ShowSnapColors.grey300),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: selected ? color : ShowSnapColors.grey600)),
       ),
     );
   }
@@ -88,11 +181,29 @@ class _AdRequestCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(request.brandName,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
+                Expanded(
+                  child: Text(request.brandName,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+                // ── Type badge ────────────────────────────────────────
+                Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: _typeColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: _typeColor),
+                  ),
+                  child: Text(request.requestType.label,
+                      style: TextStyle(
+                          color: _typeColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600)),
+                ),
+                // ── Status badge ──────────────────────────────────────
                 Container(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 8, vertical: 3),
@@ -190,6 +301,10 @@ class _AdRequestCard extends ConsumerWidget {
       ),
     );
   }
+
+  Color get _typeColor => request.requestType == AdRequestType.theater
+      ? Colors.teal
+      : Colors.deepPurple;
 
   Color get _statusColor {
     switch (request.status) {
