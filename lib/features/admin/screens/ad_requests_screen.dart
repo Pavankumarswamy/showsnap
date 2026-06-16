@@ -1,21 +1,23 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/ad_request_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 
 final _adRequestsProvider = FutureProvider<List<AdRequestModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAdRequests();
 });
 
-final _adStatusTabProvider = StateProvider<AdRequestStatus>((ref) =>
-    AdRequestStatus.pending);
-
-final _adTypeFilterProvider = StateProvider<AdRequestType?>(
-    (ref) => null); // null = all types
+final _adStatusTabProvider =
+    StateProvider<AdRequestStatus>((ref) => AdRequestStatus.pending);
+final _adTypeFilterProvider = StateProvider<AdRequestType?>((ref) => null);
 
 class AdRequestsScreen extends ConsumerWidget {
   const AdRequestsScreen({super.key});
@@ -29,23 +31,28 @@ class AdRequestsScreen extends ConsumerWidget {
     return DefaultTabController(
       length: 3,
       child: Scaffold(
+        backgroundColor: AdminColors.background,
+        drawer: AdminDrawer(
+          currentRoute: AppRoutes.adRequests,
+          onNavigateTo: (route) => context.push(route),
+          onSignOut: () {},
+        ),
         appBar: AppBar(
-          title: const Text('Ad Requests'),
-          toolbarHeight: 70,
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(35),
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          flexibleSpace: Container(
-            decoration:
-                BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+          backgroundColor: AdminColors.surface,
+          foregroundColor: AdminColors.textPrimary,
+          elevation: 0,
+          title: const Text(
+            'Ad Requests',
+            style: TextStyle(
+                color: AdminColors.textPrimary,
+                fontWeight: FontWeight.bold),
           ),
           bottom: TabBar(
-            labelColor: Colors.black,
-            unselectedLabelColor: Colors.black54,
-            indicatorColor: Colors.black,
+            labelColor: AdminColors.primary,
+            unselectedLabelColor: AdminColors.textSecondary,
+            indicatorColor: AdminColors.primary,
+            indicatorWeight: 2,
+            dividerColor: AdminColors.border,
             onTap: (i) {
               ref.read(_adStatusTabProvider.notifier).state =
                   AdRequestStatus.values[i];
@@ -59,19 +66,22 @@ class AdRequestsScreen extends ConsumerWidget {
         ),
         body: Column(
           children: [
-            // ── Type filter chips ─────────────────────────────────────────
+            // Type filter
             Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              color: AdminColors.surface,
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
               child: Row(
                 children: [
                   const Text('Type:',
                       style: TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 12)),
+                          color: AdminColors.textSecondary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12)),
                   const SizedBox(width: 8),
                   _TypeChip(
                     label: 'All',
                     selected: typeFilter == null,
+                    color: AdminColors.primary,
                     onTap: () => ref
                         .read(_adTypeFilterProvider.notifier)
                         .state = null,
@@ -79,8 +89,8 @@ class AdRequestsScreen extends ConsumerWidget {
                   const SizedBox(width: 6),
                   _TypeChip(
                     label: 'Influencer',
-                    color: Colors.deepPurple,
                     selected: typeFilter == AdRequestType.influencer,
+                    color: Colors.deepPurple,
                     onTap: () => ref
                         .read(_adTypeFilterProvider.notifier)
                         .state = AdRequestType.influencer,
@@ -88,8 +98,8 @@ class AdRequestsScreen extends ConsumerWidget {
                   const SizedBox(width: 6),
                   _TypeChip(
                     label: 'Theater',
-                    color: Colors.teal,
                     selected: typeFilter == AdRequestType.theater,
+                    color: Colors.teal,
                     onTap: () => ref
                         .read(_adTypeFilterProvider.notifier)
                         .state = AdRequestType.theater,
@@ -97,41 +107,60 @@ class AdRequestsScreen extends ConsumerWidget {
                 ],
               ),
             ).animate().fadeIn(duration: 300.ms),
-            const Divider(height: 1),
-            // ── Requests list ─────────────────────────────────────────────
+            const Divider(color: AdminColors.border, height: 1),
+            // Content
             Expanded(
               child: requestsAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Error: $e')),
+                loading: () => ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: 4,
+                  itemBuilder: (_, __) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: StaffShimmerCard(
+                      height: 180,
+                      baseColor: AdminColors.surface,
+                      highlightColor: AdminColors.surfaceElevated,
+                    ),
+                  ),
+                ),
+                error: (e, _) => Center(
+                  child: Text('Error: $e',
+                      style: const TextStyle(color: AdminColors.error)),
+                ),
                 data: (requests) {
-                  var filtered = requests
-                      .where((r) => r.status == tabStatus)
-                      .toList();
+                  var filtered =
+                      requests.where((r) => r.status == tabStatus).toList();
                   if (typeFilter != null) {
                     filtered = filtered
                         .where((r) => r.requestType == typeFilter)
                         .toList();
                   }
+
                   if (filtered.isEmpty) {
-                    return Center(
-                      child: Text(
-                          'No ${tabStatus.label.toLowerCase()} ${typeFilter?.label.toLowerCase() ?? ''} requests'),
+                    return StaffEmptyState(
+                      icon: Icons.campaign_outlined,
+                      message:
+                          'No ${tabStatus.label.toLowerCase()} requests',
                     );
                   }
+
                   return RefreshIndicator(
+                    color: AdminColors.primary,
+                    backgroundColor: AdminColors.surface,
                     onRefresh: () async =>
                         ref.invalidate(_adRequestsProvider),
                     child: ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
                       itemCount: filtered.length,
                       separatorBuilder: (_, __) =>
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 12),
                       itemBuilder: (_, i) =>
                           _AdRequestCard(request: filtered[i])
-                            .animate()
-                            .fadeIn(duration: 400.ms, delay: (i % 6 * 50).ms)
-                            .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                              .animate()
+                              .fadeIn(
+                                  duration: 400.ms,
+                                  delay: (i % 6 * 60).ms)
+                              .slideY(begin: 0.08, end: 0),
                     ),
                   );
                 },
@@ -149,11 +178,12 @@ class _TypeChip extends StatelessWidget {
   final bool selected;
   final Color color;
   final VoidCallback onTap;
+
   const _TypeChip({
     required this.label,
     required this.selected,
+    required this.color,
     required this.onTap,
-    this.color = ShowSnapColors.primary,
   });
 
   @override
@@ -161,19 +191,21 @@ class _TypeChip extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        duration: 150.ms,
+        padding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
-          color: selected ? color.withOpacity(0.12) : ShowSnapColors.grey100,
-          borderRadius: BorderRadius.circular(20),
+          color: selected ? color.withOpacity(0.15) : AdminColors.surface,
+          borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
           border: Border.all(
-              color: selected ? color : ShowSnapColors.grey300),
+              color: selected ? color : AdminColors.border),
         ),
         child: Text(label,
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: selected ? color : ShowSnapColors.grey600)),
+                color:
+                    selected ? color : AdminColors.textSecondary)),
       ),
     );
   }
@@ -183,136 +215,6 @@ class _AdRequestCard extends ConsumerWidget {
   final AdRequestModel request;
   const _AdRequestCard({required this.request});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(request.brandName,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
-                // ── Type badge ────────────────────────────────────────
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _typeColor.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _typeColor),
-                  ),
-                  child: Text(request.requestType.label,
-                      style: TextStyle(
-                          color: _typeColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600)),
-                ),
-                // ── Status badge ──────────────────────────────────────
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: _statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: _statusColor),
-                  ),
-                  child: Text(request.status.label,
-                      style: TextStyle(
-                          color: _statusColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(request.campaignTitle,
-                style: const TextStyle(fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Text('Budget: ${request.budgetRange}',
-                style: const TextStyle(color: ShowSnapColors.grey600)),
-            Text(
-                'Dates: ${request.startDateTs.epochToDateLabel} — ${request.endDateTs.epochToDateLabel}',
-                style: const TextStyle(color: ShowSnapColors.grey600)),
-            if (request.creativeUrls.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 80,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: request.creativeUrls.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) => ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: CachedNetworkImage(
-                      imageUrl: request.creativeUrls[i],
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => const SizedBox(
-                        width: 80,
-                        height: 80,
-                        child: Icon(Icons.image_outlined),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            if (request.status == AdRequestStatus.pending) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.close, color: ShowSnapColors.error),
-                      label: const Text('Reject',
-                          style: TextStyle(color: ShowSnapColors.error)),
-                      style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: ShowSnapColors.error)),
-                      onPressed: () =>
-                          _showRejectDialog(context, ref),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.check),
-                      label: const Text('Approve'),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: ShowSnapColors.secondary),
-                      onPressed: () =>
-                          _approve(context, ref),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-            if (request.adminNote.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: ShowSnapColors.grey100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text('Note: ${request.adminNote}',
-                    style: const TextStyle(
-                        fontSize: 12, color: ShowSnapColors.grey600)),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Color get _typeColor => request.requestType == AdRequestType.theater
       ? Colors.teal
       : Colors.deepPurple;
@@ -320,19 +222,175 @@ class _AdRequestCard extends ConsumerWidget {
   Color get _statusColor {
     switch (request.status) {
       case AdRequestStatus.approved:
-        return ShowSnapColors.secondary;
+        return AdminColors.success;
       case AdRequestStatus.rejected:
-        return ShowSnapColors.error;
+        return AdminColors.error;
       default:
-        return ShowSnapColors.primary;
+        return AdminColors.primary;
     }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  request.brandName,
+                  style: const TextStyle(
+                      color: AdminColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              StaffBadge(label: request.requestType.label, color: _typeColor),
+              const SizedBox(width: 6),
+              StaffBadge(label: request.status.label, color: _statusColor),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            request.campaignTitle,
+            style: const TextStyle(
+                color: AdminColors.textSecondary,
+                fontWeight: FontWeight.w500),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Budget: ${request.budgetRange}',
+            style: const TextStyle(
+                color: AdminColors.textMuted, fontSize: 12),
+          ),
+          Text(
+            'Dates: ${request.startDateTs.epochToDateLabel} — ${request.endDateTs.epochToDateLabel}',
+            style: const TextStyle(
+                color: AdminColors.textMuted, fontSize: 12),
+          ),
+          // Creatives
+          if (request.creativeUrls.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              height: 80,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: request.creativeUrls.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (_, i) => ClipRRect(
+                  borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+                  child: CachedNetworkImage(
+                    imageUrl: request.creativeUrls[i],
+                    width: 80,
+                    height: 80,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      width: 80,
+                      height: 80,
+                      color: AdminColors.surfaceElevated,
+                      child: const Icon(Icons.image_outlined,
+                          color: AdminColors.textMuted),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+          // Admin note
+          if (request.adminNote.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AdminColors.surfaceElevated,
+                borderRadius:
+                    BorderRadius.circular(ShowSnapRadius.sm),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.note_rounded,
+                      color: AdminColors.textMuted, size: 14),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      request.adminNote,
+                      style: const TextStyle(
+                          color: AdminColors.textSecondary,
+                          fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          // Actions for pending
+          if (request.status == AdRequestStatus.pending) ...[
+            const SizedBox(height: 12),
+            const Divider(color: AdminColors.border, height: 1),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.close,
+                        color: AdminColors.error, size: 16),
+                    label: const Text('Reject',
+                        style: TextStyle(color: AdminColors.error)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AdminColors.error),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(ShowSnapRadius.md),
+                      ),
+                    ),
+                    onPressed: () =>
+                        _showRejectDialog(context, ref),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.check, size: 16),
+                    label: const Text('Approve'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AdminColors.success,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(ShowSnapRadius.md),
+                      ),
+                    ),
+                    onPressed: () => _approve(context, ref),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Future<void> _approve(BuildContext context, WidgetRef ref) async {
     await ref.read(databaseServiceProvider).updateAdRequest(
-        request.requestId, {'status': AdRequestStatus.approved.name});
+        request.requestId,
+        {'status': AdRequestStatus.approved.name});
     ref.invalidate(_adRequestsProvider);
-    if (context.mounted) context.showSnackbar('Request approved');
+    if (context.mounted) {
+      ShowSnapToast.success(context, 'Request approved');
+    }
   }
 
   void _showRejectDialog(BuildContext context, WidgetRef ref) {
@@ -340,20 +398,50 @@ class _AdRequestCard extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Reject Request'),
+        backgroundColor: AdminColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          side: const BorderSide(color: AdminColors.border),
+        ),
+        title: const Text('Reject Request',
+            style: TextStyle(
+                color: AdminColors.textPrimary,
+                fontWeight: FontWeight.bold)),
         content: TextField(
           controller: noteCtrl,
-          decoration:
-              const InputDecoration(labelText: 'Feedback (optional)'),
+          style: const TextStyle(color: AdminColors.textPrimary),
+          decoration: InputDecoration(
+            labelText: 'Rejection reason (optional)',
+            labelStyle:
+                const TextStyle(color: AdminColors.textSecondary),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+              borderSide: const BorderSide(color: AdminColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+              borderSide:
+                  const BorderSide(color: AdminColors.primary),
+            ),
+            filled: true,
+            fillColor: AdminColors.surfaceElevated,
+          ),
           maxLines: 3,
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel',
+                style: TextStyle(color: AdminColors.textSecondary)),
+          ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: ShowSnapColors.error),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AdminColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+              ),
+            ),
             onPressed: () async {
               await ref.read(databaseServiceProvider).updateAdRequest(
                 request.requestId,
@@ -365,10 +453,11 @@ class _AdRequestCard extends ConsumerWidget {
               ref.invalidate(_adRequestsProvider);
               if (context.mounted) {
                 Navigator.pop(context);
-                context.showSnackbar('Request rejected');
+                ShowSnapToast.error(context, 'Request rejected');
               }
             },
-            child: const Text('Reject'),
+            child: const Text('Reject',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

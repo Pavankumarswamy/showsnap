@@ -1,0 +1,789 @@
+# ShowSnap — V2 Interactive Polish & User Dashboard
+### Autonomous Overnight Build Prompt — Continuation of V1
+### Developer is unavailable. Complete everything without asking questions.
+
+---
+
+## ⚡ Context: What V1 Built
+
+V1 scaffolded the entire ShowSnap Flutter app (movie + event booking, 3 roles, Firebase RTDB, Cloudinary, seat locking, admin panel, Cloud Functions). That code is already in your project folder.
+
+**V2 does NOT rebuild anything from scratch.**  
+V2 adds animation, delight, polish, and a fully interactive User Dashboard on top of the V1 codebase.
+
+If V1 is incomplete, finish only what V2 touches — don't restart the whole project.
+
+---
+
+## 🔐 Same Credentials — Already Set Up from V1
+
+All tokens live in `lib/core/config/env.dart` from V1. No new credentials needed.  
+Add these new pub dependencies to `pubspec.yaml`:
+
+```yaml
+  # Animation & Motion
+  lottie: ^latest                    # JSON Lottie animations
+  flutter_animate: ^latest           # declarative animation DSL
+  animations: ^latest                # Material motion transitions
+  shimmer: ^latest                   # skeleton loaders (if not already added)
+
+  # Charts & Data Viz (User Dashboard)
+  fl_chart: ^latest                  # booking analytics charts
+
+  # UX Polish
+  smooth_page_indicator: ^latest     # onboarding dot indicators
+  flutter_svg: ^latest               # SVG assets (icons, illustrations)
+  auto_size_text: ^latest            # text that auto-scales to container
+  flutter_staggered_animations: ^latest  # list stagger helpers
+  gap: ^latest                       # clean spacing widget
+  haptic_feedback: ^latest           # tactile micro-interactions
+  confetti: ^latest                  # reward unlock celebrations
+```
+
+Run `flutter pub get` after updating pubspec.
+
+---
+
+## 📋 Autonomous Rules (Same as V1)
+
+1. Zero clarifying questions. Document decisions in `DECISIONS_V2.md`.
+2. Complete every phase in order. Log progress in `BUILD_LOG_V2.md`.
+3. Write full working Dart code — no stubs, no `// TODO implement`.
+4. Every animation must have a meaningful duration and curve — never use default linear timing.
+5. All border radii throughout the app = **25px minimum** (see Phase 1 — Global Radius Sweep).
+6. If a screen already exists from V1, EDIT it in-place. Do not duplicate files.
+7. Test on both small (375px) and large (430px) screen widths mentally as you build.
+
+---
+
+## 🎨 Phase 1 — Global Design Token Sweep
+
+**This phase modifies `lib/core/config/theme.dart` and all existing screens.**
+
+### 1.1 Border Radius Global Token
+
+In `theme.dart`, define:
+```dart
+class ShowSnapRadius {
+  static const double xs   = 12.0;
+  static const double sm   = 16.0;
+  static const double md   = 25.0;   // ← PRIMARY — use everywhere
+  static const double lg   = 32.0;
+  static const double xl   = 40.0;
+  static const double pill = 100.0;  // fully rounded buttons/chips
+}
+```
+
+Apply `ShowSnapRadius.md` (25px) to **every** widget that currently uses sharp corners:
+- All `Card` widgets → `shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25))`
+- All `Container` decorations → `borderRadius: BorderRadius.circular(25)`
+- All `TextField` / `InputDecoration` → `borderRadius: BorderRadius.circular(25)`
+- All `ElevatedButton` / `OutlinedButton` → `borderRadius: BorderRadius.circular(25)`
+- All bottom sheets → `clipBehavior: Clip.antiAlias` + `borderRadius: BorderRadius.vertical(top: Radius.circular(32))`
+- All dialogs → `shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28))`
+- Seat map cells in `SeatMapWidget` → `borderRadius: BorderRadius.circular(12)`  
+  (slightly smaller — grid cells at 25 would merge into blobs)
+- App bars → keep square at top, only round if in a card context
+
+### 1.2 Shadow System
+Replace any hard-coded `BoxShadow` with:
+```dart
+class ShowSnapShadow {
+  static List<BoxShadow> card = [
+    BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 20, offset: Offset(0,8)),
+    BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: Offset(0,2)),
+  ];
+  static List<BoxShadow> elevated = [
+    BoxShadow(color: Color(0xFFF5A800).withOpacity(0.3), blurRadius: 24, offset: Offset(0,8)),
+  ];
+  static List<BoxShadow> none = [];
+}
+```
+
+Use `ShowSnapShadow.elevated` on CTAs (Book button, Confirm Payment) for the warm yellow glow effect.
+
+### 1.3 Animation Duration Tokens
+```dart
+class ShowSnapDuration {
+  static const Duration fast    = Duration(milliseconds: 200);
+  static const Duration normal  = Duration(milliseconds: 350);
+  static const Duration slow    = Duration(milliseconds: 550);
+  static const Duration xslow   = Duration(milliseconds: 800);
+  static const Duration page    = Duration(milliseconds: 450);
+}
+```
+
+---
+
+## ✨ Phase 2 — Splash Screen
+
+**File**: `lib/features/splash/splash_screen.dart`
+
+### Design
+Full-screen gradient: top `#F5A800` → bottom `#2E7D32` (yellow to green, diagonal).
+
+### Animation Sequence (orchestrated, total ~2.8 seconds)
+
+```
+t=0ms      Background gradient fades in (opacity 0→1, 400ms, ease-out)
+t=200ms    App logo scales in: scale 0.4→1.0 with spring bounce
+             - Use Flutter Animate: .scale(begin: 0.4, end: 1.0, curve: Curves.elasticOut, duration: 800ms)
+t=600ms    App name "ShowSnap" slides up from y+30 and fades in
+             - .slideY(begin: 0.5, end: 0, duration: 500ms, curve: Curves.easeOutCubic)
+             - .fadeIn(duration: 500ms)
+t=900ms    Tagline "Book Your Moment" fades in with letter-spacing expanding
+             - opacity 0→1, 400ms
+t=1400ms   Yellow horizontal loading bar appears at bottom
+             - Animated width: 0→100% in 1000ms, ease-in-out
+t=2400ms   Everything fades out simultaneously (300ms)
+t=2700ms   Navigate to: Welcome Screen (if first launch) OR Home (if logged in)
+```
+
+### Implementation Notes
+- Logo: use a circular container with the "S" lettermark in Helvetica-Bold white, 48sp, on yellow bg — or load from `assets/images/logo.png` if it exists
+- Check `SharedPreferences` for `'hasSeenWelcome'` key to decide routing
+- `WillPopScope` prevents back-navigation during splash
+- Set `SystemChrome.setSystemUIOverlayStyle` to transparent status bar
+
+---
+
+## 🎉 Phase 3 — Welcome / Onboarding Screen
+
+**File**: `lib/features/onboarding/welcome_screen.dart`
+
+### Layout
+`PageView` with 3 pages + `SmoothPageIndicator` at bottom.  
+Each page has: full-bleed illustration area (top 55%), title, subtitle, next button.
+
+### Page Content
+
+**Page 1 — Discover**
+- Illustration: animated movie reel or popcorn box (Lottie JSON from lottiefiles.com — use a free one, embed URL or download to `assets/lottie/`)
+- Title: "Discover What's Playing"
+- Subtitle: "Movies, events, concerts — all in one place, personalised just for you."
+
+**Page 2 — Book Instantly**
+- Illustration: seat selection grid coming to life (Lottie or a custom animated SVG)
+- Title: "Pick Your Perfect Seat"
+- Subtitle: "Interactive seat maps with real-time availability. Your seat, your choice."
+
+**Page 3 — Rewards**
+- Illustration: trophy/confetti Lottie
+- Title: "Earn While You Watch"
+- Subtitle: "Book 9 movies, get the 10th free. Unlock rewards with every booking."
+
+### Animation Per Page Transition
+Use `PageView` with `PageController` + listen to page changes.  
+Each page entrance: stagger children using `flutter_staggered_animations`:
+1. Illustration: scale from 0.8→1.0 + fade-in (400ms)
+2. Title: slide up + fade-in (delay 100ms)
+3. Subtitle: slide up + fade-in (delay 200ms)
+4. Button: slide up + fade-in (delay 350ms)
+
+### Bottom Controls
+`SmoothPageIndicator` with `WormEffect`, active dot color `#F5A800`, inactive `#E0E0E0`.  
+Skip button top-right: navigates to auth screen + saves `'hasSeenWelcome': true`.  
+Last page: "Get Started" CTA → Auth screen.
+
+---
+
+## 🔐 Phase 4 — Auth Screens Polish
+
+**Edit existing**: `lib/features/auth/screens/login_screen.dart` + `register_screen.dart`
+
+### Login Screen Overhaul
+
+**Header area (top 40% of screen)**:
+- Soft yellow radial gradient background
+- ShowSnap logo centered with gentle pulse animation (scale 1.0→1.04→1.0 on loop, 2s period)
+- "Welcome Back" in bold, "Sign in to continue" in grey subtitle
+
+**Form card (bottom 65%, overlapping header by 30px)**:
+- White card, `borderRadius: BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32))`
+- Smooth slide-up entrance: `SlideTransition` from y=1.0→0.0 on screen init, 550ms easeOutCubic
+- Email field + password field + "Forgot Password?" link
+- All fields: 25px border radius, yellow focused border (`#F5A800`)
+- "Sign In" button: full-width, yellow gradient (#F5A800→#FFD000), 25px radius, yellow glow shadow
+- Divider "or continue with"
+- Google Sign-In button: white card, Google logo, 25px radius
+- "Don't have an account? Register" tap navigates
+
+**Button loading state**:
+- On tap: button width animates from full-width → 56px (circle), spinner appears inside
+- On success: spinner → checkmark animation (green), then navigate
+- On error: button shakes left-right (5px, 3 cycles, 300ms total), returns to full-width
+
+**Micro-interactions**:
+- Text field focus: border animates from grey→yellow, label floats up with color change
+- Password visibility toggle: eye icon rotates 180° on tap
+
+### Register Screen
+Same card pattern. 4-field form: Name, Email, Password, Confirm Password.  
+Add real-time validation feedback:
+- Password strength bar below password field (4 segments, red→orange→yellow→green)
+- Password strength computed from: length, uppercase, number, special char
+- Match indicator appears when confirm-password field is non-empty
+
+### Profile Setup Screen Polish
+Genre selection chips: animated selection state (scale 0.95→1.05 bounce on tap, yellow fill).  
+City autocomplete with `flutter_animate` stagger on suggestion list items.
+
+---
+
+## 🏠 Phase 5 — Home Screen Polish
+
+**Edit existing**: `lib/features/home/screens/home_screen.dart`
+
+### App Bar
+Custom `SliverAppBar` that:
+- Expands to 120px (showing location + greeting), collapses to 60px
+- Expanded state: "Good morning, Pavan 👋" + current city (from geolocator)
+- Notification bell icon with animated red dot (pulse animation) if unread count > 0
+- Search bar morphs from icon → expanded field on tap (Hero animation)
+
+### Section Load Sequence
+On initial load, each section appears with a stagger delay:
+```
+Recommended carousel: delay 0ms
+Now Showing:          delay 150ms
+Events Near You:      delay 300ms
+Upcoming:             delay 450ms
+Trending:             delay 600ms
+```
+Each section: `AnimatedOpacity` (0→1) + `AnimatedSlide` (offset 0,0.04 → 0,0).
+
+### Movie/Event Cards Polish
+**MovieCard widget complete overhaul**:
+- Poster image: `Hero` tag = `'movie_poster_${movie.id}'` for shared element transition to detail
+- Rounded corners: 25px
+- Gradient overlay at bottom (transparent → black 70%) for text legibility
+- Hovering label for genre chips
+- "Sold Out" ribbon overlay using `CustomPaint` (diagonal red ribbon top-right corner)
+- Tap: `ScaleTransition` micro-press (scale 0.97 on down, 1.0 on up, 100ms)
+- Price badge: bottom-right corner, pill shape, yellow background
+
+### Skeleton Loading
+When data is loading, show skeleton placeholders using `Shimmer`:
+
+```dart
+// SkeletonMovieCard widget
+Container with shimmer:
+  - Rounded rect 25px (poster area, 160×220px)
+  - Two rounded rects below (title line, genre chips)
+  - All shimmer base: #E0E0E0, highlight: #F5F5F5
+```
+Show 3 skeleton cards in each horizontal carousel while loading.
+
+### Pull-to-Refresh
+`RefreshIndicator` themed with yellow color.  
+On refresh: replay stagger sequence + show "Updated just now" toast for 2 seconds.
+
+---
+
+## 🎬 Phase 6 — Movie Detail Screen Polish
+
+**Edit**: `lib/features/movies/screens/movie_detail_screen.dart`
+
+### Hero Transition
+Wrap poster in `Hero(tag: 'movie_poster_${movie.id}')` — matches tag on MovieCard.  
+The poster expands into the detail page header seamlessly.
+
+### Scrollable Detail Layout
+`CustomScrollView` with:
+- `SliverAppBar`: expanded = full poster (60% of screen height), collapsed = title in app bar
+  - Poster has gradient from transparent (top) → black (bottom)
+  - Rating badge, certificate badge overlaid on poster
+- `SliverToBoxAdapter`: all content below
+
+### Content Entrance Animation
+On page load, stagger content blocks:
+```
+Title + meta row:     delay 0ms,   slide-up + fade
+Genre chips:          delay 80ms,  slide-up + fade
+Cast carousel:        delay 160ms, slide-up + fade
+Synopsis:             delay 240ms, slide-up + fade
+"Book Tickets" CTA:   delay 320ms, slide-up + fade
+```
+Use `flutter_animate` `.animate().slideY(begin:0.3, end:0).fadeIn()`.
+
+### Rating Stars
+Animated star fill: on load, stars fill from 0→rating over 600ms with easeOutBack curve.
+
+### Cast Carousel
+Horizontal scroll, each cast member:
+- Circle avatar (CachedNetworkImage), 25px placeholder container
+- Name below, truncated to 2 lines
+- Tap: show role in a bottom sheet with full bio
+
+### "Book Tickets" Button
+Floating sticky at bottom of screen (above bottom safe area).  
+Yellow gradient, 25px radius, yellow glow shadow, full width minus 32px horizontal margin.  
+On scroll-up: button lifts in from bottom (`AnimatedPositioned` or `SlideTransition`).
+
+---
+
+## 🪑 Phase 7 — Seat Selection Screen Polish
+
+**Edit**: `lib/features/movies/screens/seat_selection_screen.dart`  
+**Edit**: `lib/features/movies/widgets/seat_map_widget.dart`
+
+### Seat State Animations
+
+Every seat state change must animate:
+
+| Transition | Animation |
+|---|---|
+| available → locked (by current user) | Scale 1.0 → 1.15 → 1.0 (bounce, 250ms) + color fill sweep yellow |
+| locked → available (unlocked) | Scale 1.0 → 0.85 → 1.0 + color sweep back to white |
+| available → booked (realtime from another user) | Color ripple red→grey, scale 1.0 → 0.9 (150ms) |
+| locked → booked (payment confirmed) | Confetti burst from seat position (5 particles) + scale to 0.9 |
+
+Seat color animation: use `AnimatedContainer` with 200ms color transition for all state changes.
+
+### Seat Map Container
+- Zoomable (`InteractiveViewer`, min=0.7, max=2.5) so users can zoom into large theaters
+- Screen indicator at top: curved white bar with "SCREEN" text, representing physical screen
+  - Animate on load: scale from 0.0→1.0 width (350ms, easeOutBack)
+- Category legend at bottom: color swatch + label + price for each category
+  - Entrance: stagger each legend item (50ms apart)
+
+### Selected Seats Bottom Panel
+Animated slide-up panel that appears when first seat is selected:
+- `AnimatedContainer` height: 0→auto (250ms, easeOutCubic)
+- Shows: "2 seats selected • ₹480" summary
+- On each seat add/remove: counter number animates (count-up/down with flip effect using `AnimatedSwitcher`)
+- "Proceed to Checkout" CTA: disabled (grey) when no seats, enabled (yellow, glowing) when ≥1 seat
+
+### TTL Countdown Timer
+When seats are locked, show a circular countdown timer in the panel:
+- `CircularProgressIndicator` counting down from 8:00 to 0:00
+- Color: green (>4min) → yellow (2-4min) → red (<2min), animated transition
+- At 1 minute remaining: timer pulses + shows "Hurry! Seats expire soon" text
+- At 0: animated release of all seats + snackbar + navigate back
+
+---
+
+## 🛒 Phase 8 — Checkout & E-Ticket Polish
+
+### Order Summary Screen
+
+**Coupon Field Animation**:
+- On valid coupon: green checkmark animates in (scale + fade), discount line slides down with `AnimatedSize`
+- On invalid: field shakes (5px horizontal, 3 cycles) + red border flash
+
+**Price Total Animation**:
+- When discount applied, old price crosses out (strikethrough text slides to 0 opacity) while new price slides in from right
+
+**"Confirm & Pay" Button**:
+- Yellow gradient, 25px radius, glow shadow
+- On tap: transforms to circular loader (same button-morph pattern as login)
+- On payment success: transforms back → green checkmark with spring bounce
+
+### E-Ticket Screen
+
+**Entrance Animation**:
+Ticket slides up from bottom of screen and snaps into place with a rubber-band overshoot:
+```dart
+// SlideTransition from y=1.0 with curve: Curves.elasticOut
+// duration: 700ms
+```
+
+**Ticket Card Design** (this is the user's most shareable moment — make it beautiful):
+- White card, 25px radius, `ShowSnapShadow.elevated` (warm yellow glow)
+- Top half: movie poster as blurred background + centered QR code (white card within, 12px radius)
+- Dashed divider (horizontal) with circular cutouts on left and right edges (classic ticket stub look)  
+  Implement with `CustomPaint`:  
+  Draw dashed line across width, two filled circles at left=-15px and right=-15px (overflow edges)
+- Bottom half: grid of info chips (movie, theater, date, time, seats, amount paid)
+- ShowSnap logo watermark bottom-right at 20% opacity
+
+**Confetti on Ticket Reveal**:
+```dart
+// Use confetti package
+// FireworkType, yellow + green particles
+// 2 second burst on ticket entrance completion
+```
+
+**Action Buttons**:
+Row of 3 equal buttons below ticket:
+- Download (save to gallery)
+- Share
+- Add to Wallet (placeholder for now, shows "Coming Soon" tooltip on tap)
+All 3: white card, 25px radius, icon + label, `ShowSnapShadow.card`
+
+---
+
+## 👤 Phase 9 — Interactive User Dashboard
+
+**File**: `lib/features/user_dashboard/screens/user_dashboard_screen.dart`
+
+This is a brand new screen. It is the user's personal hub — the most interactive screen in the app.
+
+### Navigation
+Add a "Profile" tab to the main `BottomNavigationBar` (or `NavigationBar`).  
+Tapping it opens the User Dashboard.
+
+### Dashboard Layout
+`CustomScrollView` with slivers:
+1. Profile Header Sliver
+2. Stats Row
+3. Booking Activity Chart
+4. Genre Affinity Radar
+5. Active Rewards & Offers
+6. Recent Bookings
+7. Wishlist / Saved
+8. Settings Link
+
+---
+
+### 9.1 Profile Header
+
+Yellow-to-green gradient background card (full width, 200px tall, 25px bottom radius).
+
+**Avatar**:
+- 80px circle, border: 3px white
+- Tap → bottom sheet to change avatar (camera/gallery via `image_picker`, upload to Cloudinary)
+- Avatar entrance: scale 0→1 with spring bounce (600ms elasticOut)
+
+**Name & Level Badge**:
+- Display name in white, bold, 20sp
+- Level badge: e.g., "🎬 Gold Member" — pill shape, semi-transparent white bg
+- Level computed from: booking count (Bronze <5, Silver 5–15, Gold 16–30, Platinum 30+)
+
+**Edit Profile Button**:
+- Pencil icon, white, top-right corner
+- Taps opens a bottom sheet with editable fields (name, city, phone)
+
+**Stats Strip** (inside header, bottom area):
+3 micro-stats in a row:
+```
+[ 12 Bookings ]  [ 3 Rewards ]  [ 2 Cities ]
+```
+Each tappable, tapping scrolls to relevant section.
+
+---
+
+### 9.2 Stats Row
+
+4 animated stat cards in a 2×2 grid:
+
+```
+┌─────────────────┬─────────────────┐
+│  Total Spent    │  Movies Watched │
+│    ₹4,820       │      12         │
+├─────────────────┼─────────────────┤
+│  Events Attended│  Unique Genres  │
+│      3          │      5          │
+└─────────────────┴─────────────────┘
+```
+
+Each card:
+- White, 25px radius, `ShowSnapShadow.card`
+- Icon (using `flutter_svg` or `Icons`) with yellow background circle
+- Number animates via count-up on first scroll into view:
+  ```dart
+  // Use flutter_animate .custom() to count from 0 to value
+  // duration: 1200ms, curve: Curves.easeOutExpo
+  ```
+- Use `VisibilityDetector` or `ScrollController` to trigger count-up only when visible
+
+---
+
+### 9.3 Booking Activity Chart
+
+**Title**: "Your Booking Activity"
+**Chart type**: `fl_chart` BarChart — bookings per month (last 6 months)
+
+Data: read from Firebase RTDB `/bookings/` filtered by uid + createdAt timestamp.  
+Group by month, count per month.
+
+**Chart Styling**:
+- Bar color: yellow (#F5A800) gradient (bottom → top: dark yellow to light yellow)
+- Selected bar (tapped): green (#43A047) with a floating tooltip showing exact count
+- X axis: month abbreviations (Jan, Feb, Mar...)
+- Y axis: integer values
+- Grid lines: very light grey (#F0F0F0)
+- Background: white card, 25px radius
+
+**Entrance Animation**:
+Bars grow from height 0→actual height when chart first scrolls into view (800ms, staggered 100ms between bars).  
+Use `fl_chart`'s built-in `barTouchData` for interaction.
+
+---
+
+### 9.4 Genre Affinity Radar
+
+**Title**: "Your Taste Profile"  
+**Chart type**: `fl_chart` RadarChart
+
+Axes = genres the user has booked (up to 6, most booked genres selected automatically).  
+Value per axis = booking count for that genre.
+
+**Styling**:
+- Filled area: yellow (#F5A800) with 40% opacity
+- Border: yellow solid 2px
+- Grid rings: light grey
+- Tick labels: genre names, 10sp, grey
+
+**Entrance**: radar area animates from fully collapsed (all values 0) → actual values, 1000ms easeOutCubic.
+
+**Empty State**: if user has < 3 bookings, show a friendly illustration + "Book more movies to unlock your taste profile!" with a "Explore Movies" CTA button.
+
+---
+
+### 9.5 Active Rewards & Offers
+
+**Title**: "Your Rewards"  
+**Subtitle**: "Tap a reward to apply at checkout"
+
+Horizontal scroll of reward cards.
+
+**Milestone Progress Card**:
+- Shows current milestone: e.g., "Book 3 more movies to get a free ticket"
+- Progress bar: yellow, 25px radius, animated fill
+  - On scroll-into-view: fill animates from 0→current% (600ms easeOutCubic)
+- Remaining count chip: "6/9 movies"
+- Thumbnail strip: 9 mini movie poster slots — filled ones show poster, empty ones show grey placeholder
+  - Each filled slot has a subtle green checkmark overlay
+
+**Coupon Cards**:
+Each active coupon gets a card styled like a physical coupon voucher:
+- Yellow background, dashed right border, 25px radius (except right side = straight)
+- Coupon code in monospace font, large
+- Discount value prominent
+- Expiry date small
+- "Copy Code" button: copies to clipboard + shows tick animation
+
+**Confetti on Reward Unlock**:
+If a new reward was unlocked since last dashboard visit (check RTDB for new reward with `unnotified: true`):
+- Confetti burst plays immediately on dashboard load
+- Show a modal celebration card: "🎉 Reward Unlocked!" with the reward details
+- Set `unnotified: false` after showing
+
+---
+
+### 9.6 Recent Bookings List
+
+**Title**: "Recent Bookings"  
+"View All" link → My Bookings screen.
+
+Show last 5 bookings. Each item:
+- Movie poster (40×50px rounded 12px) on left
+- Movie name + show date + theater + seats
+- Status badge: Confirmed (green), Redeemed (grey), Cancelled (red)
+- "View Ticket" chip (yellow pill) — taps to TicketScreen
+- Swipe-to-reveal action: "Download Ticket" (if Confirmed/Redeemed)
+
+List entrance: `flutter_staggered_animations` `AnimationConfiguration.staggeredList` with `SlideAnimation + FadeInAnimation`, delay 50ms between items.
+
+---
+
+### 9.7 Wishlist / Saved Movies
+
+**Title**: "Saved for Later"  
+Empty state: "Tap the ♡ on any movie to save it here" + heart Lottie animation.
+
+Grid of saved movie poster cards (2-col grid, 25px radius).  
+Long-press → "Remove from Wishlist" with confirm snackbar (with Undo action).
+
+---
+
+### 9.8 Settings & Account Section
+
+Bottom of dashboard, white card, 25px radius:
+
+```
+┌─────────────────────────────────────┐
+│  🔔  Notification Preferences   →  │
+├─────────────────────────────────────┤
+│  🌍  City & Location            →  │
+├─────────────────────────────────────┤
+│  🎭  Genre Preferences          →  │
+├─────────────────────────────────────┤
+│  🔒  Change Password            →  │
+├─────────────────────────────────────┤
+│  📄  Terms & Privacy            →  │
+├─────────────────────────────────────┤
+│  🚪  Sign Out                   →  │
+└─────────────────────────────────────┘
+```
+
+Each row: icon (in yellow circle, 32px), label, chevron.  
+Chevron rotates 90° on tap then navigates (spring animation).  
+Sign Out: red label, tap shows confirmation dialog (custom styled, 25px radius).
+
+---
+
+## 🔄 Phase 10 — Page Transitions
+
+**File**: `lib/core/config/router.dart`
+
+Replace all default `MaterialPageRoute` navigations with smooth custom transitions.  
+Use the `animations` package (`SharedAxisTransition`, `FadeScaleTransition`).
+
+| Transition | Route |
+|---|---|
+| `SharedAxisTransitionType.horizontal` | All drill-down navigations (home → movie detail → show selection → seat selection → checkout) |
+| `SharedAxisTransitionType.vertical` | Bottom-sheet-style screens (order summary, ticket screen) |
+| `FadeScaleTransition` | Tab switches in bottom nav |
+| `SharedAxisTransitionType.scaled` | Onboarding page-to-page |
+
+Duration: `ShowSnapDuration.page` (450ms) for all transitions.
+
+---
+
+## 💫 Phase 11 — Global Micro-Interactions
+
+Apply these everywhere in the codebase:
+
+### 11.1 Tappable Scale Effect
+Create a `TappableScale` wrapper widget:
+```dart
+class TappableScale extends StatefulWidget {
+  // Wraps any child with GestureDetector
+  // onTap triggers: scale 1.0→0.95 (100ms) → 1.0 (150ms) with easeInOut
+  // Then calls provided onTap callback
+  // Also triggers HapticFeedback.lightImpact()
+}
+```
+Wrap all interactive cards, buttons, chips with `TappableScale`.
+
+### 11.2 Haptic Feedback Map
+| Action | Haptic |
+|---|---|
+| Tap movie card | `lightImpact` |
+| Select a seat | `mediumImpact` |
+| Deselect a seat | `lightImpact` |
+| Confirm payment | `heavyImpact` |
+| Reward unlocked | `heavyImpact` + `vibrate` |
+| Error / invalid coupon | `vibrate` (short) |
+| Bottom nav tab switch | `selectionClick` |
+
+### 11.3 Snackbar / Toast System
+Replace all `ScaffoldMessenger.showSnackBar` with a custom `ShowSnapToast`:
+- Slides in from bottom, 25px radius, 56px height
+- Icons: ✓ success (green), ⚠ warning (yellow), ✕ error (red), ℹ info (blue)
+- Auto-dismiss after 3s with progress indicator at bottom of toast
+- Entrance: `SlideTransition` from y=2→0, 300ms easeOutCubic
+- Exit: fade + slide down, 200ms
+
+### 11.4 Loading States (All Screens)
+Every async operation that takes > 200ms must show a skeleton, not a spinner.
+
+Skeleton variants to build:
+```dart
+SkeletonMovieCard      // poster + 2 text lines
+SkeletonShowRow        // show time button row
+SkeletonBookingItem    // booking list item
+SkeletonStatCard       // dashboard stat card
+SkeletonChartArea      // chart placeholder (blinking rect)
+```
+All skeletons use `Shimmer.fromColors(baseColor: #E0E0E0, highlightColor: #F5F5F5)`.
+
+---
+
+## 🔔 Phase 12 — Notification Polish
+
+**Edit**: `lib/core/services/notification_service.dart`
+
+### In-App Notification Banner
+When app is in foreground and FCM arrives, show a custom overlay banner (not a system notification):
+```dart
+// OverlayEntry positioned at top of screen
+// Slides down from y=-80→0, stays 3 seconds, slides back up
+// Style: white card, 25px radius, icon + title + body, yellow left border
+// Tappable to open relevant screen via GoRouter
+```
+
+### Notification Permission Flow
+On first launch after onboarding, show a custom permission request screen (before hitting the OS dialog):
+- Illustration (Lottie bell animation)
+- "Stay in the loop" heading
+- Brief benefit list (booking confirmations, seat expiry alerts, exclusive offers)
+- "Enable Notifications" yellow button → triggers OS permission dialog
+- "Maybe Later" text link → skips
+
+---
+
+## 🧪 Phase 13 — Testing & Verification
+
+### Animation Integration Tests
+Verify these do not throw exceptions:
+- Splash screen completes navigation in < 3 seconds
+- Seat lock/unlock state changes update SeatMapWidget within 1 frame
+- Confetti widget disposes properly (no memory leaks)
+- Chart count-up animations complete without overflow errors
+
+### Visual Regression Checklist
+Go through every screen and verify:
+- [ ] Zero sharp corners (all radii ≥ 25px except seat cells ≥ 12px)
+- [ ] Every list/grid has a skeleton loading state
+- [ ] Every button has a loading state (morph or spinner)
+- [ ] Every tap interaction has a scale micro-animation
+- [ ] No default `CircularProgressIndicator` with default blue color — all themed yellow
+- [ ] All bottom sheets have 32px top radius + drag handle indicator
+- [ ] Hero transitions work between Home → Movie Detail (no hero conflicts)
+- [ ] Dashboard charts animate on first visibility
+- [ ] Confetti fires correctly on reward unlock
+
+### Performance Targets
+- Splash to Home: < 3 seconds on mid-range device
+- Seat map render: < 1 second for layouts up to 300 seats
+- Dashboard load: < 2 seconds (use `FutureBuilder` + skeleton while loading)
+- No frame drops below 60fps during animations (profile in release mode)
+
+---
+
+## 📝 Phase 14 — Documentation & Completion
+
+### Update `README.md`
+Add section: **V2 Interactive Layer**
+- List all new animation packages + their purpose
+- Document `TappableScale` usage pattern
+- Document `ShowSnapToast` usage
+- Document skeleton widget catalog
+
+### Create `ANIMATION_GUIDE.md`
+```
+For each animated screen, document:
+- Entry animation description
+- Timing and curves used
+- Any known jank risks
+- How to disable animations (for accessibility/reduced motion)
+```
+
+### Reduced Motion Support
+In `theme.dart` or an `AnimationController` wrapper, check:
+```dart
+MediaQuery.of(context).disableAnimations
+```
+If true: skip all `flutter_animate` transitions (still navigate, just no motion).  
+All `AnimatedContainer` / `AnimatedOpacity` should use `duration: Duration.zero` when this flag is set.
+
+---
+
+## ✅ V2 Completion Criteria
+
+The V2 build is complete when:
+- [ ] Splash screen plays full animation sequence and routes correctly
+- [ ] Onboarding (3 pages) with page animations and dot indicator working
+- [ ] Login button morphs to loader on tap (both platforms)
+- [ ] All cards and containers have ≥ 25px border radius
+- [ ] Home feed sections stagger-animate on load
+- [ ] Movie → Detail Hero transition is smooth (no flicker)
+- [ ] Seat state changes animate (color + scale) in < 1 frame of RTDB update
+- [ ] TTL countdown timer shown + red pulse at < 1 min
+- [ ] E-ticket has ticket-stub design with confetti
+- [ ] User Dashboard loads with count-up stats, bar chart, and radar chart
+- [ ] Milestone progress card shows animated fill
+- [ ] All tappable items have scale micro-interaction
+- [ ] Haptic feedback fires on key actions
+- [ ] Custom toast system replaces all snackbars
+- [ ] All async screens show shimmer skeletons (not spinners)
+- [ ] Page transitions are smooth SharedAxis across all routes
+- [ ] `flutter analyze` → zero errors
+- [ ] App runs on Android + iOS without crashes
+
+---
+
+*V2 Prompt — ShowSnap Interactive Polish*  

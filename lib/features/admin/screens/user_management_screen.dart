@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 
 final _allUsersProvider = FutureProvider<List<UserModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAllUsers();
@@ -24,63 +28,105 @@ class UserManagementScreen extends ConsumerWidget {
     final search = ref.watch(_userSearchProvider);
 
     return Scaffold(
+      backgroundColor: AdminColors.background,
+      drawer: AdminDrawer(
+        currentRoute: AppRoutes.userManagement,
+        onNavigateTo: (route) => context.push(route),
+        onSignOut: () {},
+      ),
       appBar: AppBar(
-        title: const Text('User Management'),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
-          ),
+        backgroundColor: AdminColors.surface,
+        foregroundColor: AdminColors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: AdminColors.border),
         ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        title: const Text(
+          'User Management',
+          style: TextStyle(
+              color: AdminColors.textPrimary, fontWeight: FontWeight.bold),
         ),
       ),
       body: Column(
         children: [
+          // Search + filter
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             child: Column(
               children: [
-                TextField(
-                  decoration: const InputDecoration(
-                    hintText: 'Search by name or email',
-                    prefixIcon: Icon(Icons.search),
-                  ),
+                StaffSearchBar(
+                  hint: 'Search by name or email',
                   onChanged: (v) =>
                       ref.read(_userSearchProvider.notifier).state = v,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     children: [
-                      _FilterChip('All', null, roleFilter, ref),
+                      _RoleChip(
+                        label: 'All',
+                        value: null,
+                        selected: roleFilter,
+                        ref: ref,
+                      ),
                       const SizedBox(width: 8),
-                      _FilterChip('Users', AppConstants.roleUser,
-                          roleFilter, ref),
+                      _RoleChip(
+                        label: 'Users',
+                        value: AppConstants.roleUser,
+                        selected: roleFilter,
+                        ref: ref,
+                      ),
                       const SizedBox(width: 8),
-                      _FilterChip('Theater Managers',
-                          AppConstants.roleTheaterManager, roleFilter, ref),
+                      _RoleChip(
+                        label: 'Theater Managers',
+                        value: AppConstants.roleTheaterManager,
+                        selected: roleFilter,
+                        ref: ref,
+                        color: AdminColors.warning,
+                      ),
                       const SizedBox(width: 8),
-                      _FilterChip('Event Managers',
-                          AppConstants.roleEventManager, roleFilter, ref),
+                      _RoleChip(
+                        label: 'Event Managers',
+                        value: AppConstants.roleEventManager,
+                        selected: roleFilter,
+                        ref: ref,
+                        color: AdminColors.success,
+                      ),
                       const SizedBox(width: 8),
-                      _FilterChip('Admins', AppConstants.roleAdmin,
-                          roleFilter, ref),
+                      _RoleChip(
+                        label: 'Admins',
+                        value: AppConstants.roleAdmin,
+                        selected: roleFilter,
+                        ref: ref,
+                        color: AdminColors.error,
+                      ),
                     ],
                   ),
                 ),
               ],
             ),
           ).animate().fadeIn(duration: 300.ms),
+          // List
           Expanded(
             child: usersAsync.when(
-              loading: () =>
-                  const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: $e')),
+              loading: () => ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 6,
+                itemBuilder: (_, __) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: StaffShimmerCard(
+                    height: 72,
+                    baseColor: AdminColors.surface,
+                    highlightColor: AdminColors.surfaceElevated,
+                  ),
+                ),
+              ),
+              error: (e, _) => Center(
+                child: Text('Error: $e',
+                    style: const TextStyle(color: AdminColors.error)),
+              ),
               data: (users) {
                 var filtered = users;
                 if (roleFilter != null) {
@@ -95,21 +141,29 @@ class UserManagementScreen extends ConsumerWidget {
                           u.email.toLowerCase().contains(q))
                       .toList();
                 }
+
                 if (filtered.isEmpty) {
-                  return const Center(child: Text('No users found'));
+                  return StaffEmptyState(
+                    icon: Icons.people_outline,
+                    message: users.isEmpty
+                        ? 'No users registered yet'
+                        : 'No users match your search',
+                  );
                 }
+
                 return RefreshIndicator(
+                  color: AdminColors.primary,
+                  backgroundColor: AdminColors.surface,
                   onRefresh: () => ref.refresh(_allUsersProvider.future),
                   child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                     itemCount: filtered.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(height: 4),
-                    itemBuilder: (_, i) =>
-                        _UserTile(user: filtered[i])
-                          .animate()
-                          .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
-                          .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
+                    separatorBuilder: (_, __) => const SizedBox(height: 6),
+                    itemBuilder: (_, i) => _UserTile(user: filtered[i])
+                        .animate()
+                        .fadeIn(
+                            duration: 350.ms, delay: (i % 8 * 40).ms)
+                        .slideY(begin: 0.08, end: 0),
                   ),
                 );
               },
@@ -121,13 +175,20 @@ class UserManagementScreen extends ConsumerWidget {
   }
 }
 
-class _FilterChip extends StatelessWidget {
+class _RoleChip extends StatelessWidget {
   final String label;
   final String? value;
   final String? selected;
   final WidgetRef ref;
+  final Color color;
 
-  const _FilterChip(this.label, this.value, this.selected, this.ref);
+  const _RoleChip({
+    required this.label,
+    required this.value,
+    required this.selected,
+    required this.ref,
+    this.color = AdminColors.primary,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -135,23 +196,27 @@ class _FilterChip extends StatelessWidget {
     return GestureDetector(
       onTap: () =>
           ref.read(_userRoleFilterProvider.notifier).state = value,
-      child: Container(
+      child: AnimatedContainer(
+        duration: 150.ms,
         padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? ShowSnapColors.primary : ShowSnapColors.grey100,
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected ? color : AdminColors.surface,
+          borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
           border: Border.all(
-            color: isSelected ? ShowSnapColors.primary : ShowSnapColors.grey300,
+            color: isSelected ? color : AdminColors.border,
           ),
         ),
-        child: Text(label,
-            style: TextStyle(
-              color: isSelected ? Colors.black : ShowSnapColors.grey600,
-              fontWeight:
-                  isSelected ? FontWeight.w600 : FontWeight.normal,
-              fontSize: 13,
-            )),
+        child: Text(
+          label,
+          style: TextStyle(
+            color:
+                isSelected ? Colors.black : AdminColors.textSecondary,
+            fontWeight:
+                isSelected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 12,
+          ),
+        ),
       ),
     );
   }
@@ -161,93 +226,156 @@ class _UserTile extends ConsumerWidget {
   final UserModel user;
   const _UserTile({required this.user});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    Color roleColor;
+  Color _roleColor() {
     switch (user.role) {
       case AppConstants.roleAdmin:
-        roleColor = ShowSnapColors.error;
-        break;
+        return AdminColors.error;
       case AppConstants.roleTheaterManager:
-        roleColor = ShowSnapColors.secondary;
-        break;
+        return AdminColors.warning;
       case AppConstants.roleEventManager:
-        roleColor = Colors.deepPurple;
-        break;
+        return AdminColors.success;
       default:
-        roleColor = ShowSnapColors.primary;
+        return AdminColors.info;
     }
+  }
 
-    return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: roleColor.withOpacity(0.1),
-          backgroundImage: user.avatarUrl.isNotEmpty
-              ? NetworkImage(user.avatarUrl)
-              : null,
-          child: user.avatarUrl.isEmpty
-              ? Text(
+  String _roleLabel() {
+    switch (user.role) {
+      case AppConstants.roleAdmin:
+        return 'Admin';
+      case AppConstants.roleTheaterManager:
+        return 'TM';
+      case AppConstants.roleEventManager:
+        return 'EM';
+      default:
+        return 'User';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final roleColor = _roleColor();
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 22,
+            backgroundColor: roleColor.withOpacity(0.15),
+            backgroundImage: user.avatarUrl.isNotEmpty
+                ? NetworkImage(user.avatarUrl)
+                : null,
+            child: user.avatarUrl.isEmpty
+                ? Text(
+                    user.displayName.isNotEmpty
+                        ? user.displayName[0].toUpperCase()
+                        : '?',
+                    style: TextStyle(
+                        color: roleColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   user.displayName.isNotEmpty
-                      ? user.displayName[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                      color: roleColor, fontWeight: FontWeight.bold),
-                )
-              : null,
-        ),
-        title: Text(user.displayName.isNotEmpty ? user.displayName : 'Unknown'),
-        subtitle: Text(user.email,
-            style: const TextStyle(fontSize: 12)),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: roleColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: roleColor),
-              ),
-              child: Text(
-                user.role.capitalize,
-                style: TextStyle(
-                    color: roleColor,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
-              ),
-            ),
-            PopupMenuButton<String>(
-              onSelected: (action) =>
-                  _handleAction(context, ref, action),
-              itemBuilder: (_) => [
-                if (user.role != AppConstants.roleAdmin)
-                  const PopupMenuItem(
-                      value: 'makeAdmin', child: Text('Make Admin')),
-                if (user.role != AppConstants.roleTheaterManager)
-                  const PopupMenuItem(
-                      value: 'makeTM', child: Text('Make Theater Manager')),
-                if (user.role != AppConstants.roleEventManager)
-                  const PopupMenuItem(
-                      value: 'makeEM', child: Text('Make Event Manager')),
-                if (user.role != AppConstants.roleUser)
-                  const PopupMenuItem(
-                      value: 'makeUser', child: Text('Make User')),
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: user.isActive ? 'deactivate' : 'activate',
-                  child: Text(user.isActive ? 'Deactivate' : 'Activate'),
+                      ? user.displayName
+                      : 'Unknown',
+                  style: const TextStyle(
+                      color: AdminColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  user.email,
+                  style: const TextStyle(
+                      color: AdminColors.textSecondary, fontSize: 12),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          StaffBadge(label: _roleLabel(), color: roleColor),
+          const SizedBox(width: 4),
+          PopupMenuButton<String>(
+            color: AdminColors.surfaceElevated,
+            icon: const Icon(Icons.more_vert_rounded,
+                color: AdminColors.textSecondary, size: 20),
+            onSelected: (action) =>
+                _handleAction(context, ref, action),
+            itemBuilder: (_) => [
+              if (user.role != AppConstants.roleAdmin)
+                const PopupMenuItem(
+                  value: 'makeAdmin',
+                  child: Text('Make Admin',
+                      style: TextStyle(color: AdminColors.textPrimary)),
+                ),
+              if (user.role != AppConstants.roleTheaterManager)
+                const PopupMenuItem(
+                  value: 'makeTM',
+                  child: Text('Make Theater Manager',
+                      style: TextStyle(color: AdminColors.textPrimary)),
+                ),
+              if (user.role != AppConstants.roleEventManager)
+                const PopupMenuItem(
+                  value: 'makeEM',
+                  child: Text('Make Event Manager',
+                      style: TextStyle(color: AdminColors.textPrimary)),
+                ),
+              if (user.role != AppConstants.roleUser)
+                const PopupMenuItem(
+                  value: 'makeUser',
+                  child: Text('Make User',
+                      style: TextStyle(color: AdminColors.textPrimary)),
+                ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: user.isActive ? 'deactivate' : 'activate',
+                child: Text(
+                  user.isActive ? 'Deactivate' : 'Activate',
+                  style: TextStyle(
+                    color: user.isActive
+                        ? AdminColors.error
+                        : AdminColors.success,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Future<void> _handleAction(
       BuildContext context, WidgetRef ref, String action) async {
+    if (action == 'deactivate') {
+      final ok = await StaffConfirmDialog.show(
+        context,
+        title: 'Deactivate User',
+        message:
+            'This will prevent ${user.displayName} from logging in. Proceed?',
+        confirmLabel: 'Deactivate',
+        isDangerous: true,
+      );
+      if (ok != true) return;
+    }
+
     final db = ref.read(databaseServiceProvider);
     try {
       switch (action) {
@@ -274,11 +402,11 @@ class _UserTile extends ConsumerWidget {
       }
       ref.invalidate(_allUsersProvider);
       if (context.mounted) {
-        context.showSnackbar('Updated successfully');
+        ShowSnapToast.success(context, 'Updated successfully');
       }
     } catch (e) {
       if (context.mounted) {
-        context.showErrorSnackbar('Failed: $e');
+        ShowSnapToast.error(context, 'Failed: $e');
       }
     }
   }

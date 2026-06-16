@@ -19,12 +19,14 @@ import '../../features/bookings/screens/my_bookings_screen.dart';
 import '../../features/offers/screens/offers_screen.dart';
 import '../../features/user_dashboard/screens/user_dashboard_screen.dart';
 import '../../features/admin/screens/admin_dashboard_screen.dart';
+import '../../features/admin/screens/theaters_screen.dart';
 import '../../features/admin/screens/user_management_screen.dart';
 import '../../features/admin/screens/ticket_audit_screen.dart';
 import '../../features/admin/screens/offers_screen.dart' as admin;
 import '../../features/admin/screens/ad_requests_screen.dart';
 import '../../features/admin/screens/add_theater_screen.dart';
 import '../../features/admin/screens/banners_screen.dart';
+import '../../features/admin/screens/analytics_screen.dart';
 import '../../features/theater_manager/screens/tm_dashboard_screen.dart';
 import '../../features/theater_manager/screens/screen_manager_screen.dart';
 import '../../features/theater_manager/screens/seat_layout_editor_screen.dart';
@@ -32,6 +34,7 @@ import '../../features/theater_manager/screens/movie_manager_screen.dart';
 import '../../features/theater_manager/screens/show_scheduler_screen.dart';
 import '../../features/theater_manager/screens/ticket_scanner_screen.dart';
 import '../../features/theater_manager/screens/tm_show_details_screen.dart';
+import '../../features/theater_manager/screens/tm_reports_screen.dart';
 import '../../features/influencer/screens/ad_request_form_screen.dart';
 import '../../features/event_manager/screens/em_dashboard_screen.dart';
 import '../../features/event_manager/screens/add_event_screen.dart';
@@ -70,7 +73,10 @@ class AppRoutes {
   static const String adRequests = '/admin/ad-requests';
   static const String addTheater = '/admin/add-theater';
   static const String adminBanners = '/admin/banners';
+  static const String adminTheaters = '/admin/theaters';
+  static const String adminAnalytics = '/admin/analytics';
   static const String tmDashboard = '/tm';
+  static const String tmReports = '/tm/reports';
   static const String screenManager = '/tm/screens';
   static const String seatLayoutEditor = '/tm/seat-layout/:screenId';
   static const String movieManager = '/tm/movies';
@@ -356,6 +362,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.adminBanners,
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const AdminBannersScreen())),
+      GoRoute(
+          path: AppRoutes.adminTheaters,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const TheatersScreen())),
+      GoRoute(
+          path: AppRoutes.adminAnalytics,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const AnalyticsScreen())),
 
       // ── Theater Manager ───────────────────────────────────────────────────
       GoRoute(
@@ -393,6 +407,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             s,
             TmShowDetailsScreen(showId: s.pathParameters['id']!)),
       ),
+      GoRoute(
+          path: AppRoutes.tmReports,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const TmReportsScreen())),
 
       // ── Event Manager ─────────────────────────────────────────────────────
       GoRoute(

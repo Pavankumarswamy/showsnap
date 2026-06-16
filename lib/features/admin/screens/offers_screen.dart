@@ -1,15 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/coupon_model.dart';
 import '../../../core/models/offer_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 
 final _couponsProvider = FutureProvider<List<CouponModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAllCoupons();
 });
+
 final _offersProvider = FutureProvider<List<OfferModel>>((ref) {
   return ref.watch(databaseServiceProvider).getAllOffers();
 });
@@ -40,28 +45,50 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AdminColors.background,
+      drawer: AdminDrawer(
+        currentRoute: AppRoutes.adminOffers,
+        onNavigateTo: (route) => context.push(route),
+        onSignOut: () {},
+      ),
       appBar: AppBar(
-        title: const Text('Offers & Coupons'),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        backgroundColor: AdminColors.surface,
+        foregroundColor: AdminColors.textPrimary,
+        elevation: 0,
+        title: const Text(
+          'Offers & Coupons',
+          style: TextStyle(
+              color: AdminColors.textPrimary, fontWeight: FontWeight.bold),
         ),
         bottom: TabBar(
           controller: _tabs,
-          labelColor: Colors.black,
-          unselectedLabelColor: Colors.black54,
-          indicatorColor: Colors.black,
+          labelColor: AdminColors.primary,
+          unselectedLabelColor: AdminColors.textSecondary,
+          indicatorColor: AdminColors.primary,
+          dividerColor: AdminColors.border,
           tabs: const [
-            Tab(text: 'Milestone Offers'),
-            Tab(text: 'Coupon Codes'),
+            Tab(text: 'Milestones'),
+            Tab(text: 'Coupons'),
           ],
+        ),
+      ),
+      floatingActionButton: AnimatedBuilder(
+        animation: _tabs,
+        builder: (_, __) => FloatingActionButton.extended(
+          onPressed: () {
+            if (_tabs.index == 0) {
+              _showAddOfferDialog(context);
+            } else {
+              _showAddCouponDialog(context);
+            }
+          },
+          label: Text(
+            _tabs.index == 0 ? 'New Milestone' : 'New Coupon',
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          icon: const Icon(Icons.add),
+          backgroundColor: AdminColors.primary,
+          foregroundColor: Colors.black,
         ),
       ),
       body: TabBarView(
@@ -70,18 +97,6 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
           _MilestoneOffersTab(),
           _CouponCodesTab(),
         ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (_tabs.index == 0) {
-            _showAddOfferDialog(context);
-          } else {
-            _showAddCouponDialog(context);
-          }
-        },
-        label: Text(_tabs.index == 0 ? 'Add Offer' : 'Add Coupon'),
-        icon: const Icon(Icons.add),
-        backgroundColor: ShowSnapColors.primary,
       ),
     );
   }
@@ -97,63 +112,71 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('New Milestone Offer'),
+          backgroundColor: AdminColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+            side: const BorderSide(color: AdminColors.border),
+          ),
+          title: const Text('New Milestone Offer',
+              style: TextStyle(
+                  color: AdminColors.textPrimary,
+                  fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<MilestoneType>(
+                _darkDropdown<MilestoneType>(
+                  label: 'Milestone Type',
                   value: milestoneType,
-                  decoration:
-                      const InputDecoration(labelText: 'Milestone Type'),
-                  items: MilestoneType.values
-                      .map((t) => DropdownMenuItem(
-                          value: t, child: Text(t.label)))
-                      .toList(),
+                  items: MilestoneType.values,
+                  labelOf: (t) => t.label,
                   onChanged: (v) => setS(() => milestoneType = v!),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                _darkTextField(
                   controller: thresholdCtrl,
+                  label: 'Threshold Count',
                   keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(labelText: 'Threshold Count'),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<RewardType>(
+                _darkDropdown<RewardType>(
+                  label: 'Reward Type',
                   value: rewardType,
-                  decoration:
-                      const InputDecoration(labelText: 'Reward Type'),
-                  items: RewardType.values
-                      .map((t) => DropdownMenuItem(
-                          value: t, child: Text(t.label)))
-                      .toList(),
+                  items: RewardType.values,
+                  labelOf: (t) => t.label,
                   onChanged: (v) => setS(() => rewardType = v!),
                 ),
                 if (rewardType != RewardType.freeTicket) ...[
                   const SizedBox(height: 12),
-                  TextFormField(
+                  _darkTextField(
                     controller: valueCtrl,
+                    label: 'Value (% or ₹)',
                     keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(labelText: 'Value (% or ₹)'),
                   ),
                 ],
                 const SizedBox(height: 12),
-                TextFormField(
+                _darkTextField(
                   controller: validityCtrl,
+                  label: 'Validity (days)',
                   keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(labelText: 'Validity (days)'),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AdminColors.textSecondary)),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminColors.primary,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(ShowSnapRadius.md)),
+              ),
               onPressed: () async {
                 final db = ref.read(databaseServiceProvider);
                 final offerId =
@@ -161,18 +184,20 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
                 await db.saveOffer(OfferModel(
                   offerId: offerId,
                   milestoneType: milestoneType,
-                  threshold:
-                      int.tryParse(thresholdCtrl.text) ?? 1,
+                  threshold: int.tryParse(thresholdCtrl.text) ?? 1,
                   rewardType: rewardType,
-                  rewardValue:
-                      double.tryParse(valueCtrl.text) ?? 0,
-                  validityDays:
-                      int.tryParse(validityCtrl.text) ?? 30,
+                  rewardValue: double.tryParse(valueCtrl.text) ?? 0,
+                  validityDays: int.tryParse(validityCtrl.text) ?? 30,
                 ));
                 ref.invalidate(_offersProvider);
-                if (ctx.mounted) Navigator.pop(ctx);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ShowSnapToast.success(
+                      context, 'Milestone offer created');
+                }
               },
-              child: const Text('Save'),
+              child: const Text('Save',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -191,60 +216,69 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('New Coupon Code'),
+          backgroundColor: AdminColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+            side: const BorderSide(color: AdminColors.border),
+          ),
+          title: const Text('New Coupon Code',
+              style: TextStyle(
+                  color: AdminColors.textPrimary,
+                  fontWeight: FontWeight.bold)),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
+                _darkTextField(
                   controller: codeCtrl,
+                  label: 'Coupon Code',
                   textCapitalization: TextCapitalization.characters,
-                  decoration:
-                      const InputDecoration(labelText: 'Coupon Code'),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<DiscountType>(
+                _darkDropdown<DiscountType>(
+                  label: 'Discount Type',
                   value: discountType,
-                  decoration:
-                      const InputDecoration(labelText: 'Discount Type'),
-                  items: DiscountType.values
-                      .map((t) => DropdownMenuItem(
-                          value: t,
-                          child: Text(t.name.capitalize)))
-                      .toList(),
+                  items: DiscountType.values,
+                  labelOf: (t) => t.name.capitalize,
                   onChanged: (v) => setS(() => discountType = v!),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                _darkTextField(
                   controller: valueCtrl,
+                  label: discountType == DiscountType.percentage
+                      ? 'Discount %'
+                      : 'Flat Amount (₹)',
                   keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                      labelText: discountType == DiscountType.percentage
-                          ? 'Discount %'
-                          : 'Flat Amount (₹)'),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                _darkTextField(
                   controller: maxUsesCtrl,
+                  label: 'Max Uses',
                   keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(labelText: 'Max Uses'),
                 ),
                 const SizedBox(height: 12),
-                TextFormField(
+                _darkTextField(
                   controller: minOrderCtrl,
+                  label: 'Min Order Value (₹)',
                   keyboardType: TextInputType.number,
-                  decoration:
-                      const InputDecoration(labelText: 'Min Order Value (₹)'),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AdminColors.textSecondary)),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminColors.primary,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(ShowSnapRadius.md)),
+              ),
               onPressed: () async {
                 if (codeCtrl.text.isEmpty) return;
                 final db = ref.read(databaseServiceProvider);
@@ -256,9 +290,13 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
                   minOrderValue: int.tryParse(minOrderCtrl.text) ?? 0,
                 ));
                 ref.invalidate(_couponsProvider);
-                if (ctx.mounted) Navigator.pop(ctx);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ShowSnapToast.success(context, 'Coupon created');
+                }
               },
-              child: const Text('Save'),
+              child: const Text('Save',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -267,104 +305,282 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
   }
 }
 
+// ─── Dark form helpers ────────────────────────────────────────────────────────
+
+Widget _darkTextField({
+  required TextEditingController controller,
+  required String label,
+  TextInputType keyboardType = TextInputType.text,
+  TextCapitalization textCapitalization = TextCapitalization.none,
+}) {
+  return TextField(
+    controller: controller,
+    keyboardType: keyboardType,
+    textCapitalization: textCapitalization,
+    style: const TextStyle(color: AdminColors.textPrimary),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AdminColors.textSecondary),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: AdminColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: AdminColors.primary),
+      ),
+      filled: true,
+      fillColor: AdminColors.surfaceElevated,
+    ),
+  );
+}
+
+Widget _darkDropdown<T>({
+  required String label,
+  required T value,
+  required List<T> items,
+  required String Function(T) labelOf,
+  required void Function(T?) onChanged,
+}) {
+  return DropdownButtonFormField<T>(
+    value: value,
+    dropdownColor: AdminColors.surfaceElevated,
+    style: const TextStyle(color: AdminColors.textPrimary),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AdminColors.textSecondary),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: AdminColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: AdminColors.primary),
+      ),
+      filled: true,
+      fillColor: AdminColors.surfaceElevated,
+    ),
+    items: items
+        .map((t) => DropdownMenuItem(value: t, child: Text(labelOf(t))))
+        .toList(),
+    onChanged: onChanged,
+  );
+}
+
+// ─── Milestones Tab ───────────────────────────────────────────────────────────
+
 class _MilestoneOffersTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final offersAsync = ref.watch(_offersProvider);
     return offersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
+      loading: () => ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 4,
+        itemBuilder: (_, __) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: StaffShimmerCard(
+            height: 80,
+            baseColor: AdminColors.surface,
+            highlightColor: AdminColors.surfaceElevated,
+          ),
+        ),
+      ),
+      error: (e, _) => Center(
+          child: Text('Error: $e',
+              style: const TextStyle(color: AdminColors.error))),
       data: (offers) => offers.isEmpty
-          ? const Center(child: Text('No milestone offers yet'))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
-              itemCount: offers.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final o = offers[i];
-                return Card(
-                  child: ListTile(
-                    title: Text(
-                        'Every ${o.threshold} ${o.milestoneType.label}'),
-                    subtitle: Text(
-                        'Reward: ${o.rewardType.label}${o.rewardValue > 0 ? ' (${o.rewardValue})' : ''} — valid ${o.validityDays} days'),
-                    trailing: Switch(
-                      value: o.isActive,
-                      activeColor: ShowSnapColors.primary,
-                      onChanged: (_) {},
-                    ),
-                  ),
-                ).animate()
-                 .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
-                 .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
-              },
+          ? StaffEmptyState(
+              icon: Icons.local_offer_outlined,
+              message: 'No milestone offers yet.\nTap + to create one.',
+            )
+          : RefreshIndicator(
+              color: AdminColors.primary,
+              backgroundColor: AdminColors.surface,
+              onRefresh: () => ref.refresh(_offersProvider.future),
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                itemCount: offers.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) {
+                  final o = offers[i];
+                  return _MilestoneCard(offer: o)
+                      .animate()
+                      .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                      .slideY(begin: 0.08, end: 0);
+                },
+              ),
             ),
     );
   }
 }
+
+class _MilestoneCard extends StatelessWidget {
+  final OfferModel offer;
+  const _MilestoneCard({required this.offer});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AdminColors.primaryGlow,
+              borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+            ),
+            child: const Icon(Icons.emoji_events_rounded,
+                color: AdminColors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Every ${offer.threshold} ${offer.milestoneType.label}',
+                  style: const TextStyle(
+                      color: AdminColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14),
+                ),
+                Text(
+                  'Reward: ${offer.rewardType.label}${offer.rewardValue > 0 ? ' (${offer.rewardValue.toStringAsFixed(0)})' : ''} · ${offer.validityDays} days',
+                  style: const TextStyle(
+                      color: AdminColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          StaffBadge(
+            label: offer.isActive ? 'Active' : 'Inactive',
+            color: offer.isActive
+                ? AdminColors.success
+                : AdminColors.textMuted,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Coupons Tab ──────────────────────────────────────────────────────────────
 
 class _CouponCodesTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final couponsAsync = ref.watch(_couponsProvider);
     return couponsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
+      loading: () => ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: 4,
+        itemBuilder: (_, __) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: StaffShimmerCard(
+            height: 80,
+            baseColor: AdminColors.surface,
+            highlightColor: AdminColors.surfaceElevated,
+          ),
+        ),
+      ),
+      error: (e, _) => Center(
+          child: Text('Error: $e',
+              style: const TextStyle(color: AdminColors.error))),
       data: (coupons) => coupons.isEmpty
-          ? const Center(child: Text('No coupons yet'))
-          : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(12, 16, 12, 80),
-              itemCount: coupons.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 8),
-              itemBuilder: (_, i) {
-                final c = coupons[i];
-                return Card(
-                  child: ListTile(
-                    title: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: ShowSnapColors.primaryLighter,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(c.code,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87,
-                                  fontSize: 14)),
-                        ),
-                        const SizedBox(width: 8),
-                        if (!c.isValid)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: ShowSnapColors.error.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: ShowSnapColors.error),
-                            ),
-                            child: const Text('EXPIRED',
-                                style: TextStyle(
-                                    color: ShowSnapColors.error,
-                                    fontSize: 10)),
-                          ),
-                      ],
-                    ),
-                    subtitle: Text(
-                        '${c.discountType == DiscountType.percentage ? '${c.discountValue.toInt()}% off' : '₹${c.discountValue.toInt()} off'} • Used: ${c.currentUses}/${c.maxUses}'),
-                    trailing: Switch(
-                      value: c.isActive,
-                      activeColor: ShowSnapColors.primary,
-                      onChanged: (_) {},
-                    ),
-                  ),
-                ).animate()
-                 .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
-                 .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
-              },
+          ? StaffEmptyState(
+              icon: Icons.discount_outlined,
+              message: 'No coupon codes yet.\nTap + to create one.',
+            )
+          : RefreshIndicator(
+              color: AdminColors.primary,
+              backgroundColor: AdminColors.surface,
+              onRefresh: () => ref.refresh(_couponsProvider.future),
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                itemCount: coupons.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (_, i) {
+                  final c = coupons[i];
+                  return _CouponCard(coupon: c)
+                      .animate()
+                      .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
+                      .slideY(begin: 0.08, end: 0);
+                },
+              ),
             ),
+    );
+  }
+}
+
+class _CouponCard extends StatelessWidget {
+  final CouponModel coupon;
+  const _CouponCard({required this.coupon});
+
+  @override
+  Widget build(BuildContext context) {
+    final isValid = coupon.isValid;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AdminColors.primary.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+              border: Border.all(
+                  color: AdminColors.primary.withOpacity(0.3)),
+            ),
+            child: Text(
+              coupon.code,
+              style: const TextStyle(
+                  color: AdminColors.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  letterSpacing: 1.5),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  coupon.discountType == DiscountType.percentage
+                      ? '${coupon.discountValue.toInt()}% off'
+                      : '₹${coupon.discountValue.toInt()} off',
+                  style: const TextStyle(
+                      color: AdminColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13),
+                ),
+                Text(
+                  'Used: ${coupon.currentUses}/${coupon.maxUses}',
+                  style: const TextStyle(
+                      color: AdminColors.textSecondary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          StaffBadge(
+            label: isValid ? 'Active' : 'Expired',
+            color: isValid ? AdminColors.success : AdminColors.error,
+          ),
+        ],
+      ),
     );
   }
 }

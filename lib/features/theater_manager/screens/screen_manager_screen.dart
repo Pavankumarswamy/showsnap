@@ -1,20 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:percent_indicator/percent_indicator.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/screen_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 
 final _tmScreensProvider = FutureProvider<List<ScreenModel>>((ref) async {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
   if (uid == null) return [];
   final theaters = await ref.watch(databaseServiceProvider).getAllTheaters();
-  final theater =
-      theaters.cast<dynamic>().firstWhere((t) => t.managerId == uid, orElse: () => null);
+  final theater = theaters
+      .cast<dynamic>()
+      .firstWhere((t) => t.managerId == uid, orElse: () => null);
   if (theater == null) return [];
-  return ref.watch(databaseServiceProvider).getScreensForTheater(theater.theaterId);
+  return ref
+      .watch(databaseServiceProvider)
+      .getScreensForTheater(theater.theaterId);
 });
 
 class ScreenManagerScreen extends ConsumerWidget {
@@ -25,63 +32,77 @@ class ScreenManagerScreen extends ConsumerWidget {
     final screensAsync = ref.watch(_tmScreensProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Manage Screens'),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
-        ),
+      backgroundColor: TMColors.background,
+      drawer: TMDrawer(
+        currentRoute: AppRoutes.screenManager,
+        onNavigateTo: (route) => context.push(route),
+        theaterName: 'My Theater',
+        onSignOut: () {},
       ),
-      body: screensAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (screens) => screens.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.theaters_outlined,
-                        size: 80, color: ShowSnapColors.grey300),
-                    const SizedBox(height: 16),
-                    const Text('No screens yet'),
-                    const SizedBox(height: 16),
-                    ElevatedButton(
-                      onPressed: () =>
-                          _showAddScreenDialog(context, ref),
-                      child: const Text('Add Screen'),
-                    ),
-                  ],
-                ).animate().fadeIn(duration: 400.ms),
-              )
-            : RefreshIndicator(
-                onRefresh: () => ref.refresh(_tmScreensProvider.future),
-                child: ListView.separated(
-                  padding: const EdgeInsets.only(left: 16, right: 16, top: 24, bottom: 16),
-                  itemCount: screens.length,
-                  separatorBuilder: (_, __) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (_, i) =>
-                      _ScreenCard(screen: screens[i])
-                        .animate()
-                        .fadeIn(duration: 400.ms, delay: (i * 80).ms)
-                        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                ),
-              ),
+      appBar: AppBar(
+        backgroundColor: TMColors.surface,
+        foregroundColor: TMColors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: TMColors.border),
+        ),
+        title: const Text(
+          'Manage Screens',
+          style: TextStyle(
+              color: TMColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddScreenDialog(context, ref),
-        label: const Text('Add Screen'),
+        label:
+            const Text('Add Screen', style: TextStyle(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add),
-        backgroundColor: ShowSnapColors.primary,
-      ).animate().scale(delay: 300.ms, duration: 400.ms, curve: Curves.elasticOut),
+        backgroundColor: TMColors.primary,
+        foregroundColor: Colors.black,
+      ).animate().scale(
+            delay: 300.ms,
+            duration: 400.ms,
+            curve: Curves.elasticOut,
+          ),
+      body: screensAsync.when(
+        loading: () => ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: 4,
+          itemBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: StaffShimmerCard(
+              height: 160,
+              baseColor: TMColors.surface,
+              highlightColor: TMColors.surfaceElevated,
+            ),
+          ),
+        ),
+        error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: AdminColors.error))),
+        data: (screens) => screens.isEmpty
+            ? StaffEmptyState(
+                icon: Icons.theaters_outlined,
+                message: 'No screens yet.\nAdd your first screen to get started.',
+                ctaLabel: 'Add Screen',
+                onCta: () => _showAddScreenDialog(context, ref),
+              )
+            : RefreshIndicator(
+                color: TMColors.primary,
+                backgroundColor: TMColors.surface,
+                onRefresh: () => ref.refresh(_tmScreensProvider.future),
+                child: ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  itemCount: screens.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (_, i) => _ScreenCard(screen: screens[i])
+                      .animate()
+                      .fadeIn(duration: 400.ms, delay: (i * 70).ms)
+                      .slideY(begin: 0.08, end: 0),
+                ),
+              ),
+      ),
     );
   }
 
@@ -94,40 +115,49 @@ class ScreenManagerScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) => AlertDialog(
-          title: const Text('Add Screen'),
+          backgroundColor: TMColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+            side: const BorderSide(color: TMColors.border),
+          ),
+          title: const Text(
+            'Add Screen',
+            style: TextStyle(
+                color: TMColors.textPrimary, fontWeight: FontWeight.bold),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              TextFormField(
-                controller: nameCtrl,
-                decoration:
-                    const InputDecoration(labelText: 'Screen Name'),
-              ),
+              _tmField(nameCtrl, 'Screen Name'),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: technology,
-                decoration:
-                    const InputDecoration(labelText: 'Technology'),
+                dropdownColor: TMColors.surfaceElevated,
+                style: const TextStyle(color: TMColors.textPrimary),
+                decoration: _tmInputDecoration('Technology'),
                 items: ['2D', '3D', 'IMAX', '4DX']
-                    .map((t) =>
-                        DropdownMenuItem(value: t, child: Text(t)))
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
                     .toList(),
                 onChanged: (v) => setS(() => technology = v!),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: seatsCtrl,
-                keyboardType: TextInputType.number,
-                decoration:
-                    const InputDecoration(labelText: 'Total Seats'),
-              ),
+              _tmField(seatsCtrl, 'Total Seats',
+                  type: TextInputType.number),
             ],
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: TMColors.textSecondary)),
+            ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TMColors.primary,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+              ),
               onPressed: () async {
                 if (nameCtrl.text.isEmpty) return;
                 final uid =
@@ -148,15 +178,46 @@ class ScreenManagerScreen extends ConsumerWidget {
                   totalSeats: int.tryParse(seatsCtrl.text) ?? 0,
                 ));
                 ref.invalidate(_tmScreensProvider);
-                if (ctx.mounted) Navigator.pop(ctx);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ShowSnapToast.success(context, 'Screen created');
+                }
               },
-              child: const Text('Save'),
+              child: const Text('Save',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+InputDecoration _tmInputDecoration(String label) {
+  return InputDecoration(
+    labelText: label,
+    labelStyle: const TextStyle(color: TMColors.textSecondary),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+      borderSide: const BorderSide(color: TMColors.border),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+      borderSide: const BorderSide(color: TMColors.primary),
+    ),
+    filled: true,
+    fillColor: TMColors.surfaceElevated,
+  );
+}
+
+Widget _tmField(TextEditingController ctrl, String label,
+    {TextInputType type = TextInputType.text}) {
+  return TextField(
+    controller: ctrl,
+    keyboardType: type,
+    style: const TextStyle(color: TMColors.textPrimary),
+    decoration: _tmInputDecoration(label),
+  );
 }
 
 class _ScreenCard extends StatelessWidget {
@@ -165,90 +226,162 @@ class _ScreenCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.theaters_outlined,
-                    color: ShowSnapColors.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(screen.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
+    final layoutPct = screen.totalSeats > 0
+        ? (screen.seatLayout.length / screen.totalSeats).clamp(0.0, 1.0)
+        : 0.0;
+    final layoutColor = layoutPct >= 0.9
+        ? TMColors.primary
+        : layoutPct >= 0.5
+            ? const Color(0xFFFF8F00)
+            : const Color(0xFFEF5350);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: TMColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: TMColors.border),
+        boxShadow: StaffShadow.subtle,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: TMColors.primary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
                 ),
-                if (screen.isUnderMaintenance)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: ShowSnapColors.error.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: ShowSnapColors.error),
+                child: const Icon(Icons.theaters_outlined,
+                    color: TMColors.primary, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  screen.name,
+                  style: const TextStyle(
+                      color: TMColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
+              ),
+              if (screen.isUnderMaintenance)
+                StaffBadge(
+                    label: 'Maintenance', color: const Color(0xFFEF5350)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _InfoChip(screen.technology, Icons.hd_outlined),
+              const SizedBox(width: 8),
+              _InfoChip('${screen.totalSeats} seats', Icons.event_seat_outlined),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Layout completion indicator
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Seat Layout',
+                          style: TextStyle(
+                              color: TMColors.textSecondary, fontSize: 12),
+                        ),
+                        Text(
+                          '${screen.seatLayout.length}/${screen.totalSeats} configured',
+                          style: TextStyle(
+                              color: layoutColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
-                    child: const Text('Maintenance',
-                        style: TextStyle(
-                            color: ShowSnapColors.error, fontSize: 11)),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                _Chip(screen.technology),
-                const SizedBox(width: 8),
-                _Chip('${screen.totalSeats} seats'),
-                const SizedBox(width: 8),
-                _Chip('${screen.seatLayout.length} configured'),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.grid_on_outlined, size: 16),
-                    label: const Text('Edit Layout'),
-                    onPressed: () => context
-                        .push('/tm/seat-layout/${screen.screenId}'),
-                  ),
+                    const SizedBox(height: 6),
+                    LinearPercentIndicator(
+                      percent: layoutPct,
+                      lineHeight: 6,
+                      backgroundColor: TMColors.border,
+                      progressColor: layoutColor,
+                      barRadius: const Radius.circular(3),
+                      padding: EdgeInsets.zero,
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.schedule_outlined, size: 16),
-                    label: const Text('Shows'),
-                    onPressed: () =>
-                        context.push('/tm/shows'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.grid_on_outlined,
+                      size: 16, color: TMColors.textSecondary),
+                  label: const Text('Edit Layout',
+                      style: TextStyle(color: TMColors.textSecondary)),
+                  style: OutlinedButton.styleFrom(
+                    side: const BorderSide(color: TMColors.border),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
                   ),
+                  onPressed: () =>
+                      context.push('/tm/seat-layout/${screen.screenId}'),
                 ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.schedule_outlined, size: 16),
+                  label: const Text('Shows'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: TMColors.primary,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+                  ),
+                  onPressed: () => context.push(AppRoutes.showScheduler),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _Chip extends StatelessWidget {
+class _InfoChip extends StatelessWidget {
   final String label;
-  const _Chip(this.label);
+  final IconData icon;
+  const _InfoChip(this.label, this.icon);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: ShowSnapColors.grey100,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: ShowSnapColors.grey300),
+        color: TMColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+        border: Border.all(color: TMColors.border),
       ),
-      child: Text(label, style: const TextStyle(fontSize: 11)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: TMColors.textMuted, size: 13),
+          const SizedBox(width: 4),
+          Text(label,
+              style: const TextStyle(color: TMColors.textSecondary, fontSize: 12)),
+        ],
+      ),
     );
   }
 }

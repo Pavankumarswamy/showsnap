@@ -1,16 +1,20 @@
+import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/banner_model.dart';
-import 'dart:io';
-import '../../../core/services/database_service.dart';
 import '../../../core/services/cloudinary_service.dart';
+import '../../../core/services/database_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
-final _allBannersProvider = FutureProvider<List<BannerModel>>((ref) =>
-    ref.watch(databaseServiceProvider).getAllBanners());
+final _allBannersProvider = FutureProvider<List<BannerModel>>(
+    (ref) => ref.watch(databaseServiceProvider).getAllBanners());
 
 class AdminBannersScreen extends ConsumerWidget {
   const AdminBannersScreen({super.key});
@@ -20,62 +24,71 @@ class AdminBannersScreen extends ConsumerWidget {
     final bannersAsync = ref.watch(_allBannersProvider);
 
     return Scaffold(
+      backgroundColor: AdminColors.background,
+      drawer: AdminDrawer(
+        currentRoute: AppRoutes.adminBanners,
+        onNavigateTo: (route) => context.push(route),
+        onSignOut: () {},
+      ),
       appBar: AppBar(
-        title: const Text('Manage Banners',
-            style: TextStyle(fontWeight: FontWeight.w800)),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
-          ),
+        backgroundColor: AdminColors.surface,
+        foregroundColor: AdminColors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: AdminColors.border),
         ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+        title: const Text(
+          'Manage Banners',
+          style: TextStyle(
+              color: AdminColors.textPrimary, fontWeight: FontWeight.bold),
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: ShowSnapColors.primary,
-        icon: const Icon(Icons.add, color: Colors.black87),
-        label: const Text('Add Banner',
-            style: TextStyle(
-                fontWeight: FontWeight.w700, color: Colors.black87)),
+        backgroundColor: AdminColors.primary,
+        foregroundColor: Colors.black,
+        icon: const Icon(Icons.add),
+        label:
+            const Text('Add Banner', style: TextStyle(fontWeight: FontWeight.bold)),
         onPressed: () => _showBannerDialog(context, ref, null),
       ),
       body: bannersAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        loading: () => ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: 4,
+          itemBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: StaffShimmerCard(
+              height: 80,
+              baseColor: AdminColors.surface,
+              highlightColor: AdminColors.surfaceElevated,
+            ),
+          ),
+        ),
+        error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: AdminColors.error))),
         data: (banners) {
           if (banners.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.image_outlined,
-                      size: 80, color: ShowSnapColors.grey300),
-                  const SizedBox(height: 16),
-                  const Text('No banners yet',
-                      style: TextStyle(
-                          color: ShowSnapColors.grey600, fontSize: 16)),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Tap + to add a banner to the home screen.',
-                    style: TextStyle(
-                        color: ShowSnapColors.grey600, fontSize: 13),
-                  ),
-                ],
-              ),
+            return StaffEmptyState(
+              icon: Icons.image_outlined,
+              message: 'No banners yet.\nTap + to add one.',
             );
           }
           return RefreshIndicator(
+            color: AdminColors.primary,
+            backgroundColor: AdminColors.surface,
             onRefresh: () => ref.refresh(_allBannersProvider.future),
             child: ReorderableListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 100),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               itemCount: banners.length,
+              proxyDecorator: (child, _, __) => Material(
+                color: Colors.transparent,
+                child: child,
+              ),
               onReorder: (oldIndex, newIndex) async {
                 if (newIndex > oldIndex) newIndex -= 1;
                 final db = ref.read(databaseServiceProvider);
-                // Reorder by swapping the `order` values
                 for (var i = 0; i < banners.length; i++) {
                   final b = banners[i];
                   await db.saveBanner(BannerModel(
@@ -102,34 +115,20 @@ class AdminBannersScreen extends ConsumerWidget {
                   banner: banner,
                   onEdit: () => _showBannerDialog(context, ref, banner),
                   onDelete: () async {
-                    final confirmed = await showDialog<bool>(
-                      context: context,
-                      builder: (dlgCtx) => AlertDialog(
-                        title: const Text('Delete Banner?'),
-                        content: Text('Remove "${banner.title}"?'),
-                        actions: [
-                          TextButton(
-                              onPressed: () =>
-                                  Navigator.of(dlgCtx).pop(false),
-                              child: const Text('Cancel')),
-                          ElevatedButton(
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: ShowSnapColors.error),
-                            onPressed: () =>
-                                Navigator.of(dlgCtx).pop(true),
-                            child: const Text('Delete'),
-                          ),
-                        ],
-                      ),
+                    final ok = await StaffConfirmDialog.show(
+                      context,
+                      title: 'Delete Banner',
+                      message: 'Remove "${banner.title}"? This cannot be undone.',
+                      confirmLabel: 'Delete',
+                      isDangerous: true,
                     );
-                    if (confirmed == true) {
+                    if (ok == true) {
                       await ref
                           .read(databaseServiceProvider)
                           .deleteBanner(banner.bannerId);
                       ref.invalidate(_allBannersProvider);
                       if (context.mounted) {
-                        ShowSnapToast.show(context,
-                            message: 'Banner deleted');
+                        ShowSnapToast.success(context, 'Banner deleted');
                       }
                     }
                   },
@@ -148,9 +147,7 @@ class AdminBannersScreen extends ConsumerWidget {
                         );
                     ref.invalidate(_allBannersProvider);
                   },
-                ).animate()
-                 .fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms)
-                 .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad);
+                ).animate().fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms);
               },
             ),
           );
@@ -161,138 +158,156 @@ class AdminBannersScreen extends ConsumerWidget {
 
   void _showBannerDialog(
       BuildContext context, WidgetRef ref, BannerModel? existing) {
-    final titleCtrl =
-        TextEditingController(text: existing?.title ?? '');
-    final subtitleCtrl =
-        TextEditingController(text: existing?.subtitle ?? '');
-    final imageCtrl =
-        TextEditingController(text: existing?.imageUrl ?? '');
-    final ctaTextCtrl =
-        TextEditingController(text: existing?.ctaText ?? '');
-    final ctaRouteCtrl =
-        TextEditingController(text: existing?.ctaRoute ?? '');
-
+    final titleCtrl = TextEditingController(text: existing?.title ?? '');
+    final subtitleCtrl = TextEditingController(text: existing?.subtitle ?? '');
+    final imageCtrl = TextEditingController(text: existing?.imageUrl ?? '');
+    final ctaTextCtrl = TextEditingController(text: existing?.ctaText ?? '');
+    final ctaRouteCtrl = TextEditingController(text: existing?.ctaRoute ?? '');
     bool isUploading = false;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
-        builder: (context, setState) {
-          return AlertDialog(
-            title: Text(existing == null ? 'New Banner' : 'Edit Banner'),
-            content: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Title *',
-                        hintText: 'e.g. Weekend Special'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: subtitleCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Subtitle',
-                        hintText: 'e.g. Family packages from ₹599'),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: imageCtrl,
-                          decoration: const InputDecoration(
-                              labelText: 'Image URL',
-                              hintText: 'Cloudinary or any HTTPS URL'),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      isUploading
-                          ? const Padding(
-                              padding: EdgeInsets.all(12.0),
-                              child: SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.upload_file, color: ShowSnapColors.primary),
-                              onPressed: () async {
-                                final picker = ImagePicker();
-                                final file = await picker.pickImage(source: ImageSource.gallery);
-                                if (file != null) {
-                                  setState(() => isUploading = true);
-                                  try {
-                                    final cloudinary = ref.read(cloudinaryServiceProvider);
-                                    final url = await cloudinary.uploadImage(File(file.path), 'banners');
-                                    imageCtrl.text = url;
-                                  } catch (e) {
-                                    if (ctx.mounted) {
-                                      ShowSnapToast.error(ctx, 'Upload failed: $e');
-                                    }
-                                  } finally {
-                                    if (ctx.mounted) setState(() => isUploading = false);
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: AdminColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+            side: const BorderSide(color: AdminColors.border),
+          ),
+          title: Text(
+            existing == null ? 'New Banner' : 'Edit Banner',
+            style: const TextStyle(
+                color: AdminColors.textPrimary, fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _darkField(titleCtrl, 'Title *'),
+                const SizedBox(height: 12),
+                _darkField(subtitleCtrl, 'Subtitle'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _darkField(imageCtrl, 'Image URL')),
+                    const SizedBox(width: 8),
+                    isUploading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AdminColors.primary)),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.upload_file,
+                                color: AdminColors.primary),
+                            tooltip: 'Upload Image',
+                            onPressed: () async {
+                              final picker = ImagePicker();
+                              final file = await picker.pickImage(
+                                  source: ImageSource.gallery);
+                              if (file != null) {
+                                setS(() => isUploading = true);
+                                try {
+                                  final cloudinary =
+                                      ref.read(cloudinaryServiceProvider);
+                                  final url = await cloudinary.uploadImage(
+                                      File(file.path), 'banners');
+                                  imageCtrl.text = url;
+                                } catch (e) {
+                                  if (ctx.mounted) {
+                                    ShowSnapToast.error(
+                                        ctx, 'Upload failed: $e');
+                                  }
+                                } finally {
+                                  if (ctx.mounted) {
+                                    setS(() => isUploading = false);
                                   }
                                 }
-                              },
-                              tooltip: 'Upload Image',
-                            ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: ctaTextCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Button Label',
-                        hintText: 'e.g. Book Now, Explore'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: ctaRouteCtrl,
-                    decoration: const InputDecoration(
-                        labelText: 'Navigate To (optional)',
-                        hintText: 'e.g. /explore or /movie/abc123'),
-                  ),
-                ],
+                              }
+                            },
+                          ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _darkField(ctaTextCtrl, 'Button Label (e.g. Book Now)'),
+                const SizedBox(height: 12),
+                _darkField(ctaRouteCtrl, 'Navigate To (e.g. /explore)'),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isUploading ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AdminColors.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AdminColors.primary,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+              ),
+              onPressed: isUploading
+                  ? null
+                  : () async {
+                      if (titleCtrl.text.trim().isEmpty) return;
+                      final db = ref.read(databaseServiceProvider);
+                      final count = (await db.getAllBanners()).length;
+                      await db.saveBanner(BannerModel(
+                        bannerId: existing?.bannerId ?? '',
+                        title: titleCtrl.text.trim(),
+                        subtitle: subtitleCtrl.text.trim(),
+                        imageUrl: imageCtrl.text.trim(),
+                        ctaText: ctaTextCtrl.text.trim(),
+                        ctaRoute: ctaRouteCtrl.text.trim(),
+                        order: existing?.order ?? count,
+                        isActive: existing?.isActive ?? true,
+                      ));
+                      ref.invalidate(_allBannersProvider);
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                      if (context.mounted) {
+                        ShowSnapToast.success(
+                          context,
+                          existing == null ? 'Banner added' : 'Banner updated',
+                        );
+                      }
+                    },
+              child: Text(
+                existing == null ? 'Add' : 'Save',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
-            actions: [
-              TextButton(
-                  onPressed: isUploading ? null : () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancel')),
-              ElevatedButton(
-                onPressed: isUploading
-                    ? null
-                    : () async {
-                  if (titleCtrl.text.trim().isEmpty) return;
-                  final db = ref.read(databaseServiceProvider);
-                  final count = (await db.getAllBanners()).length;
-                  await db.saveBanner(BannerModel(
-                    bannerId: existing?.bannerId ?? '',
-                    title: titleCtrl.text.trim(),
-                    subtitle: subtitleCtrl.text.trim(),
-                    imageUrl: imageCtrl.text.trim(),
-                    ctaText: ctaTextCtrl.text.trim(),
-                    ctaRoute: ctaRouteCtrl.text.trim(),
-                    order: existing?.order ?? count,
-                    isActive: existing?.isActive ?? true,
-                  ));
-                  ref.invalidate(_allBannersProvider);
-                  if (ctx.mounted) Navigator.of(ctx).pop();
-                  if (context.mounted) {
-                    ShowSnapToast.show(context,
-                        message: existing == null
-                            ? 'Banner added'
-                            : 'Banner updated');
-                  }
-                },
-                child: Text(existing == null ? 'Add' : 'Save'),
-              ),
-            ],
-          );
-        }
+          ],
+        ),
       ),
     );
   }
+}
+
+Widget _darkField(TextEditingController ctrl, String label) {
+  return TextField(
+    controller: ctrl,
+    style: const TextStyle(color: AdminColors.textPrimary),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: AdminColors.textSecondary),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: AdminColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: AdminColors.primary),
+      ),
+      filled: true,
+      fillColor: AdminColors.surfaceElevated,
+    ),
+  );
 }
 
 class _BannerTile extends StatelessWidget {
@@ -311,79 +326,106 @@ class _BannerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
-      child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: banner.imageUrl.isNotEmpty
-              ? Image.network(
-                  banner.imageUrl,
-                  width: 56,
-                  height: 56,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _PlaceholderThumb(),
-                )
-              : _PlaceholderThumb(),
-        ),
-        title: Text(
-          banner.title,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (banner.subtitle.isNotEmpty)
-              Text(banner.subtitle,
-                  maxLines: 1, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 12)),
-            if (banner.ctaRoute.isNotEmpty)
-              Text(banner.ctaRoute,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Row(
+        children: [
+          // Drag handle
+          const Padding(
+            padding: EdgeInsets.only(right: 10),
+            child: Icon(Icons.drag_handle_rounded,
+                color: AdminColors.textMuted, size: 20),
+          ),
+          // Thumbnail
+          ClipRRect(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+            child: banner.imageUrl.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: banner.imageUrl,
+                    width: 56,
+                    height: 56,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => _Thumb(),
+                  )
+                : _Thumb(),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  banner.title,
                   style: const TextStyle(
-                      fontSize: 11, color: ShowSnapColors.grey600)),
-          ],
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Switch(
-              value: banner.isActive,
-              onChanged: onToggle,
-              activeColor: ShowSnapColors.secondary,
-            ),
-            PopupMenuButton<String>(
-              onSelected: (v) {
-                if (v == 'edit') onEdit();
-                if (v == 'delete') onDelete();
-              },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                const PopupMenuItem(
-                    value: 'delete',
-                    child: Text('Delete',
-                        style: TextStyle(color: Colors.red))),
+                      color: AdminColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (banner.subtitle.isNotEmpty)
+                  Text(
+                    banner.subtitle,
+                    style: const TextStyle(
+                        color: AdminColors.textSecondary, fontSize: 12),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                if (banner.ctaRoute.isNotEmpty)
+                  Text(
+                    banner.ctaRoute,
+                    style: const TextStyle(
+                        color: AdminColors.textMuted, fontSize: 11),
+                  ),
               ],
             ),
-          ],
-        ),
+          ),
+          Switch(
+            value: banner.isActive,
+            onChanged: onToggle,
+            activeColor: AdminColors.success,
+            inactiveTrackColor: AdminColors.border,
+          ),
+          PopupMenuButton<String>(
+            color: AdminColors.surfaceElevated,
+            icon: const Icon(Icons.more_vert_rounded,
+                color: AdminColors.textSecondary, size: 20),
+            onSelected: (v) {
+              if (v == 'edit') onEdit();
+              if (v == 'delete') onDelete();
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Text('Edit',
+                    style: TextStyle(color: AdminColors.textPrimary)),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete',
+                    style: TextStyle(color: AdminColors.error)),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
-class _PlaceholderThumb extends StatelessWidget {
+class _Thumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: 56,
         height: 56,
-        color: ShowSnapColors.primaryLighter,
+        color: AdminColors.surfaceElevated,
         child: const Icon(Icons.image_outlined,
-            color: ShowSnapColors.primary, size: 24),
+            color: AdminColors.textMuted, size: 24),
       );
 }

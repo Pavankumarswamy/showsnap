@@ -1,29 +1,37 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/services/database_service.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 import '../../auth/providers/auth_provider.dart';
+
+// ─── Data Model ───────────────────────────────────────────────────────────────
 
 class _AdminStats {
   final int totalUsers;
+  final int totalTheaters;
   final int todayBookings;
   final int totalRevenue;
   final int pendingAdRequests;
-  final List<FlSpot> bookingSpots; // last 30 days
+  final List<FlSpot> revenueSpots;
   final Map<String, int> revenueByTheater;
+  final Map<String, int> ticketStatusCount;
 
   const _AdminStats({
     this.totalUsers = 0,
+    this.totalTheaters = 0,
     this.todayBookings = 0,
     this.totalRevenue = 0,
     this.pendingAdRequests = 0,
-    this.bookingSpots = const [],
+    this.revenueSpots = const [],
     this.revenueByTheater = const {},
+    this.ticketStatusCount = const {},
   });
 }
 
@@ -32,329 +40,692 @@ final _adminStatsProvider = FutureProvider<_AdminStats>((ref) async {
   final users = await db.getAllUsers();
   final bookings = await db.getAllBookings();
   final adRequests = await db.getAdRequests();
+  final theaters = await db.getAllTheaters();
 
   final today = DateTime.now();
-  final todayStart = DateTime(today.year, today.month, today.day)
-      .millisecondsSinceEpoch;
+  final todayStart =
+      DateTime(today.year, today.month, today.day).millisecondsSinceEpoch;
 
   final todayBookings = bookings
       .where((b) =>
-          b.createdAt >= todayStart &&
-          b.status == BookingStatus.confirmed)
+          b.createdAt >= todayStart && b.status == BookingStatus.confirmed)
       .length;
 
   final totalRevenue = bookings
-      .where((b) => b.status == BookingStatus.confirmed ||
+      .where((b) =>
+          b.status == BookingStatus.confirmed ||
           b.status == BookingStatus.redeemed)
       .fold(0, (sum, b) => sum + b.totalAmount);
 
   final pendingAdRequests =
       adRequests.where((r) => r.status.name == 'pending').length;
 
-  // Build last 30 days booking count spots
-  final dayCount = <int, int>{};
-  final thirtyDaysAgo = today
-      .subtract(const Duration(days: 30))
-      .millisecondsSinceEpoch;
-  for (final b in bookings.where((b) => b.createdAt >= thirtyDaysAgo)) {
-    final day = DateTime.fromMillisecondsSinceEpoch(b.createdAt).day;
-    dayCount[day] = (dayCount[day] ?? 0) + 1;
+  // Last 7 days revenue spots
+  final dayRevenue = <int, int>{};
+  final sevenDaysAgo =
+      today.subtract(const Duration(days: 7)).millisecondsSinceEpoch;
+  for (final b in bookings.where((b) => b.createdAt >= sevenDaysAgo)) {
+    final dayIndex = today
+        .difference(
+            DateTime.fromMillisecondsSinceEpoch(b.createdAt))
+        .inDays;
+    final slot = 6 - dayIndex.clamp(0, 6);
+    dayRevenue[slot] = (dayRevenue[slot] ?? 0) + b.totalAmount;
   }
-  final spots = dayCount.entries
-      .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
-      .toList()
-    ..sort((a, b) => a.x.compareTo(b.x));
+  final spots = List.generate(
+    7,
+    (i) => FlSpot(i.toDouble(), (dayRevenue[i] ?? 0).toDouble()),
+  );
 
-  // Revenue by theater
+  // Revenue by theater (top 5)
   final theaterRevenue = <String, int>{};
-  for (final b in bookings.where(
-      (b) => b.status == BookingStatus.confirmed)) {
+  for (final b
+      in bookings.where((b) => b.status == BookingStatus.confirmed)) {
     theaterRevenue[b.theaterName] =
         (theaterRevenue[b.theaterName] ?? 0) + b.totalAmount;
   }
 
+  // Ticket status counts
+  final statusCount = <String, int>{
+    'Confirmed': bookings
+        .where((b) => b.status == BookingStatus.confirmed)
+        .length,
+    'Redeemed': bookings
+        .where((b) => b.status == BookingStatus.redeemed)
+        .length,
+    'Cancelled': bookings
+        .where((b) => b.status == BookingStatus.cancelled)
+        .length,
+  };
+
   return _AdminStats(
     totalUsers: users.length,
+    totalTheaters: theaters.length,
     todayBookings: todayBookings,
     totalRevenue: totalRevenue,
     pendingAdRequests: pendingAdRequests,
-    bookingSpots: spots,
+    revenueSpots: spots,
     revenueByTheater: theaterRevenue,
+    ticketStatusCount: statusCount,
   );
 });
 
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
 class AdminDashboardScreen extends ConsumerWidget {
   const AdminDashboardScreen({super.key});
+
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final ok = await StaffConfirmDialog.show(
+      context,
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign Out',
+      isDangerous: true,
+    );
+    if (ok == true && context.mounted) {
+      await ref.read(authNotifierProvider.notifier).signOut();
+      if (context.mounted) context.go(AppRoutes.login);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(_adminStatsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Admin Dashboard'),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
+      backgroundColor: AdminColors.background,
+      drawer: AdminDrawer(
+        currentRoute: AppRoutes.adminDashboard,
+        onNavigateTo: (route) => context.push(route),
+        onSignOut: () => _signOut(context, ref),
+      ),
+      appBar: _buildAppBar(context, ref),
+      body: RefreshIndicator(
+        color: AdminColors.primary,
+        backgroundColor: AdminColors.surface,
+        onRefresh: () => ref.refresh(_adminStatsProvider.future),
+        child: statsAsync.when(
+          loading: _buildSkeleton,
+          error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: AdminColors.error)),
+          ),
+          data: (stats) => _buildContent(context, stats),
+        ),
+      ),
+    );
+  }
+
+  AppBar _buildAppBar(BuildContext context, WidgetRef ref) {
+    return AppBar(
+      backgroundColor: AdminColors.surface,
+      foregroundColor: AdminColors.textPrimary,
+      elevation: 0,
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(height: 1, color: AdminColors.border),
+      ),
+      title: const Text(
+        'Admin Dashboard',
+        style: TextStyle(
+            color: AdminColors.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.notifications_outlined,
+              color: AdminColors.textSecondary),
+          onPressed: () {},
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: GestureDetector(
+            onTap: () => _signOut(context, ref),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: AdminColors.primaryGlow,
+              child: const Text('A',
+                  style: TextStyle(
+                      color: AdminColors.primary,
+                      fontWeight: FontWeight.bold)),
+            ),
           ),
         ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
+      ],
+    );
+  }
+
+  Widget _buildSkeleton() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.6,
+          children: List.generate(
+              4,
+              (_) => const StaffShimmerCard(
+                  height: 100,
+                  baseColor: AdminColors.surface,
+                  highlightColor: AdminColors.surfaceElevated)),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Logout',
-            icon: const Icon(Icons.logout_rounded),
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (_) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to logout?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Cancel'),
+        const SizedBox(height: 16),
+        const StaffShimmerCard(
+            height: 220,
+            baseColor: AdminColors.surface,
+            highlightColor: AdminColors.surfaceElevated),
+      ],
+    );
+  }
+
+  Widget _buildContent(BuildContext context, _AdminStats stats) {
+    return CustomScrollView(
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.all(16),
+          sliver: SliverList(
+            delegate: SliverChildListDelegate([
+              // KPI Cards
+              _buildKpiGrid(stats),
+              const SizedBox(height: 24),
+              // Revenue Chart
+              _buildRevenueChart(stats),
+              const SizedBox(height: 24),
+              // Two-column split: top theaters + ticket status
+              LayoutBuilder(builder: (_, constraints) {
+                if (constraints.maxWidth > 700) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: _buildTopTheatersChart(stats)),
+                      const SizedBox(width: 16),
+                      SizedBox(
+                          width: 260,
+                          child: _buildTicketStatusChart(stats)),
+                    ],
+                  );
+                }
+                return Column(
+                  children: [
+                    _buildTopTheatersChart(stats),
+                    const SizedBox(height: 16),
+                    _buildTicketStatusChart(stats),
+                  ],
+                );
+              }),
+              const SizedBox(height: 24),
+              // Quick Actions
+              _buildQuickActions(context),
+              const SizedBox(height: 32),
+            ]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKpiGrid(_AdminStats stats) {
+    final cards = [
+      (
+        '₹${_formatRevenue(stats.totalRevenue)}',
+        'Total Revenue',
+        Icons.currency_rupee_rounded,
+        AdminColors.primary,
+        '+12%',
+        true,
+      ),
+      (
+        '${stats.totalUsers}',
+        'Total Users',
+        Icons.people_rounded,
+        AdminColors.info,
+        '+34 today',
+        true,
+      ),
+      (
+        '${stats.todayBookings}',
+        "Today's Bookings",
+        Icons.confirmation_number_rounded,
+        AdminColors.success,
+        '+8%',
+        true,
+      ),
+      (
+        '${stats.totalTheaters}',
+        'Theaters',
+        Icons.theaters_rounded,
+        AdminColors.warning,
+        '${stats.pendingAdRequests} pending ads',
+        stats.pendingAdRequests == 0,
+      ),
+    ];
+
+    return LayoutBuilder(builder: (_, constraints) {
+      final cols = constraints.maxWidth > 700 ? 4 : 2;
+      return GridView.count(
+        crossAxisCount: cols,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: cols == 4 ? 1.8 : 1.5,
+        children: cards.asMap().entries.map((entry) {
+          final i = entry.key;
+          final c = entry.value;
+          return StaffStatCard(
+            value: c.$1,
+            label: c.$2,
+            icon: c.$3,
+            accentColor: c.$4,
+            bgColor: AdminColors.surface,
+            delta: c.$5,
+            isPositive: c.$6,
+          )
+              .animate()
+              .fadeIn(duration: 400.ms, delay: (i * 80).ms)
+              .slideY(begin: 0.15, end: 0, curve: Curves.easeOutQuad);
+        }).toList(),
+      );
+    });
+  }
+
+  String _formatRevenue(int amount) {
+    if (amount >= 100000) {
+      return '${(amount / 100000).toStringAsFixed(1)}L';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(1)}K';
+    }
+    return '$amount';
+  }
+
+  Widget _buildRevenueChart(_AdminStats stats) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const StaffSectionHeader(title: 'Revenue — Last 7 Days'),
+          const SizedBox(height: 16),
+          if (stats.revenueSpots.isEmpty ||
+              stats.revenueSpots.every((s) => s.y == 0))
+            const SizedBox(
+              height: 160,
+              child: Center(
+                child: Text('No revenue data yet',
+                    style: TextStyle(color: AdminColors.textSecondary)),
+              ),
+            )
+          else
+            SizedBox(
+              height: 180,
+              child: LineChart(
+                LineChartData(
+                  backgroundColor: AdminColors.surface,
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: stats.revenueSpots,
+                      isCurved: true,
+                      color: AdminColors.primary,
+                      barWidth: 2.5,
+                      belowBarData: BarAreaData(
+                        show: true,
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            AdminColors.primary.withOpacity(0.3),
+                            AdminColors.primary.withOpacity(0.0),
+                          ],
+                        ),
+                      ),
+                      dotData: FlDotData(
+                        show: true,
+                        getDotPainter: (_, __, ___, ____) =>
+                            FlDotCirclePainter(
+                          radius: 3,
+                          color: AdminColors.primary,
+                          strokeWidth: 1,
+                          strokeColor: AdminColors.background,
+                        ),
+                      ),
                     ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Logout',
-                          style: TextStyle(color: Colors.red)),
+                  ],
+                  gridData: FlGridData(
+                    show: true,
+                    drawHorizontalLine: true,
+                    drawVerticalLine: false,
+                    horizontalInterval: null,
+                    getDrawingHorizontalLine: (_) => FlLine(
+                      color: AdminColors.border,
+                      strokeWidth: 1,
+                      dashArray: [4, 4],
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 48,
+                        getTitlesWidget: (v, _) => Text(
+                          '₹${_formatRevenue(v.toInt())}',
+                          style: const TextStyle(
+                              fontSize: 9,
+                              color: AdminColors.textMuted),
+                        ),
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (v, _) {
+                          const days = [
+                            'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
+                          ];
+                          final idx = v.toInt();
+                          if (idx < 0 || idx >= days.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Text(
+                            days[idx],
+                            style: const TextStyle(
+                                fontSize: 10,
+                                color: AdminColors.textMuted),
+                          );
+                        },
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  minY: 0,
+                ),
+              ),
+            ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 500.ms, delay: 350.ms);
+  }
+
+  Widget _buildTopTheatersChart(_AdminStats stats) {
+    final sorted = stats.revenueByTheater.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final top5 = sorted.take(5).toList();
+    final maxVal =
+        top5.isEmpty ? 1 : top5.first.value.toDouble();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const StaffSectionHeader(title: 'Top Theaters'),
+          const SizedBox(height: 16),
+          if (top5.isEmpty)
+            const StaffEmptyState(
+              icon: Icons.theaters_outlined,
+              message: 'No revenue data yet',
+            )
+          else
+            ...top5.map((entry) {
+              final pct = entry.value / maxVal;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            entry.key,
+                            style: const TextStyle(
+                                color: AdminColors.textPrimary,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          '₹${_formatRevenue(entry.value)}',
+                          style: const TextStyle(
+                              color: AdminColors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius:
+                          BorderRadius.circular(ShowSnapRadius.pill),
+                      child: LinearProgressIndicator(
+                        value: pct,
+                        minHeight: 6,
+                        backgroundColor: AdminColors.border,
+                        valueColor: const AlwaysStoppedAnimation(
+                            AdminColors.primary),
+                      ),
                     ),
                   ],
                 ),
               );
-              if (confirmed == true) {
-                await ref.read(authNotifierProvider.notifier).signOut();
-                if (context.mounted) context.go(AppRoutes.login);
-              }
-            },
-          ),
+            }),
         ],
       ),
-      body: RefreshIndicator(
-        onRefresh: () => ref.refresh(_adminStatsProvider.future),
-        child: statsAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (stats) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-            children: [
-              // Stats grid
-              LayoutBuilder(builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth > 800;
-                return GridView.count(
-                  crossAxisCount: isDesktop ? 4 : 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: isDesktop ? 2.5 : 1.6,
-                  children: [
-                  _StatCard('Total Users', '${stats.totalUsers}',
-                      Icons.people_outlined, ShowSnapColors.primary)
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 50.ms)
-                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                  _StatCard("Today's Bookings",
-                      '${stats.todayBookings}',
-                      Icons.confirmation_number_outlined,
-                      ShowSnapColors.secondary)
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 150.ms)
-                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                  _StatCard('Total Revenue', '₹${stats.totalRevenue}',
-                      Icons.currency_rupee_outlined, Colors.purple)
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 250.ms)
-                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                  _StatCard('Pending Ads',
-                      '${stats.pendingAdRequests}',
-                      Icons.campaign_outlined, Colors.orange)
-                    .animate()
-                    .fadeIn(duration: 400.ms, delay: 350.ms)
-                    .slideY(begin: 0.1, end: 0, curve: Curves.easeOutQuad),
-                ],
-              );
-              }),
-              const SizedBox(height: 20),
-              // Bookings chart
-              if (stats.bookingSpots.isNotEmpty) ...[
-                Text('Bookings — Last 30 Days',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.bold))
-                  .animate()
-                  .fadeIn(duration: 300.ms, delay: 400.ms),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 180,
-                  child: LineChart(
-                    LineChartData(
-                      lineBarsData: [
-                        LineChartBarData(
-                          spots: stats.bookingSpots,
-                          isCurved: true,
-                          color: ShowSnapColors.primary,
-                          belowBarData: BarAreaData(
-                              show: true,
-                              color: ShowSnapColors.primary.withOpacity(0.2)),
-                          dotData: const FlDotData(show: false),
-                        ),
-                      ],
-                      gridData: const FlGridData(show: false),
-                      titlesData: const FlTitlesData(show: false),
-                      borderData: FlBorderData(show: false),
+    ).animate().fadeIn(duration: 500.ms, delay: 450.ms);
+  }
+
+  Widget _buildTicketStatusChart(_AdminStats stats) {
+    final statusData = stats.ticketStatusCount;
+    final total = statusData.values.fold(0, (a, b) => a + b);
+    if (total == 0) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AdminColors.surface,
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          border: Border.all(color: AdminColors.border),
+        ),
+        child: const StaffEmptyState(
+          icon: Icons.pie_chart_outline,
+          message: 'No ticket data',
+        ),
+      );
+    }
+
+    final colors = [
+      AdminColors.primary,
+      AdminColors.success,
+      AdminColors.error,
+    ];
+    final sections = statusData.entries.toList().asMap().entries.map((e) {
+      final i = e.key;
+      final entry = e.value;
+      final pct = entry.value / total * 100;
+      return PieChartSectionData(
+        value: entry.value.toDouble(),
+        color: colors[i % colors.length],
+        title: '${pct.round()}%',
+        radius: 60,
+        titleStyle: const TextStyle(
+            fontSize: 11,
+            color: Colors.white,
+            fontWeight: FontWeight.bold),
+      );
+    }).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AdminColors.surface,
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        border: Border.all(color: AdminColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const StaffSectionHeader(title: 'Ticket Status'),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 160,
+            child: PieChart(
+              PieChartData(
+                sections: sections,
+                centerSpaceRadius: 36,
+                sectionsSpace: 2,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ...statusData.entries.toList().asMap().entries.map((e) {
+            final i = e.key;
+            final entry = e.value;
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: colors[i % colors.length],
+                      shape: BoxShape.circle,
                     ),
                   ),
-                ).animate().fadeIn(duration: 500.ms, delay: 450.ms),
-                const SizedBox(height: 20),
-              ],
-              // Quick actions
-              Text('Quick Actions',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold))
-                .animate()
-                .fadeIn(duration: 300.ms, delay: 500.ms),
-              const SizedBox(height: 12),
-              LayoutBuilder(builder: (context, constraints) {
-                final isDesktop = constraints.maxWidth > 800;
-                return GridView.count(
-                  crossAxisCount: isDesktop ? 6 : (constraints.maxWidth > 500 ? 4 : 2),
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: isDesktop ? 3.0 : 2.2,
-                  children: [
-                  _ActionButton('Users',
-                      Icons.people_outlined,
-                      () => context.push(AppRoutes.userManagement))
-                    .animate()
-                    .fadeIn(duration: 300.ms, delay: 550.ms)
-                    .slideY(begin: 0.1, end: 0),
-                  _ActionButton('Tickets',
-                      Icons.confirmation_number_outlined,
-                      () => context.push(AppRoutes.ticketAudit))
-                    .animate()
-                    .fadeIn(duration: 300.ms, delay: 600.ms)
-                    .slideY(begin: 0.1, end: 0),
-                  _ActionButton('Offers',
-                      Icons.local_offer_outlined,
-                      () => context.push(AppRoutes.adminOffers))
-                    .animate()
-                    .fadeIn(duration: 300.ms, delay: 650.ms)
-                    .slideY(begin: 0.1, end: 0),
-                  _ActionButton('Ad Requests',
-                      Icons.campaign_outlined,
-                      () => context.push(AppRoutes.adRequests))
-                    .animate()
-                    .fadeIn(duration: 300.ms, delay: 700.ms)
-                    .slideY(begin: 0.1, end: 0),
-                  _ActionButton('Add Theater',
-                      Icons.add_business_outlined,
-                      () => context.push(AppRoutes.addTheater))
-                    .animate()
-                    .fadeIn(duration: 300.ms, delay: 750.ms)
-                    .slideY(begin: 0.1, end: 0),
-                  _ActionButton('Banners',
-                      Icons.image_outlined,
-                      () => context.push(AppRoutes.adminBanners))
-                    .animate()
-                    .fadeIn(duration: 300.ms, delay: 800.ms)
-                    .slideY(begin: 0.1, end: 0),
-                ],
-              );
-              }),
-              const SizedBox(height: 32),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-  const _StatCard(this.label, this.value, this.icon, this.color);
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(value,
-                      style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: color)),
-                  Text(label,
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      entry.key,
                       style: const TextStyle(
-                          fontSize: 11, color: ShowSnapColors.grey600)),
+                          color: AdminColors.textSecondary,
+                          fontSize: 12),
+                    ),
+                  ),
+                  Text(
+                    '${entry.value}',
+                    style: const TextStyle(
+                        color: AdminColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12),
+                  ),
                 ],
               ),
-            ),
-          ],
-        ),
+            );
+          }),
+        ],
       ),
+    ).animate().fadeIn(duration: 500.ms, delay: 500.ms);
+  }
+
+  Widget _buildQuickActions(BuildContext context) {
+    final actions = [
+      (Icons.theaters_rounded, 'Theaters', AppRoutes.adminTheaters),
+      (Icons.people_rounded, 'Users', AppRoutes.userManagement),
+      (Icons.confirmation_number_rounded, 'Tickets', AppRoutes.ticketAudit),
+      (Icons.local_offer_rounded, 'Offers', AppRoutes.adminOffers),
+      (Icons.campaign_rounded, 'Ad Requests', AppRoutes.adRequests),
+      (Icons.analytics_rounded, 'Analytics', AppRoutes.adminAnalytics),
+      (Icons.image_rounded, 'Banners', AppRoutes.adminBanners),
+      (Icons.add_business_rounded, 'Add Theater', AppRoutes.addTheater),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const StaffSectionHeader(title: 'Quick Actions'),
+        const SizedBox(height: 12),
+        LayoutBuilder(builder: (_, constraints) {
+          final cols = constraints.maxWidth > 700 ? 4 : (constraints.maxWidth > 400 ? 4 : 2);
+          return GridView.count(
+            crossAxisCount: cols,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 2.8,
+            children: actions.asMap().entries.map((entry) {
+              final i = entry.key;
+              final a = entry.value;
+              return _QuickActionTile(
+                icon: a.$1,
+                label: a.$2,
+                onTap: () => context.push(a.$3),
+              )
+                  .animate()
+                  .fadeIn(duration: 300.ms, delay: (550 + i * 40).ms)
+                  .slideY(begin: 0.1, end: 0);
+            }).toList(),
+          );
+        }),
+      ],
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
-  final String label;
+// ─── Quick Action Tile ────────────────────────────────────────────────────────
+
+class _QuickActionTile extends StatelessWidget {
   final IconData icon;
+  final String label;
   final VoidCallback onTap;
-  const _ActionButton(this.label, this.icon, this.onTap);
+
+  const _QuickActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    return Material(
+      color: AdminColors.surface,
+      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+            border: Border.all(color: AdminColors.border),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(
             children: [
-              Icon(icon, color: ShowSnapColors.primary, size: 22),
+              Icon(icon, color: AdminColors.primary, size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      color: AdminColors.textPrimary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const Icon(Icons.chevron_right, color: ShowSnapColors.grey600),
+              const Icon(Icons.chevron_right,
+                  color: AdminColors.textMuted, size: 16),
             ],
           ),
         ),

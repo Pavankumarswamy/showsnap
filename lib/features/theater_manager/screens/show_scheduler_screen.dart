@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/config/router.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/movie_model.dart';
 import '../../../core/models/screen_model.dart';
-import '../../../core/models/show_model.dart';
 import '../../../core/models/seat_status_model.dart';
+import '../../../core/models/show_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 import '../../movies/providers/booking_provider.dart';
 
 final _schedulerDataProvider = FutureProvider<
@@ -22,20 +25,29 @@ final _schedulerDataProvider = FutureProvider<
     })>((ref) async {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
   if (uid == null) {
-    return (movies: <MovieModel>[], screens: <ScreenModel>[], shows: <ShowModel>[], theaterId: '');
+    return (
+      movies: <MovieModel>[],
+      screens: <ScreenModel>[],
+      shows: <ShowModel>[],
+      theaterId: ''
+    );
   }
   final db = ref.watch(databaseServiceProvider);
   final theaters = await db.getAllTheaters();
-  final theater =
-      theaters.cast<dynamic>().firstWhere((t) => t.managerId == uid, orElse: () => null);
+  final theater = theaters
+      .cast<dynamic>()
+      .firstWhere((t) => t.managerId == uid, orElse: () => null);
   if (theater == null) {
-    return (movies: <MovieModel>[], screens: <ScreenModel>[], shows: <ShowModel>[], theaterId: '');
+    return (
+      movies: <MovieModel>[],
+      screens: <ScreenModel>[],
+      shows: <ShowModel>[],
+      theaterId: ''
+    );
   }
 
   final movies = await db.getAllMovies();
   final screens = await db.getScreensForTheater(theater.theaterId);
-
-  // Get all shows for this theater's screens
   final allShows = <ShowModel>[];
   for (final screen in screens) {
     final shows = await db.getShowsForTheaterScreen(
@@ -57,57 +69,89 @@ class ShowSchedulerScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final dataAsync = ref.watch(_schedulerDataProvider);
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Show Scheduler'),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
-        ),
+      backgroundColor: TMColors.background,
+      drawer: TMDrawer(
+        currentRoute: AppRoutes.showScheduler,
+        onNavigateTo: (route) => context.push(route),
+        theaterName: 'My Theater',
+        onSignOut: () {},
       ),
-      body: dataAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (data) {
-          if (data.screens.isEmpty) {
-            return const Center(
-                child: Text('Add screens first before scheduling shows'));
-          }
-          final showsStream = ref.watch(theaterShowsStreamProvider(data.theaterId));
-          return showsStream.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error loading shows: $e')),
-            data: (realTimeShows) => Column(
-              children: [
-                Expanded(
-                  child: _ShowGrid(
-                      shows: realTimeShows, screens: data.screens, movies: data.movies)
-                    .animate()
-                    .fadeIn(duration: 450.ms)
-                    .slideY(begin: 0.05, end: 0, curve: Curves.easeOutQuad),
-                ),
-              ],
-            ),
-          );
-        },
+      appBar: AppBar(
+        backgroundColor: TMColors.surface,
+        foregroundColor: TMColors.textPrimary,
+        elevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(height: 1, color: TMColors.border),
+        ),
+        title: const Text(
+          'Show Scheduler',
+          style: TextStyle(
+              color: TMColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => dataAsync.whenData(
-          (data) => _showAddShowBottomSheet(context, ref, data.movies,
-              data.screens, data.theaterId),
+          (data) => _showAddShowBottomSheet(
+              context, ref, data.movies, data.screens, data.theaterId),
         ),
-        label: const Text('Add Show'),
+        label:
+            const Text('Add Show', style: TextStyle(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add),
-        backgroundColor: ShowSnapColors.primary,
+        backgroundColor: TMColors.primary,
+        foregroundColor: Colors.black,
       ).animate().scale(delay: 300.ms, duration: 400.ms, curve: Curves.elasticOut),
+      body: dataAsync.when(
+        loading: () => ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: 3,
+          itemBuilder: (_, __) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: StaffShimmerCard(
+              height: 130,
+              baseColor: TMColors.surface,
+              highlightColor: TMColors.surfaceElevated,
+            ),
+          ),
+        ),
+        error: (e, _) => Center(
+            child: Text('Error: $e',
+                style: const TextStyle(color: AdminColors.error))),
+        data: (data) {
+          if (data.screens.isEmpty) {
+            return StaffEmptyState(
+              icon: Icons.theaters_outlined,
+              message: 'Add screens before scheduling shows.',
+            );
+          }
+          final showsAsync =
+              ref.watch(theaterShowsStreamProvider(data.theaterId));
+          return showsAsync.when(
+            loading: () => ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: 3,
+              itemBuilder: (_, __) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: StaffShimmerCard(
+                  height: 130,
+                  baseColor: TMColors.surface,
+                  highlightColor: TMColors.surfaceElevated,
+                ),
+              ),
+            ),
+            error: (e, _) => Center(
+                child: Text('Error: $e',
+                    style: const TextStyle(color: AdminColors.error))),
+            data: (realTimeShows) => _ShowGrid(
+              shows: realTimeShows,
+              screens: data.screens,
+              movies: data.movies,
+            ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.05, end: 0),
+          );
+        },
+      ),
     );
   }
 
@@ -121,21 +165,25 @@ class ShowSchedulerScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: TMColors.surface,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (_) => _AddShowForm(
           movies: movies, screens: screens, theaterId: theaterId, ref: ref),
     );
   }
 }
 
-
+// ─── Show grid ────────────────────────────────────────────────────────────────
 
 class _ShowGrid extends StatefulWidget {
   final List<ShowModel> shows;
   final List<ScreenModel> screens;
   final List<MovieModel> movies;
-  const _ShowGrid({required this.shows, required this.screens, required this.movies});
+
+  const _ShowGrid(
+      {required this.shows, required this.screens, required this.movies});
 
   @override
   State<_ShowGrid> createState() => _ShowGridState();
@@ -158,7 +206,10 @@ class _ShowGridState extends State<_ShowGrid> {
   @override
   Widget build(BuildContext context) {
     if (widget.shows.isEmpty) {
-      return const Center(child: Text('No shows scheduled yet'));
+      return StaffEmptyState(
+        icon: Icons.event_available_outlined,
+        message: 'No shows scheduled yet.\nTap + to add a show.',
+      );
     }
 
     final dateShows = widget.shows.where((s) {
@@ -170,17 +221,19 @@ class _ShowGridState extends State<_ShowGrid> {
 
     return Column(
       children: [
-        const SizedBox(height: 8),
-        _DateSelector(
+        _DateStrip(
           dates: _dates,
           selected: _selectedDate,
           onSelect: (d) => setState(() => _selectedDate = d),
         ),
         Expanded(
           child: dateShows.isEmpty
-              ? Center(child: Text('No shows on ${_selectedDate.dateLabel}'))
+              ? StaffEmptyState(
+                  icon: Icons.event_busy_outlined,
+                  message: 'No shows on ${_selectedDate.dateLabel}',
+                )
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                   itemCount: widget.screens.length,
                   itemBuilder: (_, si) {
                     final screen = widget.screens[si];
@@ -191,7 +244,6 @@ class _ShowGridState extends State<_ShowGrid> {
 
                     if (screenShows.isEmpty) return const SizedBox.shrink();
 
-                    // Group by movieId
                     final movieShows = <String, List<ShowModel>>{};
                     for (final s in screenShows) {
                       movieShows.putIfAbsent(s.movieId, () => []).add(s);
@@ -201,94 +253,111 @@ class _ShowGridState extends State<_ShowGrid> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Text(screen.name,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .titleSmall
-                                  ?.copyWith(fontWeight: FontWeight.bold)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Text(
+                            screen.name,
+                            style: const TextStyle(
+                                color: TMColors.textSecondary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                letterSpacing: 0.5),
+                          ),
                         ),
                         ...movieShows.entries.map((entry) {
                           final movieId = entry.key;
                           final shows = entry.value;
-                          final movie = widget.movies.firstWhere((m) => m.movieId == movieId, orElse: () => MovieModel(movieId: movieId, title: 'Unknown Movie'));
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    movie.title,
-                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 10),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: shows.map((s) {
-                                      final dt = DateTime.fromMillisecondsSinceEpoch(s.startTs);
-                                      Color bg;
-                                      Color fg;
-                                      
-                                      final noLayout = s.seats.isEmpty;
-                                      final soldOut = s.isSoldOut && !noLayout;
+                          final movie = widget.movies.firstWhere(
+                              (m) => m.movieId == movieId,
+                              orElse: () =>
+                                  MovieModel(movieId: movieId, title: 'Unknown'));
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: TMColors.surface,
+                              borderRadius:
+                                  BorderRadius.circular(ShowSnapRadius.md),
+                              border: Border.all(color: TMColors.border),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  movie.title,
+                                  style: const TextStyle(
+                                      color: TMColors.textPrimary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14),
+                                ),
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: shows.map((s) {
+                                    final dt = DateTime.fromMillisecondsSinceEpoch(
+                                        s.startTs);
+                                    final noLayout = s.seats.isEmpty;
+                                    final soldOut =
+                                        s.isSoldOut && !noLayout;
+                                    Color bg, fg;
 
-                                      if (!s.bookingOpen || soldOut || noLayout) {
-                                        bg = ShowSnapColors.grey300;
-                                        fg = ShowSnapColors.grey600;
-                                      } else if (s.seatsAvailable < 20) {
-                                        bg = Colors.orange.shade100;
-                                        fg = Colors.orange.shade800;
-                                      } else {
-                                        bg = ShowSnapColors.secondary.withOpacity(0.12);
-                                        fg = ShowSnapColors.secondary;
-                                      }
-                                      return GestureDetector(
-                                        onTap: () => context.push('/tm/show-details/${s.showId}'),
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 8),
-                                          decoration: BoxDecoration(
-                                            color: bg,
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                          child: Column(
-                                            children: [
-                                              Text(
-                                                DateFormat('h:mm a').format(dt),
-                                                style: TextStyle(
-                                                  color: fg,
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
-                                                ),
-                                              ),
-                                              Text(
-                                                noLayout
-                                                    ? 'NO LAYOUT'
-                                                    : soldOut
-                                                        ? 'SOLD OUT'
-                                                        : !s.bookingOpen
-                                                            ? 'CLOSED'
-                                                            : '${s.seatsAvailable} left',
-                                                style: TextStyle(
-                                                  color: fg,
-                                                  fontSize: 10,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                    if (!s.bookingOpen || soldOut || noLayout) {
+                                      bg = TMColors.surfaceElevated;
+                                      fg = TMColors.textMuted;
+                                    } else if (s.seatsAvailable < 20) {
+                                      bg = const Color(0xFFFF8F00).withOpacity(0.15);
+                                      fg = const Color(0xFFFF8F00);
+                                    } else {
+                                      bg = TMColors.primary.withOpacity(0.12);
+                                      fg = TMColors.primary;
+                                    }
+
+                                    return GestureDetector(
+                                      onTap: () => context.push(
+                                          '/tm/show-details/${s.showId}'),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: bg,
+                                          borderRadius: BorderRadius.circular(
+                                              ShowSnapRadius.sm),
+                                          border: Border.all(
+                                              color: fg.withOpacity(0.3)),
                                         ),
-                                      );
-                                    }).toList(),
-                                  ),
-                                ],
-                              ),
+                                        child: Column(
+                                          children: [
+                                            Text(
+                                              DateFormat('h:mm a').format(dt),
+                                              style: TextStyle(
+                                                color: fg,
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                            Text(
+                                              noLayout
+                                                  ? 'NO LAYOUT'
+                                                  : soldOut
+                                                      ? 'SOLD OUT'
+                                                      : !s.bookingOpen
+                                                          ? 'CLOSED'
+                                                          : '${s.seatsAvailable} left',
+                                              style: TextStyle(
+                                                  color: fg, fontSize: 10),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
                             ),
                           );
                         }),
-                        const Divider(),
+                        const Divider(color: TMColors.border, height: 1),
+                        const SizedBox(height: 4),
                       ],
                     );
                   },
@@ -299,12 +368,14 @@ class _ShowGridState extends State<_ShowGrid> {
   }
 }
 
-class _DateSelector extends StatelessWidget {
+// ─── Date strip ───────────────────────────────────────────────────────────────
+
+class _DateStrip extends StatelessWidget {
   final List<DateTime> dates;
   final DateTime selected;
   final ValueChanged<DateTime> onSelect;
 
-  const _DateSelector({
+  const _DateStrip({
     required this.dates,
     required this.selected,
     required this.onSelect,
@@ -314,10 +385,10 @@ class _DateSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 80,
-      color: ShowSnapColors.grey100,
+      color: TMColors.surface,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         itemCount: dates.length,
         itemBuilder: (_, i) {
           final d = dates[i];
@@ -332,25 +403,20 @@ class _DateSelector extends StatelessWidget {
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               decoration: BoxDecoration(
-                color: isSelected
-                    ? ShowSnapColors.primary
-                    : ShowSnapColors.surface,
-                borderRadius: BorderRadius.circular(8),
+                color: isSelected ? TMColors.primary : TMColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
                 border: Border.all(
-                  color: isSelected
-                      ? ShowSnapColors.primary
-                      : ShowSnapColors.grey300,
+                  color: isSelected ? TMColors.primary : TMColors.border,
                 ),
               ),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     d.dayShort,
                     style: TextStyle(
-                      fontSize: 11,
-                      color: isSelected
-                          ? ShowSnapColors.onPrimary
-                          : ShowSnapColors.grey600,
+                      fontSize: 10,
+                      color: isSelected ? Colors.black : TMColors.textMuted,
                     ),
                   ),
                   Text(
@@ -358,9 +424,7 @@ class _DateSelector extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: isSelected
-                          ? ShowSnapColors.onPrimary
-                          : ShowSnapColors.onSurface,
+                      color: isSelected ? Colors.black : TMColors.textPrimary,
                     ),
                   ),
                 ],
@@ -372,6 +436,8 @@ class _DateSelector extends StatelessWidget {
     );
   }
 }
+
+// ─── Add show form ────────────────────────────────────────────────────────────
 
 class _AddShowForm extends ConsumerStatefulWidget {
   final List<MovieModel> movies;
@@ -429,20 +495,16 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
         _startTime.hour,
         _startTime.minute,
       );
-      final endDt = startDt.add(
-          Duration(minutes: _selectedMovie!.durationMinutes + 15));
+      final endDt =
+          startDt.add(Duration(minutes: _selectedMovie!.durationMinutes + 15));
 
-      // Conflict check
       final db = ref.read(databaseServiceProvider);
       final existingShows = await db.getShowsForTheaterScreen(
           widget.theaterId, _selectedScreen!.screenId);
       for (final existing in existingShows) {
-        final existStart =
-            DateTime.fromMillisecondsSinceEpoch(existing.startTs);
-        final existEnd =
-            DateTime.fromMillisecondsSinceEpoch(existing.endTs);
-        if (startDt.isBefore(existEnd) &&
-            endDt.isAfter(existStart)) {
+        final existStart = DateTime.fromMillisecondsSinceEpoch(existing.startTs);
+        final existEnd = DateTime.fromMillisecondsSinceEpoch(existing.endTs);
+        if (startDt.isBefore(existEnd) && endDt.isAfter(existStart)) {
           setState(() {
             _conflictError =
                 'Conflict with show at ${existing.startTs.epochToTimeLabel}';
@@ -457,7 +519,6 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
         pricing[cat] = int.tryParse(ctrl.text) ?? 0;
       });
 
-      // Initialise seat statuses from screen layout
       final screen = _selectedScreen!;
       final seats = <String, SeatStatusModel>{};
       for (final seat in screen.seatLayout) {
@@ -478,7 +539,10 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
       ));
 
       widget.ref.invalidate(_schedulerDataProvider);
-      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        Navigator.pop(context);
+        ShowSnapToast.success(context, 'Show scheduled');
+      }
     } catch (e) {
       setState(() {
         _conflictError = 'Failed: $e';
@@ -490,46 +554,56 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding:
+          EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text('Add Show',
-                style:
-                    TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            // Handle
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: TMColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const Text(
+              'Add Show',
+              style: TextStyle(
+                  color: TMColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<MovieModel>(
+            _tmDropdown<MovieModel>(
+              label: 'Movie',
               value: _selectedMovie,
-              hint: const Text('Select Movie'),
-              decoration: const InputDecoration(labelText: 'Movie'),
-              items: widget.movies
-                  .map((m) => DropdownMenuItem(
-                      value: m, child: Text(m.title)))
-                  .toList(),
+              items: widget.movies,
+              labelOf: (m) => m.title,
               onChanged: (v) => setState(() => _selectedMovie = v),
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<ScreenModel>(
+            _tmDropdown<ScreenModel>(
+              label: 'Screen',
               value: _selectedScreen,
-              hint: const Text('Select Screen'),
-              decoration: const InputDecoration(labelText: 'Screen'),
-              items: widget.screens
-                  .map((s) => DropdownMenuItem(
-                      value: s, child: Text(s.name)))
-                  .toList(),
+              items: widget.screens,
+              labelOf: (s) => s.name,
               onChanged: (v) => setState(() => _selectedScreen = v),
             ),
             const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.calendar_today),
-                    label: Text(DateFormat('dd MMM').format(_selectedDate)),
+                  child: _DarkPickerButton(
+                    icon: Icons.calendar_today,
+                    label: DateFormat('dd MMM').format(_selectedDate),
                     onPressed: () async {
                       final d = await showDatePicker(
                         context: context,
@@ -543,9 +617,9 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: OutlinedButton.icon(
-                    icon: const Icon(Icons.access_time),
-                    label: Text(_startTime.format(context)),
+                  child: _DarkPickerButton(
+                    icon: Icons.access_time_outlined,
+                    label: _startTime.format(context),
                     onPressed: () async {
                       final t = await showTimePicker(
                         context: context,
@@ -558,23 +632,45 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
               ],
             ),
             const SizedBox(height: 12),
-            Text('Pricing',
-                style: Theme.of(context)
-                    .textTheme
-                    .titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w600)),
+            const Text(
+              'Pricing',
+              style: TextStyle(
+                  color: TMColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13),
+            ),
             const SizedBox(height: 8),
             Row(
               children: _pricingCtrls.entries.map((e) {
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: TextFormField(
+                    child: TextField(
                       controller: e.value,
                       keyboardType: TextInputType.number,
+                      style: const TextStyle(color: TMColors.textPrimary),
                       decoration: InputDecoration(
-                          labelText: e.key.capitalize,
-                          prefixText: '₹'),
+                        labelText: e.key.capitalize,
+                        labelStyle:
+                            const TextStyle(color: TMColors.textSecondary),
+                        prefixText: '₹',
+                        prefixStyle:
+                            const TextStyle(color: TMColors.textSecondary),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(ShowSnapRadius.sm),
+                          borderSide:
+                              const BorderSide(color: TMColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(ShowSnapRadius.sm),
+                          borderSide:
+                              const BorderSide(color: TMColors.primary),
+                        ),
+                        filled: true,
+                        fillColor: TMColors.surfaceElevated,
+                      ),
                     ),
                   ),
                 );
@@ -582,26 +678,96 @@ class _AddShowFormState extends ConsumerState<_AddShowForm> {
             ),
             if (_conflictError != null) ...[
               const SizedBox(height: 8),
-              Text(_conflictError!,
-                  style: const TextStyle(color: ShowSnapColors.error)),
+              Text(
+                _conflictError!,
+                style: const TextStyle(
+                    color: AdminColors.error, fontSize: 12),
+              ),
             ],
             const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _saving ? null : _save,
               style: ElevatedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48)),
+                backgroundColor: TMColors.primary,
+                foregroundColor: Colors.black,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+              ),
               child: _saving
                   ? const SizedBox(
                       height: 22,
                       width: 22,
-                      child:
-                          CircularProgressIndicator(strokeWidth: 2))
-                  : const Text('Schedule Show'),
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.black))
+                  : const Text('Schedule Show',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
             ),
             const SizedBox(height: 16),
           ],
         ),
       ),
+    );
+  }
+}
+
+DropdownButtonFormField<T> _tmDropdown<T>({
+  required String label,
+  required T? value,
+  required List<T> items,
+  required String Function(T) labelOf,
+  required void Function(T?) onChanged,
+}) {
+  return DropdownButtonFormField<T>(
+    value: value,
+    hint: Text(label, style: const TextStyle(color: TMColors.textMuted)),
+    dropdownColor: TMColors.surfaceElevated,
+    style: const TextStyle(color: TMColors.textPrimary),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: TMColors.textSecondary),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: TMColors.border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+        borderSide: const BorderSide(color: TMColors.primary),
+      ),
+      filled: true,
+      fillColor: TMColors.surfaceElevated,
+    ),
+    items:
+        items.map((t) => DropdownMenuItem(value: t, child: Text(labelOf(t)))).toList(),
+    onChanged: onChanged,
+  );
+}
+
+class _DarkPickerButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _DarkPickerButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      icon: Icon(icon, size: 16, color: TMColors.textSecondary),
+      label: Text(label,
+          style: const TextStyle(color: TMColors.textPrimary, fontSize: 13)),
+      style: OutlinedButton.styleFrom(
+        backgroundColor: TMColors.surfaceElevated,
+        side: const BorderSide(color: TMColors.border),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      ),
+      onPressed: onPressed,
     );
   }
 }
