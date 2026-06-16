@@ -1,22 +1,34 @@
+import 'dart:typed_data';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/theater_model.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/database_service.dart';
+import '../../../core/services/cloudinary_service.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-
 class AddTheaterScreen extends ConsumerStatefulWidget {
   /// If non-null, this manager will be pre-selected and the picker is hidden.
   final String? fixedManagerId;
   final String? fixedManagerName;
+  /// If non-null, we are editing an existing theater.
+  final String? theaterId;
 
   const AddTheaterScreen({
     super.key,
     this.fixedManagerId,
     this.fixedManagerName,
+    this.theaterId,
   });
 
   @override
@@ -26,60 +38,217 @@ class AddTheaterScreen extends ConsumerStatefulWidget {
 class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
-  final _addressCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _latCtrl = TextEditingController();
-  final _lngCtrl = TextEditingController();
+
+  XFile? _imageFile;
+  Uint8List? _imageBytes;
+  String? _existingLogoUrl;
+  
+  LatLng _selectedLocation = const LatLng(20.5937, 78.9629); // Default center (India)
+  final MapController _mapController = MapController();
+
+  String _fetchedCity = '';
+  String _fetchedStreet = '';
+  String _fetchedAddress = '';
+  bool _isLoadingAddress = false;
 
   UserModel? _selectedManager;
   bool _saving = false;
+  bool _isLoadingData = false;
+  
+  TheaterModel? _existingTheater;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.theaterId != null) {
+      _loadExistingTheater();
+    }
+  }
+
+  Future<void> _loadExistingTheater() async {
+    setState(() => _isLoadingData = true);
+    try {
+      final db = ref.read(databaseServiceProvider);
+      final theater = await db.getTheater(widget.theaterId!);
+      if (theater != null) {
+        _existingTheater = theater;
+        _nameCtrl.text = theater.name;
+        _phoneCtrl.text = theater.contactPhone;
+        _selectedLocation = LatLng(theater.lat, theater.lng);
+        _fetchedCity = theater.city;
+        _fetchedAddress = theater.address;
+        _existingLogoUrl = theater.logoUrl;
+        
+        if (widget.fixedManagerId == null && theater.managerId.isNotEmpty) {
+          final users = await db.getAllUsers();
+          _selectedManager = users.firstWhere((u) => u.uid == theater.managerId);
+        }
+        _mapController.move(_selectedLocation, 14.0);
+      }
+    } catch (e) {
+      debugPrint('Error loading theater: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingData = false);
+    }
+  }
+
+  Future<void> _fetchCurrentLocation() async {
+    setState(() => _isLoadingAddress = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) ShowSnapToast.error(context, 'Location permission denied');
+          setState(() => _isLoadingAddress = false);
+          return;
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        if (mounted) ShowSnapToast.error(context, 'Location permissions are permanently denied, we cannot request permissions.');
+        setState(() => _isLoadingAddress = false);
+        return;
+      }
+
+      final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final newLocation = LatLng(position.latitude, position.longitude);
+      
+      _mapController.move(newLocation, 14.0);
+      await _reverseGeocode(newLocation);
+    } catch (e) {
+      if (mounted) ShowSnapToast.error(context, 'Error getting location: $e');
+      setState(() => _isLoadingAddress = false);
+    }
+  }
+
+  Future<void> _reverseGeocode(LatLng point) async {
+    setState(() {
+      _selectedLocation = point;
+      _isLoadingAddress = true;
+    });
+
+    final token = dotenv.env['MAPBOX_ACCESS_TOKEN'];
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _fetchedCity = 'Unknown City';
+        _fetchedStreet = '';
+        _fetchedAddress = '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}';
+        _isLoadingAddress = false;
+      });
+      return;
+    }
+
+    try {
+      final url = Uri.parse(
+          'https://api.mapbox.com/geocoding/v5/mapbox.places/${point.longitude},${point.latitude}.json?access_token=$token');
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['features'] != null && data['features'].isNotEmpty) {
+          final feature = data['features'][0];
+          
+          String city = 'Unknown City';
+          String street = feature['text'] ?? '';
+          
+          if (feature['context'] != null) {
+            for (var c in feature['context']) {
+              if (c['id'].toString().startsWith('place') || c['id'].toString().startsWith('locality')) {
+                city = c['text'];
+                break;
+              }
+            }
+          }
+          final fullAddress = feature['place_name'] ?? 'Unknown Address';
+
+          setState(() {
+            _fetchedCity = city;
+            _fetchedStreet = street;
+            _fetchedAddress = fullAddress;
+          });
+        } else {
+          if (mounted) ShowSnapToast.error(context, 'No address found for this location.');
+        }
+      } else {
+        if (mounted) ShowSnapToast.error(context, 'Geocoding failed: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Geocoding error: $e');
+      if (mounted) ShowSnapToast.error(context, 'Geocoding error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingAddress = false);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _imageFile = image;
+        _imageBytes = bytes;
+      });
+    }
+  }
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _cityCtrl.dispose();
-    _addressCtrl.dispose();
     _phoneCtrl.dispose();
-    _latCtrl.dispose();
-    _lngCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    final managerId = widget.fixedManagerId ?? _selectedManager?.uid;
+    if (managerId == null) {
+      ShowSnapToast.error(context, 'Please select a manager');
+      return;
+    }
 
-    // Determine managerId
-    String managerId = widget.fixedManagerId ?? _selectedManager?.uid ?? '';
+    if (_fetchedAddress.isEmpty || _fetchedCity.isEmpty) {
+      ShowSnapToast.error(context, 'Please drop a pin on the map to fetch the address');
+      return;
+    }
 
     setState(() => _saving = true);
     try {
+      String logoUrl = _existingLogoUrl ?? '';
+      if (_imageBytes != null && _imageFile != null) {
+        logoUrl = await ref.read(cloudinaryServiceProvider).uploadImageBytes(
+          _imageBytes!,
+          _imageFile!.name,
+          'theaters'
+        );
+      }
+
       final theater = TheaterModel(
-        theaterId: '',
+        theaterId: _existingTheater?.theaterId ?? '',
         name: _nameCtrl.text.trim(),
-        city: _cityCtrl.text.trim(),
-        address: _addressCtrl.text.trim(),
+        city: _fetchedCity,
+        address: _fetchedAddress,
         contactPhone: _phoneCtrl.text.trim(),
-        lat: double.tryParse(_latCtrl.text.trim()) ?? 0,
-        lng: double.tryParse(_lngCtrl.text.trim()) ?? 0,
+        lat: _selectedLocation.latitude,
+        lng: _selectedLocation.longitude,
+        logoUrl: logoUrl,
         managerId: managerId,
-        isActive: true,
+        isActive: _existingTheater?.isActive ?? true,
       );
 
       final db = ref.read(databaseServiceProvider);
-      final theaterId = await db.createTheater(theater);
-
-      // If manager selected, ensure their DB role is theaterManager
-      if (managerId.isNotEmpty) {
-        await db.updateUser(managerId, {'role': AppConstants.roleTheaterManager});
+      if (_existingTheater != null) {
+        await db.updateTheater(theater.theaterId, theater.toJson());
+      } else {
+        await db.createTheater(theater);
       }
 
       if (mounted) {
-        context.showSnackbar('Theater "${theater.name}" created!');
-        Navigator.of(context).pop(theaterId);
+        ShowSnapToast.success(context, _existingTheater != null ? 'Theater updated' : 'Theater created');
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) context.showErrorSnackbar('Failed: $e');
+      if (mounted) ShowSnapToast.error(context, 'Failed to save theater: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -91,7 +260,7 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add Theater'),
+        title: Text(_existingTheater != null ? 'Edit Theater' : 'Add Theater'),
         toolbarHeight: 70,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(
@@ -112,31 +281,46 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
             _SectionHeader('Theater Details')
               .animate()
               .fadeIn(duration: 300.ms, delay: 50.ms),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
+            
+            // Image Picker
+            Center(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: ShowSnapColors.grey100,
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                    border: Border.all(color: ShowSnapColors.grey300),
+                    image: _imageBytes != null
+                        ? DecorationImage(image: MemoryImage(_imageBytes!), fit: BoxFit.cover)
+                        : _existingLogoUrl != null && _existingLogoUrl!.isNotEmpty
+                            ? DecorationImage(image: NetworkImage(_existingLogoUrl!), fit: BoxFit.cover)
+                            : null,
+                  ),
+                  child: _imageBytes == null && (_existingLogoUrl == null || _existingLogoUrl!.isEmpty)
+                      ? const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo_outlined, color: ShowSnapColors.grey600),
+                            SizedBox(height: 4),
+                            Text('Add Picture', style: TextStyle(fontSize: 12, color: ShowSnapColors.grey600)),
+                          ],
+                        )
+                      : null,
+                ),
+              ),
+            ).animate().fadeIn(duration: 300.ms, delay: 80.ms),
+            const SizedBox(height: 16),
+
             _Field(
               controller: _nameCtrl,
               label: 'Theater Name *',
-              icon: Icons.theaters_outlined,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+              icon: Icons.business_rounded,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
             ).animate().fadeIn(duration: 300.ms, delay: 100.ms).slideY(begin: 0.05, end: 0),
-            const SizedBox(height: 12),
-            _Field(
-              controller: _cityCtrl,
-              label: 'City *',
-              icon: Icons.location_city_outlined,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ).animate().fadeIn(duration: 300.ms, delay: 150.ms).slideY(begin: 0.05, end: 0),
-            const SizedBox(height: 12),
-            _Field(
-              controller: _addressCtrl,
-              label: 'Full Address *',
-              icon: Icons.place_outlined,
-              maxLines: 2,
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
-            ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideY(begin: 0.05, end: 0),
             const SizedBox(height: 12),
             _Field(
               controller: _phoneCtrl,
@@ -146,30 +330,107 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
             ).animate().fadeIn(duration: 300.ms, delay: 250.ms).slideY(begin: 0.05, end: 0),
             const SizedBox(height: 12),
 
-            // Coordinates row
-            Row(
-              children: [
-                Expanded(
-                  child: _Field(
-                    controller: _latCtrl,
-                    label: 'Latitude',
-                    icon: Icons.gps_fixed_outlined,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+            // Coordinates Map Picker
+            _SectionHeader('Theater Location')
+              .animate()
+              .fadeIn(duration: 300.ms, delay: 280.ms),
+            const SizedBox(height: 10),
+            Container(
+              height: 250,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                border: Border.all(color: ShowSnapColors.grey300),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: FlutterMap(
+                mapController: _mapController,
+                options: MapOptions(
+                  initialCenter: _selectedLocation,
+                  initialZoom: 4.0,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.all,
                   ),
+                  onTap: (tapPosition, point) => _reverseGeocode(point),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _Field(
-                    controller: _lngCtrl,
-                    label: 'Longitude',
-                    icon: Icons.gps_not_fixed_outlined,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                children: [
+                  TileLayer(
+                    urlTemplate: dotenv.env['MAPBOX_ACCESS_TOKEN']?.isNotEmpty == true
+                        ? 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN']}'
+                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.tenx.showsnap',
                   ),
-                ),
-              ],
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: _selectedLocation,
+                        width: 40,
+                        height: 40,
+                        child: const Icon(
+                          Icons.location_pin,
+                          color: Colors.red,
+                          size: 40,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.05, end: 0),
+            Padding(
+              padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Tap map or use your current location:',
+                      style: TextStyle(fontSize: 12, color: ShowSnapColors.grey600),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ShowSnapColors.primary.withOpacity(0.2),
+                      foregroundColor: ShowSnapColors.primaryLighter,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+                      ),
+                    ),
+                    onPressed: _isLoadingAddress ? null : _fetchCurrentLocation,
+                    icon: const Icon(Icons.my_location_rounded, size: 18),
+                    label: const Text('My Location', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ],
+              ),
+            ).animate().fadeIn(duration: 300.ms, delay: 320.ms),
+
+            // Display Fetched Address
+            if (_isLoadingAddress)
+              const Center(child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )).animate().fadeIn(duration: 200.ms)
+            else if (_fetchedAddress.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: ShowSnapColors.grey100,
+                  borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                  border: Border.all(color: ShowSnapColors.grey300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('📍 Fetched Location', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white)),
+                    const SizedBox(height: 6),
+                    Text('City: $_fetchedCity', style: const TextStyle(fontSize: 14, color: Colors.white)),
+                    if (_fetchedStreet.isNotEmpty)
+                      Text('Street: $_fetchedStreet', style: const TextStyle(fontSize: 14, color: Colors.white)),
+                    const SizedBox(height: 2),
+                    Text('Full Address: $_fetchedAddress', style: const TextStyle(fontSize: 14, color: ShowSnapColors.grey600)),
+                  ],
+                ),
+              ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0),
 
             const SizedBox(height: 20),
 
@@ -226,31 +487,34 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
             SizedBox(
               height: 52,
               child: DecoratedBox(
-                decoration: ShowSnapTheme.primaryButtonDecoration,
-                child: ElevatedButton.icon(
+                decoration: BoxDecoration(
+                  color: _saving || _isLoadingData ? ShowSnapColors.grey300 : ShowSnapColors.primary,
+                  borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+                ),
+                child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(ShowSnapRadius.md),
+                      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
                     ),
                   ),
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
+                  onPressed: _saving || _isLoadingData ? null : _save,
+                  child: _saving || _isLoadingData
                       ? const SizedBox(
-                          width: 18,
-                          height: 18,
+                          width: 20,
+                          height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.black))
-                      : const Icon(Icons.save_outlined, color: Colors.black),
-                  label: Text(
-                    _saving ? 'Saving…' : 'Create Theater',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        color: Colors.black),
-                  ),
+                              color: Colors.white, strokeWidth: 2),
+                        )
+                      : Text(
+                          _existingTheater != null ? 'Update Theater' : 'Create Theater',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
                 ),
               ),
             ).animate().fadeIn(duration: 300.ms, delay: 450.ms).slideY(begin: 0.05, end: 0),

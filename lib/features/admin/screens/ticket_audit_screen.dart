@@ -28,7 +28,7 @@ class TicketAuditScreen extends ConsumerWidget {
     final statusFilter = ref.watch(_bookingStatusFilterProvider);
     final search = ref.watch(_bookingSearchProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.ticketAudit,

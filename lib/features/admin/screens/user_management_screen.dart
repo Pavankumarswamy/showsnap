@@ -27,7 +27,7 @@ class UserManagementScreen extends ConsumerWidget {
     final roleFilter = ref.watch(_userRoleFilterProvider);
     final search = ref.watch(_userSearchProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.userManagement,

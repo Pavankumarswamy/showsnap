@@ -30,7 +30,7 @@ class AdRequestsScreen extends ConsumerWidget {
 
     return DefaultTabController(
       length: 3,
-      child: Scaffold(
+      child: PushDrawerLayout(
         backgroundColor: AdminColors.background,
         drawer: AdminDrawer(
           currentRoute: AppRoutes.adRequests,

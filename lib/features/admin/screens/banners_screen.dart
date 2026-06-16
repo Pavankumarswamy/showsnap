@@ -23,7 +23,7 @@ class AdminBannersScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final bannersAsync = ref.watch(_allBannersProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminBanners,

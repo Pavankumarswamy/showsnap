@@ -72,6 +72,7 @@ class AppRoutes {
   static const String adminOffers = '/admin/offers';
   static const String adRequests = '/admin/ad-requests';
   static const String addTheater = '/admin/add-theater';
+  static const String editTheater = '/admin/edit-theater/:id';
   static const String adminBanners = '/admin/banners';
   static const String adminTheaters = '/admin/theaters';
   static const String adminAnalytics = '/admin/analytics';
@@ -358,6 +359,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             );
           }),
+      GoRoute(
+          path: AppRoutes.editTheater,
+          pageBuilder: (c, s) =>
+              _verticalPage(c, s, AddTheaterScreen(theaterId: s.pathParameters['id']))),
       GoRoute(
           path: AppRoutes.adminBanners,
           pageBuilder: (c, s) =>

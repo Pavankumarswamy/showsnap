@@ -91,7 +91,7 @@ class AnalyticsScreen extends ConsumerWidget {
     final analyticsAsync = ref.watch(_analyticsProvider);
     final period = ref.watch(_periodProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminAnalytics,

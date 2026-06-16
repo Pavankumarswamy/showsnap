@@ -60,12 +60,14 @@ class _TappableScaleState extends State<TappableScale>
     final reduceMotion = MediaQuery.of(context).disableAnimations;
     if (reduceMotion) {
       return GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
         child: widget.child,
       );
     }
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
       onTapCancel: _onTapCancel,

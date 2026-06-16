@@ -44,7 +44,7 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminOffers,

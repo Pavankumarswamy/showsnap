@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'theme.dart';
@@ -5,24 +6,24 @@ import 'theme.dart';
 // ─── Admin Palette — Dark Command Center ──────────────────────────────────────
 
 class AdminColors {
-  static const background = Color(0xFF0F1117);
-  static const surface = Color(0xFF1A1D27);
-  static const surfaceElevated = Color(0xFF222638);
-  static const border = Color(0xFF2D3148);
+  static const background = Color(0xFF09090B);
+  static const surface = Color(0x6618181B);
+  static const surfaceElevated = Color(0x8027272A);
+  static const border = Color(0x22FFFFFF);
 
   static const primary = Color(0xFFF5A800);
   static const primaryGlow = Color(0x33F5A800);
   static const secondary = Color(0xFF43A047);
   static const secondaryGlow = Color(0x2243A047);
 
-  static const success = Color(0xFF4CAF50);
-  static const warning = Color(0xFFFFC107);
-  static const error = Color(0xFFEF5350);
-  static const info = Color(0xFF42A5F5);
+  static const success = Color(0xFF10B981);
+  static const warning = Color(0xFFF59E0B);
+  static const error = Color(0xFFEF4444);
+  static const info = Color(0xFF3B82F6);
 
-  static const textPrimary = Color(0xFFF0F0F0);
-  static const textSecondary = Color(0xFF9E9E9E);
-  static const textMuted = Color(0xFF616161);
+  static const textPrimary = Color(0xFFFAFAFA);
+  static const textSecondary = Color(0xFFA1A1AA);
+  static const textMuted = Color(0xFF52525B);
 }
 
 // ─── Theater Manager Palette — Warm Operational ───────────────────────────────
@@ -66,6 +67,51 @@ class StaffShadow {
       ];
 }
 
+// ─── Staff Glass Card ─────────────────────────────────────────────────────────
+
+class StaffGlassCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final Color? glowColor;
+  final double borderRadius;
+  final Color? surfaceColor;
+
+  const StaffGlassCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(16),
+    this.glowColor,
+    this.borderRadius = ShowSnapRadius.md,
+    this.surfaceColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        boxShadow: glowColor != null
+            ? [BoxShadow(color: glowColor!, blurRadius: 24, offset: const Offset(0, 8))]
+            : [],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(borderRadius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: surfaceColor ?? AdminColors.surface,
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(color: AdminColors.border, width: 0.5),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Staff Stat Card ─────────────────────────────────────────────────────────
 
 class StaffStatCard extends StatefulWidget {
@@ -101,9 +147,9 @@ class _StaffStatCardState extends State<StaffStatCard>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200));
+        vsync: this, duration: const Duration(milliseconds: 1500));
     _countAnim =
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutExpo);
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutQuart);
     _ctrl.forward();
   }
 
@@ -115,14 +161,10 @@ class _StaffStatCardState extends State<StaffStatCard>
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: widget.bgColor,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: widget.accentColor.withOpacity(0.2)),
-        boxShadow: StaffShadow.adminCard(widget.accentColor.withOpacity(0.12)),
-      ),
+    return StaffGlassCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      glowColor: widget.accentColor.withOpacity(0.08),
+      surfaceColor: widget.bgColor,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -177,7 +219,7 @@ class _StaffStatCardState extends State<StaffStatCard>
                 ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           Text(
             widget.value,
             style: TextStyle(
@@ -504,12 +546,14 @@ class AdminDrawer extends StatelessWidget {
   final String currentRoute;
   final Function(String route) onNavigateTo;
   final VoidCallback? onSignOut;
+  final VoidCallback? onClose;
 
   const AdminDrawer({
     super.key,
     required this.currentRoute,
     required this.onNavigateTo,
     this.onSignOut,
+    this.onClose,
   });
 
   static const _items = [
@@ -582,7 +626,14 @@ class AdminDrawer extends StatelessWidget {
                     item: item,
                     isActive: isActive,
                     onTap: () {
-                      Navigator.pop(context);
+                      final pushLayout = context.findAncestorStateOfType<PushDrawerLayoutState>();
+                      if (pushLayout != null) {
+                        pushLayout.closeDrawer();
+                      } else if (onClose != null) {
+                        onClose!();
+                      } else {
+                        Navigator.pop(context);
+                      }
                       if (!isActive) onNavigateTo(item.route);
                     },
                   );
@@ -596,7 +647,17 @@ class AdminDrawer extends StatelessWidget {
                   color: AdminColors.error),
               title: const Text('Sign Out',
                   style: TextStyle(color: AdminColors.error)),
-              onTap: onSignOut,
+              onTap: () {
+                final pushLayout = context.findAncestorStateOfType<PushDrawerLayoutState>();
+                if (pushLayout != null) {
+                  pushLayout.closeDrawer();
+                } else if (onClose != null) {
+                  onClose!();
+                } else {
+                  Navigator.pop(context);
+                }
+                if (onSignOut != null) onSignOut!();
+              },
             ),
           ],
         ),
@@ -640,24 +701,28 @@ class _DrawerNavTile extends StatelessWidget {
             ? Border(left: BorderSide(color: activeColor, width: 3))
             : null,
       ),
-      child: ListTile(
-        leading: Icon(
-          item.icon,
-          color: isActive ? activeColor : inactiveColor,
-          size: 22,
-        ),
-        title: Text(
-          item.label,
-          style: TextStyle(
+      child: Material(
+        color: Colors.transparent,
+        child: ListTile(
+          leading: Icon(
+            item.icon,
             color: isActive ? activeColor : inactiveColor,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-            fontSize: 14,
+            size: 22,
+          ),
+          title: Text(
+            item.label,
+            style: TextStyle(
+              color: isActive ? activeColor : inactiveColor,
+              fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14,
+            ),
+          ),
+          onTap: onTap,
+          dense: true,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
           ),
         ),
-        onTap: onTap,
-        dense: true,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(ShowSnapRadius.sm)),
       ),
     );
   }
@@ -763,10 +828,167 @@ class TMDrawer extends StatelessWidget {
                   const Icon(Icons.logout_rounded, color: TMColors.error),
               title: const Text('Sign Out',
                   style: TextStyle(color: TMColors.error)),
-              onTap: onSignOut,
+              onTap: () {
+                Navigator.pop(context);
+                if (onSignOut != null) onSignOut!();
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── Push Drawer Layout ───────────────────────────────────────────────────────
+
+class PushDrawerLayout extends StatefulWidget {
+  final Widget drawer;
+  final Widget body;
+  final PreferredSizeWidget? appBar;
+  final Widget? floatingActionButton;
+  final Color? backgroundColor;
+
+  const PushDrawerLayout({
+    super.key,
+    required this.drawer,
+    required this.body,
+    this.appBar,
+    this.floatingActionButton,
+    this.backgroundColor,
+  });
+
+  @override
+  State<PushDrawerLayout> createState() => PushDrawerLayoutState();
+}
+
+class PushDrawerLayoutState extends State<PushDrawerLayout> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  bool _isOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void toggleDrawer() {
+    setState(() {
+      _isOpen = !_isOpen;
+      if (_isOpen) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+  }
+
+  void closeDrawer() {
+    if (_isOpen) {
+      setState(() {
+        _isOpen = false;
+        _controller.reverse();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    PreferredSizeWidget? effectiveAppBar = widget.appBar;
+    if (widget.appBar is AppBar) {
+      final ab = widget.appBar as AppBar;
+      effectiveAppBar = AppBar(
+        key: ab.key,
+        leading: IconButton(
+          icon: AnimatedIcon(
+            icon: AnimatedIcons.menu_close,
+            progress: _controller,
+          ),
+          onPressed: toggleDrawer,
+        ),
+        automaticallyImplyLeading: false,
+        title: ab.title,
+        actions: ab.actions,
+        flexibleSpace: ab.flexibleSpace,
+        bottom: ab.bottom,
+        elevation: ab.elevation,
+        scrolledUnderElevation: ab.scrolledUnderElevation,
+        shadowColor: ab.shadowColor,
+        shape: ab.shape,
+        backgroundColor: ab.backgroundColor,
+        foregroundColor: ab.foregroundColor,
+        iconTheme: ab.iconTheme,
+        actionsIconTheme: ab.actionsIconTheme,
+        primary: ab.primary,
+        centerTitle: ab.centerTitle,
+        excludeHeaderSemantics: ab.excludeHeaderSemantics,
+        titleSpacing: ab.titleSpacing,
+        toolbarOpacity: ab.toolbarOpacity,
+        bottomOpacity: ab.bottomOpacity,
+        toolbarHeight: ab.toolbarHeight,
+        leadingWidth: ab.leadingWidth,
+        toolbarTextStyle: ab.toolbarTextStyle,
+        titleTextStyle: ab.titleTextStyle,
+        systemOverlayStyle: ab.systemOverlayStyle,
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AdminColors.background,
+      body: Stack(
+        children: [
+          Container(
+            color: AdminColors.background,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 260,
+                child: widget.drawer,
+              ),
+            ),
+          ),
+          AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              return Transform(
+                transform: Matrix4.identity()
+                  ..setEntry(3, 2, 0.001)
+                  ..translate(_controller.value * 260)
+                  ..scale(1.0 - (_controller.value * 0.08)),
+                alignment: Alignment.centerLeft,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(_controller.value * ShowSnapRadius.md),
+                  child: Stack(
+                    children: [
+                      Scaffold(
+                        backgroundColor: widget.backgroundColor,
+                        appBar: effectiveAppBar,
+                        body: widget.body,
+                        floatingActionButton: widget.floatingActionButton,
+                      ),
+                      if (_isOpen)
+                        Positioned.fill(
+                          child: GestureDetector(
+                            onTap: toggleDrawer,
+                            behavior: HitTestBehavior.opaque,
+                            child: Container(
+                              color: Colors.transparent,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
     );
   }

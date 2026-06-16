@@ -133,7 +133,7 @@ class AdminDashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(_adminStatsProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminDashboard,
@@ -141,18 +141,48 @@ class AdminDashboardScreen extends ConsumerWidget {
         onSignOut: () => _signOut(context, ref),
       ),
       appBar: _buildAppBar(context, ref),
-      body: RefreshIndicator(
-        color: AdminColors.primary,
-        backgroundColor: AdminColors.surface,
-        onRefresh: () => ref.refresh(_adminStatsProvider.future),
-        child: statsAsync.when(
-          loading: _buildSkeleton,
-          error: (e, _) => Center(
-            child: Text('Error: $e',
-                style: const TextStyle(color: AdminColors.error)),
+      body: Stack(
+        children: [
+          Positioned(
+            top: -100,
+            left: -100,
+            child: Container(
+              width: 300,
+              height: 300,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AdminColors.primary.withOpacity(0.15),
+              ),
+            ).animate().fadeIn(duration: 2.seconds).scale(begin: const Offset(0.8, 0.8)),
           ),
-          data: (stats) => _buildContent(context, stats),
-        ),
+          Positioned(
+            bottom: -50,
+            right: -100,
+            child: Container(
+              width: 400,
+              height: 400,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AdminColors.info.withOpacity(0.1),
+              ),
+            ).animate().fadeIn(duration: 2.seconds, delay: 500.ms).scale(begin: const Offset(0.8, 0.8)),
+          ),
+          Positioned.fill(
+            child: RefreshIndicator(
+              color: AdminColors.primary,
+              backgroundColor: AdminColors.surfaceElevated,
+              onRefresh: () => ref.refresh(_adminStatsProvider.future),
+              child: statsAsync.when(
+                loading: _buildSkeleton,
+                error: (e, _) => Center(
+                  child: Text('Error: $e',
+                      style: const TextStyle(color: AdminColors.error)),
+                ),
+                data: (stats) => _buildContent(context, stats),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -345,13 +375,8 @@ class AdminDashboardScreen extends ConsumerWidget {
   }
 
   Widget _buildRevenueChart(_AdminStats stats) {
-    return Container(
+    return StaffGlassCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AdminColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: AdminColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -467,13 +492,8 @@ class AdminDashboardScreen extends ConsumerWidget {
     final maxVal =
         top5.isEmpty ? 1 : top5.first.value.toDouble();
 
-    return Container(
+    return StaffGlassCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AdminColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: AdminColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -574,13 +594,8 @@ class AdminDashboardScreen extends ConsumerWidget {
       );
     }).toList();
 
-    return Container(
+    return StaffGlassCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AdminColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: AdminColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -697,36 +712,41 @@ class _QuickActionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AdminColors.surface,
-      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        onTap: onTap,
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-            border: Border.all(color: AdminColors.border),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              Icon(icon, color: AdminColors.primary, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                      color: AdminColors.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+    return StaffGlassCard(
+      padding: EdgeInsets.zero,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AdminColors.primaryGlow,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: AdminColors.primary, size: 16),
                 ),
-              ),
-              const Icon(Icons.chevron_right,
-                  color: AdminColors.textMuted, size: 16),
-            ],
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                        color: AdminColors.textPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.chevron_right,
+                    color: AdminColors.textMuted, size: 16),
+              ],
+            ),
           ),
         ),
       ),

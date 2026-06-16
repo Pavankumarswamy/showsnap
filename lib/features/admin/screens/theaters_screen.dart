@@ -24,7 +24,7 @@ class TheatersScreen extends ConsumerWidget {
     final theatersAsync = ref.watch(_theatersProvider);
     final search = ref.watch(_theaterSearchProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: AdminColors.background,
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminTheaters,
@@ -240,8 +240,7 @@ class _TheaterCard extends ConsumerWidget {
                           icon: Icons.edit_rounded,
                           color: AdminColors.info,
                           onTap: () {
-                            ShowSnapToast.info(context,
-                                'Edit theater coming soon');
+                            context.push(AppRoutes.editTheater.replaceFirst(':id', theater.theaterId)).then((_) => onRefresh());
                           },
                         ),
                       ),
