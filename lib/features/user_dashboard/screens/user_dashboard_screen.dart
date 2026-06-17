@@ -55,9 +55,7 @@ final _dashboardDataProvider = FutureProvider<_DashData>((ref) async {
   if (uid == null) return _DashData.empty();
   final db = ref.watch(databaseServiceProvider);
   final bookings = await db.getUserBookings(uid);
-  final user = await db.getAllUsers();
-  final u = user.cast<UserModel?>().firstWhere(
-      (u) => u?.uid == uid, orElse: () => null);
+  final u = await ref.watch(authServiceProvider).getCurrentUserModel();
   return _DashData(user: u, bookings: bookings);
 });
 

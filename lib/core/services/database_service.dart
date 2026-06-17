@@ -435,6 +435,17 @@ class DatabaseService {
         .toList();
   }
 
+  Stream<List<EventModel>> streamAllEvents() {
+    return _db.ref(AppConstants.eventsPath).onValue.map((event) {
+      if (!event.snapshot.exists || event.snapshot.value == null) return [];
+      final map = event.snapshot.value as Map;
+      return map.entries
+          .map((e) => EventModel.fromJson(e.key.toString(), e.value as Map))
+          .where((e) => e.status == 'published')
+          .toList();
+    });
+  }
+
   Future<EventModel?> getEvent(String eventId) async {
     final snap = await _db.ref('${AppConstants.eventsPath}/$eventId').get();
     if (!snap.exists || snap.value == null) return null;

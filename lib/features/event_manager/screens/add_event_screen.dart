@@ -293,8 +293,8 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
         posterUrl: posterUrl,
         ticketTiers: _tiers,
         managerId: managerId,
-        status: widget.eventId == null ? 'draft' : _status,
-        isActive: widget.eventId == null ? false : (_status == 'published'),
+        status: widget.eventId == null ? 'published' : _status,
+        isActive: widget.eventId == null ? true : (_status == 'published'),
       );
 
       final db = ref.read(databaseServiceProvider);

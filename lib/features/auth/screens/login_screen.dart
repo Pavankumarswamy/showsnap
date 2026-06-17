@@ -114,13 +114,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           topLeft: Radius.circular(40),
                           topRight: Radius.circular(40),
                         ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            blurRadius: 20,
-                            offset: const Offset(0, -5),
-                          ),
-                        ],
+                        // Box shadow removed
                       ),
                       child: ClipRRect(
                         borderRadius: const BorderRadius.only(

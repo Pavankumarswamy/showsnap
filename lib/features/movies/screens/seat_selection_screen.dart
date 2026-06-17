@@ -441,11 +441,11 @@ class _TicketQuantityBottomSheet extends ConsumerWidget {
     final state = ref.watch(seatSelectionProvider(showId));
     final count = state.requestedTickets;
 
-    String getImageUrl(int c) {
-      if (c == 1) return 'https://i.ibb.co/p66MrQkd/1ticket.png';
-      if (c == 2) return 'https://i.ibb.co/ZRLKfBy2/2ticket.png';
-      if (c == 3) return 'https://i.ibb.co/J46Yr9M/3ticket.png';
-      return 'https://i.ibb.co/fzKStyCS/4ticket.png';
+    String getImagePath(int c) {
+      if (c == 1) return 'assets/images/1ticket.png';
+      if (c == 2) return 'assets/images/2ticket.png';
+      if (c == 3) return 'assets/images/3ticket.png';
+      return 'assets/images/4ticket.png';
     }
 
     return Container(
@@ -479,8 +479,8 @@ class _TicketQuantityBottomSheet extends ConsumerWidget {
             Center(
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 300),
-                child: Image.network(
-                  getImageUrl(count),
+                child: Image.asset(
+                  getImagePath(count),
                   key: ValueKey(count),
                   height: 140,
                   fit: BoxFit.contain,

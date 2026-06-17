@@ -1,8 +1,5 @@
 {
   "rules": {
-    ".read": "auth != null",
-    ".write": "auth != null",
-
     "users": {
       ".indexOn": ["role"],
       "$uid": {
@@ -12,7 +9,7 @@
     },
 
     "theaters": {
-      ".read": "auth != null",
+      ".read": true,
       "$theaterId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('theaters').child($theaterId).child('managerId').val() === auth.uid)"
       }
@@ -20,7 +17,7 @@
 
     "screens": {
       ".indexOn": ["theaterId"],
-      ".read": "auth != null",
+      ".read": true,
       "$theaterId": {
         "$screenId": {
           ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('theaters').child($theaterId).child('managerId').val() === auth.uid)"
@@ -29,7 +26,7 @@
     },
 
     "movies": {
-      ".read": "auth != null",
+      ".read": true,
       "$movieId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
       }
@@ -37,7 +34,7 @@
 
     "shows": {
       ".indexOn": ["movieId", "screenId", "theaterId"],
-      ".read": "auth != null",
+      ".read": true,
       "$showId": {
         ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')",
         "seats": {
@@ -50,22 +47,22 @@
 
     "bookings": {
       ".indexOn": ["uid", "showId", "theaterName"],
-      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'",
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager' || root.child('users').child(auth.uid).child('role').val() === 'eventManager' || (query.orderByChild === 'uid' && query.equalTo === auth.uid))",
       "$bookingId": {
-        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')",
-        ".write": "auth != null && (data.child('uid').val() === auth.uid || !data.exists() && auth.uid != null || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
+        ".read": "auth != null && (data.child('uid').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager' || root.child('users').child(auth.uid).child('role').val() === 'eventManager')",
+        ".write": "auth != null && (data.child('uid').val() === auth.uid || !data.exists() && auth.uid != null || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager' || root.child('users').child(auth.uid).child('role').val() === 'eventManager')"
       }
     },
 
     "banners": {
-      ".read": "auth != null",
+      ".read": true,
       "$bannerId": {
         ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
       }
     },
 
     "offers": {
-      ".read": "auth != null",
+      ".read": true,
       "$offerId": {
         ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
       }
@@ -79,9 +76,9 @@
     },
 
     "events": {
-      ".read": "auth != null",
+      ".read": true,
       "$eventId": {
-        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager')"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'eventManager')"
       }
     },
 

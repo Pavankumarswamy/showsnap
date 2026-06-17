@@ -12,19 +12,16 @@ import '../../../core/services/database_service.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../home/widgets/movie_card.dart';
 import '../../home/widgets/event_card.dart';
-<<<<<<< HEAD
 import '../../../core/widgets/main_app_bar.dart';
-=======
 import '../../../core/constants/app_constants.dart';
->>>>>>> 5565bbbf04e38b19afacc09882205f5f958992db
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
 final _allMoviesProvider = FutureProvider<List<MovieModel>>((ref) =>
     ref.watch(databaseServiceProvider).getAllMovies());
 
-final _allEventsProvider = FutureProvider<List<EventModel>>((ref) =>
-    ref.watch(databaseServiceProvider).getAllEvents());
+final _allEventsProvider = StreamProvider<List<EventModel>>((ref) =>
+    ref.watch(databaseServiceProvider).streamAllEvents());
 
 final _allTheatersProvider = FutureProvider<List<TheaterModel>>((ref) =>
     ref.watch(databaseServiceProvider).getAllTheaters());
@@ -304,17 +301,52 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
           );
         }
 
-        final trending = events.where((e) => e.fewTicketsLeft).toList();
-        if (trending.isEmpty && events.isNotEmpty) {
-           trending.addAll(events.take(3));
-        }
-
         final filteredEvents = _selectedCategory == 'All' 
            ? events 
            : events.where((e) => e.category.toLowerCase() == _selectedCategory.toLowerCase()).toList();
 
+        final trending = filteredEvents.where((e) => e.fewTicketsLeft).toList();
+        if (trending.isEmpty && filteredEvents.isNotEmpty) {
+           trending.addAll(filteredEvents.take(3));
+        }
+
         return CustomScrollView(
           slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 24, bottom: 8),
+                child: SizedBox(
+                  height: 40,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final c = _categories[i];
+                      final isSelected = c == _selectedCategory;
+                      return ChoiceChip(
+                        label: Text(c),
+                        selected: isSelected,
+                        onSelected: (v) {
+                          if (v) setState(() => _selectedCategory = c);
+                        },
+                        selectedColor: ShowSnapColors.primary,
+                        backgroundColor: ShowSnapColors.surface,
+                        labelStyle: TextStyle(
+                          fontFamily: 'Gilroy',
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
             if (trending.isNotEmpty) ...[
               SliverToBoxAdapter(
                 child: Padding(
@@ -344,40 +376,7 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
                 ),
               ),
             ],
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 8),
-                child: SizedBox(
-                  height: 40,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _categories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final c = _categories[i];
-                      final isSelected = c == _selectedCategory;
-                      return ChoiceChip(
-                        label: Text(c),
-                        selected: isSelected,
-                        onSelected: (v) {
-                          if (v) setState(() => _selectedCategory = c);
-                        },
-                        selectedColor: ShowSnapColors.primary,
-                        backgroundColor: ShowSnapColors.surface,
-                        labelStyle: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
+            // Moved category chips up
             if (filteredEvents.isEmpty)
               const SliverFillRemaining(
                 child: Center(
