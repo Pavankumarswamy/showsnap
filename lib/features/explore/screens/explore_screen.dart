@@ -214,7 +214,7 @@ class _SearchResults extends ConsumerWidget {
           );
         }
         return GridView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 66),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
             mainAxisSpacing: 12,
@@ -247,7 +247,7 @@ class _MoviesTab extends ConsumerWidget {
           );
         }
         return GridView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 66),
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
             mainAxisSpacing: 12,
@@ -270,17 +270,9 @@ class _MoviesTab extends ConsumerWidget {
 
 // ─── Events Tab ───────────────────────────────────────────────────────────────
 
-class _EventsTab extends ConsumerStatefulWidget {
+class _EventsTab extends ConsumerWidget {
   @override
-  ConsumerState<_EventsTab> createState() => _EventsTabState();
-}
-
-class _EventsTabState extends ConsumerState<_EventsTab> {
-  String _selectedCategory = 'All';
-  final _categories = ['All', ...AppConstants.eventCategories];
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final eventsAsync = ref.watch(_allEventsProvider);
     return eventsAsync.when(
       loading: () => _GridShimmer(),
@@ -301,104 +293,27 @@ class _EventsTabState extends ConsumerState<_EventsTab> {
           );
         }
 
-        final filteredEvents = _selectedCategory == 'All' 
-           ? events 
-           : events.where((e) => e.category.toLowerCase() == _selectedCategory.toLowerCase()).toList();
-
-        final trending = filteredEvents.where((e) => e.fewTicketsLeft).toList();
-        if (trending.isEmpty && filteredEvents.isNotEmpty) {
-           trending.addAll(filteredEvents.take(3));
-        }
-
         return CustomScrollView(
           slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 24, bottom: 8),
-                child: SizedBox(
-                  height: 40,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _categories.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (_, i) {
-                      final c = _categories[i];
-                      final isSelected = c == _selectedCategory;
-                      return ChoiceChip(
-                        label: Text(c),
-                        selected: isSelected,
-                        onSelected: (v) {
-                          if (v) setState(() => _selectedCategory = c);
-                        },
-                        selectedColor: ShowSnapColors.primary,
-                        backgroundColor: ShowSnapColors.surface,
-                        labelStyle: TextStyle(
-                          fontFamily: 'Gilroy',
-                          color: isSelected ? Colors.white : Colors.black87,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-            ),
-            if (trending.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
-                  child: Row(
-                    children: const [
-                      Icon(Icons.local_fire_department, color: ShowSnapColors.error),
-                      SizedBox(width: 8),
-                      Text('Trending Events', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(
-                  height: 310,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    scrollDirection: Axis.horizontal,
-                    itemCount: trending.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 16),
-                    itemBuilder: (_, i) => EventCard(event: trending[i])
-                        .animate()
-                        .fadeIn(delay: Duration(milliseconds: 50 * i))
-                        .slideX(begin: 0.1, end: 0, delay: Duration(milliseconds: 50 * i)),
-                  ),
-                ),
-              ),
-            ],
-            // Moved category chips up
-            if (filteredEvents.isEmpty)
+            if (events.isEmpty)
               const SliverFillRemaining(
                 child: Center(
-                  child: Text('No events in this category',
+                  child: Text('No events available',
                       style: TextStyle(color: ShowSnapColors.grey600)),
                 ),
               )
             else
               SliverPadding(
-                padding: const EdgeInsets.all(16),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.60,
-                  ),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 116),
+                sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (c, i) => EventCard(event: filteredEvents[i])
-                        .animate()
-                        .fadeIn(delay: Duration(milliseconds: 30 * i)),
-                    childCount: filteredEvents.length,
+                    (c, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: EventCard(event: events[i], width: double.infinity)
+                          .animate()
+                          .fadeIn(delay: Duration(milliseconds: 50 * i)),
+                    ),
+                    childCount: events.length,
                   ),
                 ),
               ),
@@ -444,7 +359,7 @@ class _TheatersTab extends ConsumerWidget {
           );
         }
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 66),
           itemCount: theaters.length,
           itemBuilder: (_, i) => _TheaterRow(theater: theaters[i])
               .animate()

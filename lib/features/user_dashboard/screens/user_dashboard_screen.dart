@@ -218,7 +218,7 @@ class _UserDashboardScreenState extends ConsumerState<UserDashboardScreen> {
               const SizedBox(height: 24),
               
               _SettingsSection(),
-              const SizedBox(height: 48),
+              const SizedBox(height: 98),
             ]),
           ),
         ),
