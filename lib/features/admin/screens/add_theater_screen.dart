@@ -1,10 +1,13 @@
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter_map/flutter_map.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_windows/webview_windows.dart' as win_web;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -14,14 +17,12 @@ import '../../../core/models/user_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/constants/app_constants.dart';
-import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/showsnap_toast.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
 class AddTheaterScreen extends ConsumerStatefulWidget {
-  /// If non-null, this manager will be pre-selected and the picker is hidden.
   final String? fixedManagerId;
   final String? fixedManagerName;
-  /// If non-null, we are editing an existing theater.
   final String? theaterId;
 
   const AddTheaterScreen({
@@ -45,7 +46,138 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
   String? _existingLogoUrl;
   
   LatLng _selectedLocation = const LatLng(20.5937, 78.9629); // Default center (India)
-  final MapController _mapController = MapController();
+  late final WebViewController _webViewController;
+  final win_web.WebviewController _windowsWebViewController = win_web.WebviewController();
+  bool _isWebViewInitialized = false;
+
+  String _generateMapboxHTML(LatLng center) {
+    final token = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
+    return '''
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+        <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+        <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+        <style>
+          body { margin: 0; padding: 0; }
+          #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+          .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        <script>
+          mapboxgl.accessToken = '$token';
+          var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [${center.longitude}, ${center.latitude}],
+            zoom: 14
+          });
+
+          var marker = new mapboxgl.Marker({ color: '#E50914' })
+            .setLngLat([${center.longitude}, ${center.latitude}])
+            .addTo(map);
+
+          map.on('click', function(e) {
+            marker.setLngLat([e.lngLat.lng, e.lngLat.lat]);
+            var msg = JSON.stringify({
+                type: 'MAP_CLICK',
+                lat: e.lngLat.lat,
+                lng: e.lngLat.lng
+              });
+            if (window.MapChannel) {
+              window.MapChannel.postMessage(msg);
+            }
+            if (window.chrome && window.chrome.webview) {
+              window.chrome.webview.postMessage(msg);
+            }
+          });
+
+          window.updateMarker = function(lng, lat) {
+             marker.setLngLat([lng, lat]);
+             map.flyTo({ center: [lng, lat], zoom: 14 });
+          };
+        </script>
+      </body>
+    </html>
+    ''';
+  }
+
+  Future<void> _initWebView() async {
+    if (!kIsWeb && Platform.isWindows) {
+      await _windowsWebViewController.initialize();
+      _windowsWebViewController.webMessage.listen((message) {
+        try {
+          final data = jsonDecode(message);
+          if (data['type'] == 'MAP_CLICK') {
+            final lat = data['lat'] as double;
+            final lng = data['lng'] as double;
+            _reverseGeocode(LatLng(lat, lng));
+          }
+        } catch (e) {
+          debugPrint('Web message error: $e');
+        }
+      });
+      await _windowsWebViewController.loadStringContent(_generateMapboxHTML(_selectedLocation));
+      if (mounted) {
+        setState(() {
+          _isWebViewInitialized = true;
+        });
+      }
+      return;
+    }
+
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) {
+      setState(() {
+        _isWebViewInitialized = true; // Mark as initialized to stop loading
+      });
+      return; // Skip WebView setup for unsupported desktop platforms
+    }
+
+    _webViewController = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(Colors.transparent)
+      ..addJavaScriptChannel(
+        'MapChannel',
+        onMessageReceived: (message) {
+          final data = jsonDecode(message.message);
+          if (data['type'] == 'MAP_CLICK') {
+            final lat = data['lat'] as double;
+            final lng = data['lng'] as double;
+            _reverseGeocode(LatLng(lat, lng));
+          }
+        },
+      );
+    _loadMapHtml(_selectedLocation);
+    setState(() {
+      _isWebViewInitialized = true;
+    });
+  }
+
+  void _loadMapHtml(LatLng location) {
+    if (!kIsWeb && Platform.isWindows) {
+      // For windows, we can just run JS to update marker or reload string
+      _windowsWebViewController.loadStringContent(_generateMapboxHTML(location));
+      return;
+    }
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) return;
+    _webViewController.loadHtmlString(_generateMapboxHTML(location));
+  }
+
+  void _updateMarkerInWebView(LatLng location) {
+    final script = 'if(window.updateMarker) window.updateMarker(${location.longitude}, ${location.latitude});';
+    if (!kIsWeb && Platform.isWindows) {
+      _windowsWebViewController.executeScript(script);
+    } else if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) {
+      return;
+    } else {
+      _webViewController.runJavaScript(script);
+    }
+  }
 
   String _fetchedCity = '';
   String _fetchedStreet = '';
@@ -61,6 +193,7 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
   @override
   void initState() {
     super.initState();
+    _initWebView();
     if (widget.theaterId != null) {
       _loadExistingTheater();
     }
@@ -84,7 +217,7 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
           final users = await db.getAllUsers();
           _selectedManager = users.firstWhere((u) => u.uid == theater.managerId);
         }
-        _mapController.move(_selectedLocation, 14.0);
+        _updateMarkerInWebView(_selectedLocation);
       }
     } catch (e) {
       debugPrint('Error loading theater: $e');
@@ -114,7 +247,7 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
       final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       final newLocation = LatLng(position.latitude, position.longitude);
       
-      _mapController.move(newLocation, 14.0);
+      _updateMarkerInWebView(newLocation);
       await _reverseGeocode(newLocation);
     } catch (e) {
       if (mounted) ShowSnapToast.error(context, 'Error getting location: $e');
@@ -342,39 +475,25 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
                 border: Border.all(color: ShowSnapColors.grey300),
               ),
               clipBehavior: Clip.antiAlias,
-              child: FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: _selectedLocation,
-                  initialZoom: 4.0,
-                  interactionOptions: const InteractionOptions(
-                    flags: InteractiveFlag.all,
-                  ),
-                  onTap: (tapPosition, point) => _reverseGeocode(point),
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: dotenv.env['MAPBOX_ACCESS_TOKEN']?.isNotEmpty == true
-                        ? 'https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/{z}/{x}/{y}?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN']}'
-                        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.tenx.showsnap',
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: _selectedLocation,
-                        width: 40,
-                        height: 40,
-                        child: const Icon(
-                          Icons.location_pin,
-                          color: Colors.red,
-                          size: 40,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              child: _isWebViewInitialized
+                  ? (!kIsWeb && Platform.isWindows)
+                      ? win_web.Webview(_windowsWebViewController)
+                      : (!kIsWeb && (Platform.isLinux || Platform.isMacOS))
+                          ? Container(
+                              color: ShowSnapColors.grey100,
+                              child: const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: Text(
+                                    'Map is not supported on Desktop natively yet.\nPlease use the app on Web or Mobile.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: ShowSnapColors.grey600),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : WebViewWidget(controller: _webViewController)
+                  : const Center(child: CircularProgressIndicator()),
             ).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.05, end: 0),
             Padding(
               padding: const EdgeInsets.only(top: 8.0, bottom: 12.0),
