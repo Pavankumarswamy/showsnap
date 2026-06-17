@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -19,6 +20,7 @@ import '../../../core/utils/file_save_helper.dart'
 import '../../../core/utils/url_launcher_helper.dart'
     if (dart.library.html) '../../../core/utils/url_launcher_helper_web.dart'
     if (dart.library.io) '../../../core/utils/url_launcher_helper_native.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 
 final _emEventDetailsProvider =
     FutureProvider.family<EventModel?, String>((ref, eventId) async {
@@ -50,6 +52,10 @@ class EmEventDetailsScreen extends ConsumerStatefulWidget {
 
 class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
   final GlobalKey _ticketBoundaryKey = GlobalKey();
+
+  String _searchQuery = '';
+  String _filterStatus = 'All'; // 'All', 'Confirmed', 'Redeemed'
+
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
   final TextEditingController _phoneController = TextEditingController();
   
@@ -404,6 +410,39 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
     });
   }
 
+  Future<void> _updateEventStatus(EventModel event, String newStatus) async {
+    try {
+      final db = ref.read(databaseServiceProvider);
+      // Wait, db.saveEvent requires EventModel, we can just use db.saveEvent 
+      final updatedEvent = EventModel(
+        eventId: event.eventId,
+        name: event.name,
+        organizer: event.organizer,
+        venueId: event.venueId,
+        venueName: event.venueName,
+        city: event.city,
+        lat: event.lat,
+        lng: event.lng,
+        startTs: event.startTs,
+        endTs: event.endTs,
+        category: event.category,
+        description: event.description,
+        posterUrl: event.posterUrl,
+        ticketTiers: event.ticketTiers,
+        managerId: event.managerId,
+        status: newStatus,
+        isActive: newStatus == 'published',
+      );
+      await db.saveEvent(updatedEvent);
+      if (mounted) {
+        ShowSnapToast.success(context, 'Event status updated to $newStatus');
+        ref.invalidate(_emEventDetailsProvider(event.eventId));
+      }
+    } catch (e) {
+      if (mounted) ShowSnapToast.error(context, 'Failed to update status: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final eventAsync = ref.watch(_emEventDetailsProvider(widget.eventId));
@@ -424,6 +463,20 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
           flexibleSpace: Container(
             decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
           ),
+          actions: [
+            if (eventAsync.value != null) ...[
+              if (eventAsync.value!.status == 'draft')
+                TextButton(
+                  onPressed: () => _updateEventStatus(eventAsync.value!, 'published'),
+                  child: const Text('PUBLISH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                )
+              else if (eventAsync.value!.status == 'published')
+                TextButton(
+                  onPressed: () => _updateEventStatus(eventAsync.value!, 'closed'),
+                  child: const Text('CLOSE EVENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+            ]
+          ],
           bottom: const TabBar(
             labelColor: Colors.black,
             unselectedLabelColor: Colors.black54,
@@ -556,47 +609,153 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
             child: Text('No bookings recorded for this event.'),
           );
         }
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-          itemCount: bookings.length,
-          itemBuilder: (_, i) {
-            final b = bookings[i];
-            final cleanPhone = b.uid == 'offline_counter' ? 'Offline Sale' : b.uid;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                title: Text('Booking #${b.bookingId.substring(0, 8).toUpperCase()}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Customer: $cleanPhone'),
-                    Text('Tickets: ${b.seats.map((s) => '${s.row} #${s.number}').join(', ')}'),
-                    Text('Total Amount: ₹${b.totalAmount}'),
-                  ],
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: (b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : Colors.green).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : Colors.green),
+
+        final checkedInCount = bookings.where((b) => b.status == BookingStatus.redeemed).length;
+        final totalBookings = bookings.length;
+
+        var filteredBookings = bookings.where((b) {
+          final q = _searchQuery.toLowerCase();
+          final matchesSearch = b.bookingId.toLowerCase().contains(q) ||
+              b.uid.toLowerCase().contains(q) ||
+              (b.uid == 'offline_counter' && 'offline sale'.contains(q));
+          
+          if (!matchesSearch) return false;
+
+          if (_filterStatus == 'Confirmed') return b.status == BookingStatus.confirmed;
+          if (_filterStatus == 'Redeemed') return b.status == BookingStatus.redeemed;
+          return true;
+        }).toList();
+
+        return Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: ShowSnapColors.surface,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '$checkedInCount / $totalBookings Checked In',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.copy, size: 16),
+                        label: const Text('COPY LIST'),
+                        onPressed: () {
+                          // Simple copy to clipboard functionality
+                          final list = bookings.map((b) => '${b.bookingId.substring(0,8)} - ${b.uid == 'offline_counter' ? 'Offline' : b.uid} - ${b.status.name}').join('\n');
+                          Clipboard.setData(ClipboardData(text: list));
+                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Attendee list copied!')));
+                        },
+                      )
+                    ],
                   ),
-                  child: Text(
-                    b.status == BookingStatus.redeemed ? 'Redeemed' : 'Confirmed',
-                    style: TextStyle(
-                      color: b.status == BookingStatus.redeemed ? ShowSnapColors.grey600 : Colors.green,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 12),
+                  TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search by Booking ID or Customer...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    ),
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  ),
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: ['All', 'Confirmed', 'Redeemed'].map((status) {
+                        final isSelected = _filterStatus == status;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: FilterChip(
+                            label: Text(status),
+                            selected: isSelected,
+                            onSelected: (val) {
+                              setState(() => _filterStatus = status);
+                            },
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
-                ),
+                ],
               ),
-            );
-          },
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                itemCount: filteredBookings.length,
+                itemBuilder: (_, i) {
+                  final b = filteredBookings[i];
+                  final cleanPhone = b.uid == 'offline_counter' ? 'Offline Sale' : b.uid;
+                  final isRedeemed = b.status == BookingStatus.redeemed;
+                  
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      title: Text('Booking #${b.bookingId.substring(0, 8).toUpperCase()}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text('Customer: $cleanPhone'),
+                          Text('Tickets: ${b.seats.map((s) => '${s.row} #${s.number}').join(', ')}'),
+                          Text('Amount: ₹${b.totalAmount}'),
+                        ],
+                      ),
+                      trailing: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: (isRedeemed ? ShowSnapColors.grey600 : Colors.green).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: isRedeemed ? ShowSnapColors.grey600 : Colors.green),
+                            ),
+                            child: Text(
+                              isRedeemed ? 'Redeemed' : 'Confirmed',
+                              style: TextStyle(
+                                color: isRedeemed ? ShowSnapColors.grey600 : Colors.green,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (!isRedeemed) ...[
+                            const SizedBox(height: 4),
+                            InkWell(
+                              onTap: () => _manualCheckIn(b),
+                              child: const Text('Check-in', style: TextStyle(color: ShowSnapColors.primary, fontSize: 12, fontWeight: FontWeight.bold, decoration: TextDecoration.underline)),
+                            )
+                          ]
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
     );
+  }
+
+  Future<void> _manualCheckIn(BookingModel booking) async {
+    try {
+      final db = ref.read(databaseServiceProvider);
+      await db.updateBookingStatus(booking.bookingId, BookingStatus.redeemed);
+      if (mounted) ShowSnapToast.success(context, 'Checked in booking ${booking.bookingId.substring(0, 8)}');
+      ref.invalidate(_emEventBookingsProvider(widget.eventId));
+    } catch (e) {
+      if (mounted) ShowSnapToast.error(context, 'Check-in failed: $e');
+    }
   }
 }
 

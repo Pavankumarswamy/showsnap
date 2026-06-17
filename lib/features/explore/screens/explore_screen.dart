@@ -12,7 +12,11 @@ import '../../../core/services/database_service.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../home/widgets/movie_card.dart';
 import '../../home/widgets/event_card.dart';
+<<<<<<< HEAD
 import '../../../core/widgets/main_app_bar.dart';
+=======
+import '../../../core/constants/app_constants.dart';
+>>>>>>> 5565bbbf04e38b19afacc09882205f5f958992db
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
@@ -269,9 +273,17 @@ class _MoviesTab extends ConsumerWidget {
 
 // ─── Events Tab ───────────────────────────────────────────────────────────────
 
-class _EventsTab extends ConsumerWidget {
+class _EventsTab extends ConsumerStatefulWidget {
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_EventsTab> createState() => _EventsTabState();
+}
+
+class _EventsTabState extends ConsumerState<_EventsTab> {
+  String _selectedCategory = 'All';
+  final _categories = ['All', ...AppConstants.eventCategories];
+
+  @override
+  Widget build(BuildContext context) {
     final eventsAsync = ref.watch(_allEventsProvider);
     return eventsAsync.when(
       loading: () => _GridShimmer(),
@@ -291,20 +303,107 @@ class _EventsTab extends ConsumerWidget {
             ),
           );
         }
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.72,
-          ),
-          itemCount: events.length,
-          itemBuilder: (_, i) => EventCard(event: events[i])
-              .animate()
-              .fadeIn(
-                  duration: ShowSnapDuration.normal,
-                  delay: Duration(milliseconds: 30 * i)),
+
+        final trending = events.where((e) => e.fewTicketsLeft).toList();
+        if (trending.isEmpty && events.isNotEmpty) {
+           trending.addAll(events.take(3));
+        }
+
+        final filteredEvents = _selectedCategory == 'All' 
+           ? events 
+           : events.where((e) => e.category.toLowerCase() == _selectedCategory.toLowerCase()).toList();
+
+        return CustomScrollView(
+          slivers: [
+            if (trending.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 12),
+                  child: Row(
+                    children: const [
+                      Icon(Icons.local_fire_department, color: ShowSnapColors.error),
+                      SizedBox(width: 8),
+                      Text('Trending Events', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 310,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: trending.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 16),
+                    itemBuilder: (_, i) => EventCard(event: trending[i])
+                        .animate()
+                        .fadeIn(delay: Duration(milliseconds: 50 * i))
+                        .slideX(begin: 0.1, end: 0, delay: Duration(milliseconds: 50 * i)),
+                  ),
+                ),
+              ),
+            ],
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 24, bottom: 8),
+                child: SizedBox(
+                  height: 40,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _categories.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final c = _categories[i];
+                      final isSelected = c == _selectedCategory;
+                      return ChoiceChip(
+                        label: Text(c),
+                        selected: isSelected,
+                        onSelected: (v) {
+                          if (v) setState(() => _selectedCategory = c);
+                        },
+                        selectedColor: ShowSnapColors.primary,
+                        backgroundColor: ShowSnapColors.surface,
+                        labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+            if (filteredEvents.isEmpty)
+              const SliverFillRemaining(
+                child: Center(
+                  child: Text('No events in this category',
+                      style: TextStyle(color: ShowSnapColors.grey600)),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverGrid(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 0.60,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (c, i) => EventCard(event: filteredEvents[i])
+                        .animate()
+                        .fadeIn(delay: Duration(milliseconds: 30 * i)),
+                    childCount: filteredEvents.length,
+                  ),
+                ),
+              ),
+          ],
         );
       },
     );

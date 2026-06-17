@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -408,12 +409,79 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
           ] else if (_activeCategory == 'Events') ...[
             // Events
             if (feed.events.isNotEmpty) ...[
+              Builder(builder: (context) {
+                final now = DateTime.now().millisecondsSinceEpoch;
+                final upcomingEvents = feed.events.where((e) => e.startTs > now).toList()
+                  ..sort((a, b) => a.startTs.compareTo(b.startTs));
+                if (upcomingEvents.isEmpty) return const SizedBox.shrink();
+                
+                final nearest = upcomingEvents.first;
+                final diff = DateTime.fromMillisecondsSinceEpoch(nearest.startTs).difference(DateTime.now());
+                if (diff.inDays > 7) return const SizedBox.shrink(); // Only show if within a week
+
+                String timeStr;
+                if (diff.inDays > 0) {
+                  timeStr = '${diff.inDays} days';
+                } else if (diff.inHours > 0) {
+                  timeStr = '${diff.inHours} hours';
+                } else {
+                  timeStr = '${diff.inMinutes} mins';
+                }
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [ShowSnapColors.primary.withValues(alpha: 0.9), ShowSnapColors.primary.withValues(alpha: 0.8)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                      boxShadow: ShowSnapShadow.card,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), shape: BoxShape.circle),
+                          child: const Icon(Icons.timer_outlined, color: Colors.white, size: 28),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Starting in $timeStr!', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                              const SizedBox(height: 4),
+                              Text(nearest.name, style: const TextStyle(color: Colors.white70, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            ],
+                          ),
+                        ),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: ShowSnapColors.primary,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ShowSnapRadius.pill)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onPressed: () => context.push('/event/${nearest.eventId}'),
+                          child: const Text('Book', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ).animate().fadeIn().slideY(begin: 0.1, end: 0);
+              }),
               _SectionHeader(
                 title: 'Events Near You',
                 onSeeAll: () => context.push('/explore?tab=events'),
               ),
               SizedBox(
-                height: 210,
+                height: 250, // Increased for new EventCard height
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,

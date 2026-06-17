@@ -6,6 +6,10 @@ import '../../../core/models/event_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:typed_data';
+import '../../../core/services/cloudinary_service.dart';
+import '../../../core/constants/app_constants.dart';
 
 class AddEventScreen extends ConsumerStatefulWidget {
   final String? eventId;
@@ -29,10 +33,15 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
   DateTime _endDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _endTime = const TimeOfDay(hour: 21, minute: 0);
 
-  String _category = 'concert';
+  String _category = AppConstants.eventCategories.first;
   final List<TicketTier> _tiers = [];
   bool _saving = false;
   bool _loading = false;
+
+  XFile? _imageFile;
+  Uint8List? _imageBytes;
+  String? _existingPosterUrl;
+  String _status = 'draft';
 
   @override
   void initState() {
@@ -46,9 +55,8 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
     setState(() => _loading = true);
     try {
       final db = ref.read(databaseServiceProvider);
-      final events = await db.getAllEvents(); // getAllEvents filters by active, let's get event directly if needed or filter.
-      // Wait, we can get the event from the database list:
-      final event = events.firstWhere((e) => e.eventId == widget.eventId);
+      final event = await db.getEvent(widget.eventId!);
+      if (event == null) throw Exception('Event not found');
       
       _nameCtrl.text = event.name;
       _organizerCtrl.text = event.organizer;
@@ -56,6 +64,7 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
       _cityCtrl.text = event.city;
       _descCtrl.text = event.description;
       _posterCtrl.text = event.posterUrl;
+      _existingPosterUrl = event.posterUrl;
       _category = event.category;
 
       final startDt = DateTime.fromMillisecondsSinceEpoch(event.startTs);
@@ -65,7 +74,10 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
       final endDt = DateTime.fromMillisecondsSinceEpoch(event.endTs);
       _endDate = endDt;
       _endTime = TimeOfDay(hour: endDt.hour, minute: endDt.minute);
-
+      _category = AppConstants.eventCategories.contains(event.category) 
+          ? event.category 
+          : 'Other';
+      _status = event.status;
       _tiers.addAll(event.ticketTiers);
     } catch (e) {
       context.showErrorSnackbar('Failed to load event: $e');
@@ -86,11 +98,20 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
   }
 
   Future<void> _pickStart() async {
+    final now = DateTime.now();
+    final first = DateTime(now.year, now.month, now.day);
+    
+    // Ensure initialDate is not before firstDate
+    DateTime initial = _startDate;
+    if (initial.isBefore(first)) {
+      initial = first;
+    }
+
     final date = await showDatePicker(
       context: context,
-      initialDate: _startDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initial,
+      firstDate: first,
+      lastDate: first.add(const Duration(days: 365)),
     );
     if (date != null) {
       final time = await showTimePicker(
@@ -101,17 +122,46 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
         setState(() {
           _startDate = date;
           _startTime = time;
+          
+          // Ensure end date is not before the new start date
+          final startFull = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+          final endFull = DateTime(_endDate.year, _endDate.month, _endDate.day, _endTime.hour, _endTime.minute);
+          if (endFull.isBefore(startFull)) {
+            _endDate = date;
+            _endTime = time;
+          }
         });
       }
     }
   }
 
+  Future<void> _pickImage() async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      final bytes = await image.readAsBytes();
+      setState(() {
+        _imageFile = image;
+        _imageBytes = bytes;
+        _posterCtrl.text = 'Uploading later...'; // just so user sees something
+      });
+    }
+  }
+
   Future<void> _pickEnd() async {
+    final first = DateTime(_startDate.year, _startDate.month, _startDate.day);
+    
+    // Ensure initialDate is not before firstDate
+    DateTime initial = _endDate;
+    if (initial.isBefore(first)) {
+      initial = first;
+    }
+
     final date = await showDatePicker(
       context: context,
-      initialDate: _endDate,
-      firstDate: _startDate,
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: initial,
+      firstDate: first,
+      lastDate: first.add(const Duration(days: 365)),
     );
     if (date != null) {
       final time = await showTimePicker(
@@ -220,6 +270,15 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
         return;
       }
 
+      String posterUrl = _existingPosterUrl ?? _posterCtrl.text.trim();
+      if (_imageBytes != null && _imageFile != null) {
+        posterUrl = await ref.read(cloudinaryServiceProvider).uploadImageBytes(
+          _imageBytes!,
+          _imageFile!.name,
+          'event_posters',
+        );
+      }
+
       final event = EventModel(
         eventId: widget.eventId ?? '',
         name: _nameCtrl.text.trim(),
@@ -231,10 +290,11 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
         endTs: endTs,
         category: _category,
         description: _descCtrl.text.trim(),
-        posterUrl: _posterCtrl.text.trim(),
+        posterUrl: posterUrl,
         ticketTiers: _tiers,
         managerId: managerId,
-        isActive: true,
+        status: widget.eventId == null ? 'draft' : _status,
+        isActive: widget.eventId == null ? false : (_status == 'published'),
       );
 
       final db = ref.read(databaseServiceProvider);
@@ -327,22 +387,42 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
                 labelText: 'Category *',
                 prefixIcon: Icon(Icons.category_outlined),
               ),
-              items: const [
-                DropdownMenuItem(value: 'concert', child: Text('Concert')),
-                DropdownMenuItem(value: 'comedy', child: Text('Comedy')),
-                DropdownMenuItem(value: 'sports', child: Text('Sports')),
-                DropdownMenuItem(value: 'theatre', child: Text('Theatre')),
-                DropdownMenuItem(value: 'other', child: Text('Other')),
-              ],
-              onChanged: (v) => setState(() => _category = v ?? 'other'),
+              items: AppConstants.eventCategories.map((c) => 
+                DropdownMenuItem(value: c, child: Text(c))
+              ).toList(),
+              onChanged: (v) => setState(() => _category = v ?? 'Other'),
             ).animate().fadeIn(duration: 300.ms, delay: 250.ms).slideY(begin: 0.05, end: 0),
-            const SizedBox(height: 12),
-            _Field(
-              controller: _posterCtrl,
-              label: 'Poster Image URL',
-              icon: Icons.image_outlined,
+            const SizedBox(height: 16),
+            Center(
+              child: GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  width: 140,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: ShowSnapColors.grey100,
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                    border: Border.all(color: ShowSnapColors.grey300),
+                    image: _imageBytes != null
+                        ? DecorationImage(image: MemoryImage(_imageBytes!), fit: BoxFit.cover)
+                        : _existingPosterUrl != null && _existingPosterUrl!.isNotEmpty
+                            ? DecorationImage(image: NetworkImage(_existingPosterUrl!), fit: BoxFit.cover)
+                            : null,
+                  ),
+                  child: _imageBytes == null && (_existingPosterUrl == null || _existingPosterUrl!.isEmpty)
+                      ? const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, color: ShowSnapColors.grey600, size: 36),
+                            SizedBox(height: 8),
+                            Text('Upload Poster', style: TextStyle(fontSize: 12, color: ShowSnapColors.grey600)),
+                          ],
+                        )
+                      : null,
+                ),
+              ),
             ).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.05, end: 0),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             _Field(
               controller: _descCtrl,
               label: 'Description',
@@ -393,9 +473,8 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
             ).animate().fadeIn(duration: 300.ms, delay: 450.ms).slideY(begin: 0.05, end: 0),
             const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _SectionHeader('Ticket Tiers'),
+                const Expanded(child: _SectionHeader('Ticket Tiers')),
                 IconButton(
                   icon: const Icon(Icons.add_circle_outline, color: ShowSnapColors.primary),
                   onPressed: _addTier,

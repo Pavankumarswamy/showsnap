@@ -109,7 +109,8 @@ class ShowSnapTheme {
             bottom: Radius.circular(ShowSnapRadius.md),
           ),
         ),
-        titleTextStyle: GoogleFonts.poppins(
+        titleTextStyle: const TextStyle(
+          fontFamily: 'Gilroy',
           fontSize: 18,
           fontWeight: FontWeight.w600,
           color: Colors.white,
@@ -124,7 +125,8 @@ class ShowSnapTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ShowSnapRadius.md),
           ),
-          textStyle: GoogleFonts.poppins(
+          textStyle: const TextStyle(
+            fontFamily: 'Gilroy',
             fontWeight: FontWeight.w600,
             fontSize: 15,
           ),
@@ -139,13 +141,13 @@ class ShowSnapTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(ShowSnapRadius.md),
           ),
-          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: 'Gilroy', fontWeight: FontWeight.w600),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           foregroundColor: ShowSnapColors.primary,
-          textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontFamily: 'Gilroy', fontWeight: FontWeight.w600),
         ),
       ),
       cardTheme: CardThemeData(
@@ -182,8 +184,8 @@ class ShowSnapTheme {
         backgroundColor: ShowSnapColors.grey100,
         selectedColor: ShowSnapColors.primaryLighter,
         secondarySelectedColor: ShowSnapColors.primaryLighter,
-        labelStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.white),
-        secondaryLabelStyle: GoogleFonts.poppins(fontSize: 12, color: Colors.black87),
+        labelStyle: const TextStyle(fontFamily: 'Gilroy', fontSize: 12, color: Colors.white),
+        secondaryLabelStyle: const TextStyle(fontFamily: 'Gilroy', fontSize: 12, color: Colors.black87),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
         ),
