@@ -1,9 +1,12 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../providers/auth_provider.dart';
+import '../widgets/premium_auth_widgets.dart';
 import '../../../core/config/router.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/constants/app_constants.dart';
@@ -18,16 +21,14 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen>
-    with SingleTickerProviderStateMixin {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   bool _obscurePassword = true;
-  bool _loading = false;
+  bool _rememberMe = false;
 
-  // Shake animation key
-  final _shakeKey = GlobalKey<_ShakeWidgetState>();
+  final _shakeKey = GlobalKey<ShakeWidgetState>();
 
   @override
   void dispose() {
@@ -38,29 +39,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _loading = true);
     await ref.read(authNotifierProvider.notifier).signIn(
           _emailCtrl.text.trim(),
           _passwordCtrl.text,
         );
-    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _navigateByRole() async {
     final authService = ref.read(authServiceProvider);
-
-    // Patch admin DB record to role='admin' if not already set.
-    // This must happen before any DB rule check that relies on role.
     await authService.ensureAdminRole();
-
-    // 1. Email-based admin check (fastest — no DB call needed)
     final email = authService.currentUser?.email ?? '';
     if (email == 'admin@gmail.com') {
       if (mounted) context.go(AppRoutes.adminDashboard);
       return;
     }
-
-    // 2. DB role check for theaterManager and other roles
     final role = await authService.getCurrentUserRole();
     if (!mounted) return;
     if (role == AppConstants.roleAdmin) {
@@ -74,16 +66,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authNotifierProvider);
+
     ref.listen(authNotifierProvider, (prev, next) {
       next.whenOrNull(
-        data: (_) {
-          // Login succeeded — navigate to the correct dashboard
-          _navigateByRole();
-        },
+        data: (_) => _navigateByRole(),
         error: (err, _) {
           _shakeKey.currentState?.shake();
-          context.showErrorSnackbar(
-              err.toString().replaceAll('Exception: ', ''));
+          context.showErrorSnackbar(err.toString().replaceAll('Exception: ', ''));
         },
       );
     });
@@ -91,195 +81,214 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     return GestureDetector(
       onTap: () => FocusScope.of(context).unfocus(),
       child: Scaffold(
-        resizeToAvoidBottomInset: false,
+        backgroundColor: Colors.white,
         body: Stack(
           children: [
-            // Gradient header
-            Container(
-              height: MediaQuery.of(context).size.height * 0.42,
-              decoration: BoxDecoration(
-                gradient: ShowSnapTheme.splashGradient,
-              ),
-            ),
+
 
             SafeArea(
+              bottom: false,
               child: Column(
                 children: [
-                  // Header section
-                  SizedBox(
-                    height: MediaQuery.of(context).size.height * 0.32,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(22),
-                            boxShadow: ShowSnapShadow.elevated,
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'S',
-                              style: TextStyle(
-                                fontSize: 44,
-                                fontWeight: FontWeight.w900,
-                                color: ShowSnapColors.primary,
-                              ),
-                            ),
-                          ),
-                        )
-                            .animate(onPlay: (c) => c.repeat(reverse: true))
-                            .scale(
-                              begin: const Offset(1, 1),
-                              end: const Offset(1.04, 1.04),
-                              duration: const Duration(milliseconds: 2000),
-                              curve: Curves.easeInOut,
-                            ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Welcome Back',
-                          style: TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        const Text(
-                          'Sign in to continue',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
+                  // Top Area - Large Logo
+                  Expanded(
+                    flex: 4,
+                    child: Center(
+                      child: Image.network(
+                        'https://i.ibb.co/ccD640W2/erasebg-transformed-10.png',
+                        width: 320,
+                        height: 320,
+                        fit: BoxFit.contain,
+                      ),
                     ),
                   ),
 
-                  // Form card
+                  // Bottom Sheet - Form
                   Expanded(
+                    flex: 6,
                     child: Container(
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.only(
-                          topLeft: Radius.circular(ShowSnapRadius.lg),
-                          topRight: Radius.circular(ShowSnapRadius.lg),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: ShowSnapColors.surface,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(40),
+                          topRight: Radius.circular(40),
                         ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            blurRadius: 20,
+                            offset: const Offset(0, -5),
+                          ),
+                        ],
                       ),
-                      child: SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
-                        child: Form(
-                          key: _formKey,
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(40),
+                          topRight: Radius.circular(40),
+                        ),
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              // Email
-                              TextFormField(
-                                controller: _emailCtrl,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Email',
-                                  prefixIcon: Icon(Icons.email_outlined),
+                              // Welcome Text
+                              const Text(
+                                'Welcome Back',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.w900,
+                                  color: Colors.white,
+                                  letterSpacing: 1.2,
                                 ),
-                                validator: Validators.email,
-                              ),
-                              const SizedBox(height: 16),
-
-                              // Password
-                              TextFormField(
-                                controller: _passwordCtrl,
-                                obscureText: _obscurePassword,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _submit(),
-                                decoration: InputDecoration(
-                                  labelText: 'Password',
-                                  prefixIcon: const Icon(Icons.lock_outlined),
-                                  suffixIcon: AnimatedRotation(
-                                    turns: _obscurePassword ? 0 : 0.5,
-                                    duration: ShowSnapDuration.fast,
-                                    child: IconButton(
-                                      icon: Icon(_obscurePassword
-                                          ? Icons.visibility_off_outlined
-                                          : Icons.visibility_outlined),
-                                      onPressed: () => setState(() =>
-                                          _obscurePassword = !_obscurePassword),
-                                    ),
-                                  ),
-                                ),
-                                validator: Validators.password,
-                              ),
-
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: TextButton(
-                                  onPressed: () =>
-                                      _showForgotPasswordDialog(context),
-                                  child: const Text('Forgot Password?'),
-                                ),
-                              ),
-
+                              ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
+                              
                               const SizedBox(height: 8),
+                              
+                              Text(
+                                'Sign in to continue your cinematic journey',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  color: Colors.white.withOpacity(0.6),
+                                ),
+                              ).animate().fadeIn(delay: 200.ms, duration: 600.ms),
+                              
+                              const SizedBox(height: 40),
 
-                              // Sign in button with shake
-                              _ShakeWidget(
-                                key: _shakeKey,
-                                child: SizedBox(
-                                  height: 52,
-                                  child: DecoratedBox(
-                                    decoration:
-                                        ShowSnapTheme.primaryButtonDecoration,
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.transparent,
-                                        shadowColor: Colors.transparent,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                              ShowSnapRadius.md),
-                                        ),
+                              // Form
+                              Form(
+                                key: _formKey,
+                                child: Column(
+                                  children: [
+                                    PremiumTextField(
+                                      controller: _emailCtrl,
+                                      label: 'Email Address',
+                                      prefixIcon: Icons.email_outlined,
+                                      keyboardType: TextInputType.emailAddress,
+                                      validator: Validators.email,
+                                    ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.1, end: 0),
+                                    
+                                    const SizedBox(height: 20),
+                                    
+                                    PremiumTextField(
+                                      controller: _passwordCtrl,
+                                      label: 'Password',
+                                      prefixIcon: Icons.lock_outline,
+                                      obscureText: _obscurePassword,
+                                      textInputAction: TextInputAction.done,
+                                      onFieldSubmitted: (_) => _submit(),
+                                      validator: Validators.password,
+                                      suffixIcon: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          IconButton(
+                                            icon: Icon(
+                                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                              color: Colors.white.withOpacity(0.6),
+                                            ),
+                                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                          ),
+                                          Icon(Icons.fingerprint, color: ShowSnapColors.primary.withOpacity(0.8)),
+                                          const SizedBox(width: 12),
+                                        ],
                                       ),
-                                      onPressed: _loading ? null : _submit,
-                                      child: AnimatedSwitcher(
-                                        duration: ShowSnapDuration.fast,
-                                        child: _loading
-                                            ? const SizedBox(
-                                                key: ValueKey('loading'),
-                                                width: 22,
-                                                height: 22,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: Colors.black,
+                                    ).animate().fadeIn(delay: 500.ms).slideX(begin: 0.1, end: 0),
+                                    
+                                    const SizedBox(height: 16),
+                                    
+                                    // Remember Me & Forgot Password
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        GestureDetector(
+                                          onTap: () {
+                                            HapticFeedback.selectionClick();
+                                            setState(() => _rememberMe = !_rememberMe);
+                                          },
+                                          child: Row(
+                                            children: [
+                                              AnimatedContainer(
+                                                duration: ShowSnapDuration.fast,
+                                                width: 20,
+                                                height: 20,
+                                                decoration: BoxDecoration(
+                                                  color: _rememberMe ? ShowSnapColors.primary : Colors.transparent,
+                                                  border: Border.all(
+                                                    color: _rememberMe ? ShowSnapColors.primary : Colors.white.withOpacity(0.4),
+                                                    width: 1.5,
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(6),
                                                 ),
-                                              )
-                                            : const Text(
-                                                key: ValueKey('text'),
-                                                'Sign In',
+                                                child: _rememberMe 
+                                                    ? const Icon(Icons.check, size: 14, color: Colors.black)
+                                                    : null,
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                'Remember me',
                                                 style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
+                                                  color: Colors.white.withOpacity(0.8),
+                                                  fontSize: 14,
                                                 ),
                                               ),
+                                            ],
+                                          ),
+                                        ),
+                                        TextButton(
+                                          onPressed: () => _showForgotPasswordDialog(context),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: ShowSnapColors.primary,
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: const Text(
+                                            'Forgot Password?',
+                                            style: TextStyle(fontWeight: FontWeight.w600),
+                                          ),
+                                        ),
+                                      ],
+                                    ).animate().fadeIn(delay: 600.ms),
+
+                                    const SizedBox(height: 32),
+
+                                    // Login Button
+                                    ShakeWidget(
+                                      key: _shakeKey,
+                                      child: PremiumAuthButton(
+                                        text: 'Sign In',
+                                        isLoading: authState.isLoading,
+                                        onPressed: _submit,
                                       ),
-                                    ),
-                                  ),
+                                    ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.9, 0.9)),
+
+                                    const SizedBox(height: 32),
+
+
+
+                                    // Register Link
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text('New to ShowSnap? ', style: TextStyle(color: Colors.white.withOpacity(0.6))),
+                                        TextButton(
+                                          onPressed: () => context.go(AppRoutes.register),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.white,
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: Size.zero,
+                                          ),
+                                          child: const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ).animate().fadeIn(delay: 1100.ms),
+
+                                    // Extra padding for bottom safe area
+                                    SizedBox(height: MediaQuery.of(context).padding.bottom),
+                                  ],
                                 ),
-                              ),
-
-                              const SizedBox(height: 24),
-
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text("Don't have an account? "),
-                                  TextButton(
-                                    onPressed: () =>
-                                        context.go(AppRoutes.register),
-                                    child: const Text('Register'),
-                                  ),
-                                ],
                               ),
                             ],
                           ),
@@ -301,26 +310,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Reset Password'),
-        content: TextFormField(
+        backgroundColor: ShowSnapColors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Reset Password', style: TextStyle(color: Colors.white)),
+        content: PremiumTextField(
           controller: emailCtrl,
+          label: 'Email',
+          prefixIcon: Icons.email_outlined,
           keyboardType: TextInputType.emailAddress,
-          decoration: const InputDecoration(
-            labelText: 'Email',
-            prefixIcon: Icon(Icons.email_outlined),
-          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.6))),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ShowSnapColors.primary,
+              foregroundColor: Colors.black,
+            ),
             onPressed: () async {
               if (emailCtrl.text.isNotEmpty) {
-                await ref
-                    .read(authNotifierProvider.notifier)
-                    .sendPasswordReset(emailCtrl.text.trim());
+                await ref.read(authNotifierProvider.notifier).sendPasswordReset(emailCtrl.text.trim());
                 if (ctx.mounted) {
                   Navigator.pop(ctx);
                   context.showSnackbar('Reset email sent!');
@@ -331,55 +342,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
         ],
       ),
-    );
-  }
-}
-
-// Shake animation widget
-class _ShakeWidget extends StatefulWidget {
-  final Widget child;
-  const _ShakeWidget({super.key, required this.child});
-
-  @override
-  State<_ShakeWidget> createState() => _ShakeWidgetState();
-}
-
-class _ShakeWidgetState extends State<_ShakeWidget>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _anim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 300));
-    _anim = TweenSequence([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: 8.0), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: 8.0, end: -8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8.0, end: 8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 8.0, end: 0.0), weight: 1),
-    ]).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-  }
-
-  void shake() {
-    HapticFeedback.vibrate();
-    _ctrl.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _anim,
-      builder: (_, child) =>
-          Transform.translate(offset: Offset(_anim.value, 0), child: child),
-      child: widget.child,
     );
   }
 }

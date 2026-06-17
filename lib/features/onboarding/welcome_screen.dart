@@ -5,47 +5,43 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import '../../core/config/theme.dart';
+import '../../core/widgets/tappable_scale.dart';
 
 class _OnboardPage {
   final String title;
   final String subtitle;
   final Color bgColor;
-  final IconData icon;
-  final Color iconColor;
+  final String imageUrl;
 
   const _OnboardPage({
     required this.title,
     required this.subtitle,
     required this.bgColor,
-    required this.icon,
-    required this.iconColor,
+    required this.imageUrl,
   });
 }
 
 const _pages = [
   _OnboardPage(
-    title: 'Discover What\'s Playing',
+    title: 'Explore Limitless Entertainment',
     subtitle:
-        'Movies, events, concerts — all in one place, personalised just for you.',
+        'Browse the latest blockbuster movies, exclusive events, and unforgettable concerts all in one place.',
     bgColor: Color(0xFFFFF8E1),
-    icon: Icons.movie_filter_rounded,
-    iconColor: ShowSnapColors.primary,
+    imageUrl: 'https://i.ibb.co/gb1vvxCD/erasebg-transformed-6.jpg',
   ),
   _OnboardPage(
-    title: 'Pick Your Perfect Seat',
+    title: 'Secure Your Best Spot',
     subtitle:
-        'Interactive seat maps with real-time availability. Your seat, your choice.',
+        'Choose your favorite seats instantly with our interactive and real-time theater maps.',
     bgColor: Color(0xFFE8F5E9),
-    icon: Icons.event_seat_rounded,
-    iconColor: ShowSnapColors.secondary,
+    imageUrl: 'https://i.ibb.co/9mKK30wJ/erasebg-transformed-7.jpg',
   ),
   _OnboardPage(
-    title: 'Earn While You Watch',
+    title: 'Unlock Exclusive Rewards',
     subtitle:
-        'Book 9 movies, get the 10th free. Unlock rewards with every booking.',
+        'Earn points with every ticket you book and enjoy free movies, discounts, and VIP perks.',
     bgColor: Color(0xFFFCE4EC),
-    icon: Icons.emoji_events_rounded,
-    iconColor: Color(0xFFE91E63),
+    imageUrl: 'https://i.ibb.co/whJZdng4/erasebg-transformed-8.jpg',
   ),
 ];
 
@@ -85,9 +81,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               alignment: Alignment.topRight,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: TextButton(
-                  onPressed: _finish,
-                  child: const Text('Skip'),
+                child: TappableScale(
+                  onTap: _finish,
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                    child: Text(
+                      'Skip',
+                      style: TextStyle(
+                        color: ShowSnapColors.primary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -119,36 +125,33 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: DecoratedBox(
-                      decoration: ShowSnapTheme.primaryButtonDecoration,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          shape: RoundedRectangleBorder(
-                            borderRadius:
-                                BorderRadius.circular(ShowSnapRadius.md),
+                  TappableScale(
+                    onTap: () {
+                      if (_currentPage < _pages.length - 1) {
+                        _pageController.nextPage(
+                          duration: ShowSnapDuration.normal,
+                          curve: Curves.easeInOut,
+                        );
+                      } else {
+                        _finish();
+                      }
+                    },
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: DecoratedBox(
+                        decoration: ShowSnapTheme.primaryButtonDecoration,
+                        child: Center(
+                          child: Text(
+                            _currentPage == _pages.length - 1
+                                ? 'Get Started'
+                                : 'Next',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold, 
+                              fontSize: 16, 
+                              color: Colors.white,
+                            ),
                           ),
-                        ),
-                        onPressed: () {
-                          if (_currentPage < _pages.length - 1) {
-                            _pageController.nextPage(
-                              duration: ShowSnapDuration.normal,
-                              curve: Curves.easeInOut,
-                            );
-                          } else {
-                            _finish();
-                          }
-                        },
-                        child: Text(
-                          _currentPage == _pages.length - 1
-                              ? 'Get Started'
-                              : 'Next',
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                       ),
                     ),
@@ -177,15 +180,28 @@ class _PageContent extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // Illustration area
-          Container(
-            width: 220,
-            height: 220,
-            decoration: BoxDecoration(
-              color: page.bgColor,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Icon(page.icon, size: 100, color: page.iconColor),
+          Flexible(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: 300,
+                maxHeight: 300,
+              ),
+              child: AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: page.bgColor,
+                    shape: BoxShape.circle,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: TappableScale(
+                    child: Image.network(
+                      page.imageUrl,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
             ),
           )
               .animate(target: isActive ? 1 : 0)
@@ -197,7 +213,7 @@ class _PageContent extends StatelessWidget {
               )
               .fadeIn(duration: const Duration(milliseconds: 400)),
 
-          const SizedBox(height: 40),
+          const SizedBox(height: 24),
 
           // Title
           Text(
@@ -205,8 +221,8 @@ class _PageContent extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(
               fontSize: 26,
-              fontWeight: FontWeight.w800,
-              color: ShowSnapColors.onBackground,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
               height: 1.2,
             ),
           )

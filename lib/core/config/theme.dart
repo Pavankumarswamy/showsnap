@@ -18,12 +18,12 @@ class SeatColors {
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
 class ShowSnapColors {
-  static const Color primary = Color(0xFF939450);
-  static const Color primaryLight = Color(0xFFA7A864);
-  static const Color primaryLighter = Color(0xFFBBBC78);
-  static const Color secondary = Color(0xFF4A4B28);
-  static const Color background = Color(0xFF121314);
-  static const Color surface = Color(0xFF1E2124);
+  static const Color primary = Color(0xFFA6A25A);
+  static const Color primaryLight = Color(0xFFB5B270);
+  static const Color primaryLighter = Color(0xFFC4C286);
+  static const Color secondary = Color(0xFF5E5C32);
+  static const Color background = Color(0xFF121212);
+  static const Color surface = Color(0xFF1A1A1A);
   static const Color error = Color(0xFFD32F2F);
   static const Color onPrimary = Color(0xFF000000);
   static const Color onSecondary = Color(0xFFFFFFFF);
@@ -59,9 +59,9 @@ class ShowSnapShadow {
 
   static List<BoxShadow> get elevated => [
         BoxShadow(
-            color: const Color(0xFFF5A800).withOpacity(0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 8)),
+            color: ShowSnapColors.primary.withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4)),
       ];
 
   static List<BoxShadow> get none => [];
