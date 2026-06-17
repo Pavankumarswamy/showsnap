@@ -1,3 +1,13 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_windows/webview_windows.dart' as win_web;
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import '../../../core/widgets/showsnap_toast.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -43,11 +53,26 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
   String? _existingPosterUrl;
   String _status = 'draft';
 
+  LatLng _selectedLocation = const LatLng(20.5937, 78.9629); // Default center
+  WebViewController? _webViewController;
+  final win_web.WebviewController _windowsWebViewController = win_web.WebviewController();
+  bool _isWebViewInitialized = false;
+  bool _webViewInitFailed = false;
+  
+  String _fetchedCity = '';
+  String _fetchedAddress = '';
+  bool _isLoadingAddress = false;
+
   @override
   void initState() {
     super.initState();
+    _initWebView();
     if (widget.eventId != null) {
       _loadEvent();
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fetchCurrentLocation();
+      });
     }
   }
 
@@ -66,6 +91,12 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
       _posterCtrl.text = event.posterUrl;
       _existingPosterUrl = event.posterUrl;
       _category = event.category;
+      
+      if (event.lat != 0 && event.lng != 0) {
+        _selectedLocation = LatLng(event.lat, event.lng);
+        _fetchedCity = event.city;
+        _fetchedAddress = event.venueName;
+      }
 
       final startDt = DateTime.fromMillisecondsSinceEpoch(event.startTs);
       _startDate = startDt;
@@ -95,6 +126,231 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
     _descCtrl.dispose();
     _posterCtrl.dispose();
     super.dispose();
+  }
+
+  String _generateMapboxHTML(LatLng center) {
+    final token = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
+    return '''
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+        <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+        <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+        <style>
+          body { margin: 0; padding: 0; }
+          #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+          .mapboxgl-ctrl-bottom-left, .mapboxgl-ctrl-bottom-right { display: none !important; }
+        </style>
+      </head>
+      <body>
+        <div id="map"></div>
+        <script>
+          mapboxgl.accessToken = '$token';
+          var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/streets-v12',
+            center: [${center.longitude}, ${center.latitude}],
+            zoom: 14
+          });
+
+          var marker = new mapboxgl.Marker({ color: '#E50914' })
+            .setLngLat([${center.longitude}, ${center.latitude}])
+            .addTo(map);
+
+          map.on('click', function(e) {
+            marker.setLngLat([e.lngLat.lng, e.lngLat.lat]);
+            var msg = JSON.stringify({
+                type: 'MAP_CLICK',
+                lat: e.lngLat.lat,
+                lng: e.lngLat.lng
+              });
+            if (window.MapChannel) {
+              window.MapChannel.postMessage(msg);
+            }
+            if (window.chrome && window.chrome.webview) {
+              window.chrome.webview.postMessage(msg);
+            }
+          });
+
+          window.updateMarker = function(lng, lat) {
+             marker.setLngLat([lng, lat]);
+             map.flyTo({ center: [lng, lat], zoom: 14 });
+          };
+        </script>
+      </body>
+    </html>
+    ''';
+  }
+
+  Future<void> _initWebView() async {
+    if (!kIsWeb && Platform.isWindows) {
+      try {
+        await _windowsWebViewController.initialize();
+        _windowsWebViewController.webMessage.listen((message) {
+          try {
+            final data = jsonDecode(message);
+            if (data['type'] == 'MAP_CLICK') {
+              final lat = data['lat'] as double;
+              final lng = data['lng'] as double;
+              _reverseGeocode(LatLng(lat, lng));
+            }
+          } catch (e) {
+            debugPrint('Web message error: $e');
+          }
+        });
+        await _windowsWebViewController.loadStringContent(_generateMapboxHTML(_selectedLocation));
+      } catch (e) {
+        debugPrint('Windows WebView initialization failed: $e');
+        if (mounted) setState(() => _webViewInitFailed = true);
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isWebViewInitialized = true;
+          });
+        }
+      }
+      return;
+    }
+
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) {
+      setState(() {
+        _isWebViewInitialized = true;
+      });
+      return;
+    }
+
+    try {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.transparent)
+        ..addJavaScriptChannel(
+          'MapChannel',
+          onMessageReceived: (message) {
+            final data = jsonDecode(message.message);
+            if (data['type'] == 'MAP_CLICK') {
+              final lat = data['lat'] as double;
+              final lng = data['lng'] as double;
+              _reverseGeocode(LatLng(lat, lng));
+            }
+          },
+        );
+      _loadMapHtml(_selectedLocation);
+      if (mounted) {
+        setState(() {
+          _isWebViewInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('WebViewController initialization failed: $e');
+      if (mounted) {
+        setState(() {
+          _webViewInitFailed = true;
+          _isWebViewInitialized = true;
+        });
+      }
+    }
+  }
+
+  void _loadMapHtml(LatLng location) {
+    if (!kIsWeb && Platform.isWindows) {
+      if (!_webViewInitFailed) {
+        _windowsWebViewController.loadStringContent(_generateMapboxHTML(location));
+      }
+      return;
+    }
+    if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) return;
+    _webViewController?.loadHtmlString(_generateMapboxHTML(location));
+  }
+
+  void _updateMarkerInWebView(LatLng location) {
+    final script = 'if(window.updateMarker) window.updateMarker(${location.longitude}, ${location.latitude});';
+    if (!kIsWeb && Platform.isWindows) {
+      if (!_webViewInitFailed) {
+        _windowsWebViewController.executeScript(script);
+      }
+    } else if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) {
+      return;
+    } else {
+      _webViewController?.runJavaScript(script);
+    }
+  }
+
+  Future<void> _reverseGeocode(LatLng point) async {
+    setState(() {
+      _selectedLocation = point;
+      _isLoadingAddress = true;
+    });
+
+    final token = dotenv.env['MAPBOX_ACCESS_TOKEN'];
+    if (token == null || token.isEmpty) {
+      setState(() {
+        _fetchedCity = 'Unknown City';
+        _fetchedAddress = '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}';
+        _isLoadingAddress = false;
+      });
+      return;
+    }
+
+    try {
+      final res = await http.get(Uri.parse(
+          'https://api.mapbox.com/geocoding/v5/mapbox.places/${point.longitude},${point.latitude}.json?access_token=$token'));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        if (data['features'] != null && data['features'].isNotEmpty) {
+          final place = data['features'][0];
+          String city = '';
+          if (place['context'] != null) {
+            for (var c in place['context']) {
+              if ((c['id'] as String).startsWith('place')) {
+                city = c['text'];
+                break;
+              }
+            }
+          }
+          if (city.isEmpty && place['place_type'].contains('place')) {
+            city = place['text'];
+          }
+
+          setState(() {
+            _fetchedAddress = place['place_name'] ?? place['text'] ?? '';
+            _fetchedCity = city.isEmpty ? 'Unknown City' : city;
+            _cityCtrl.text = _fetchedCity;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Reverse geocode failed: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingAddress = false);
+    }
+  }
+
+  Future<void> _fetchCurrentLocation() async {
+    setState(() => _isLoadingAddress = true);
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions denied');
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions permanently denied');
+      }
+
+      final position = await Geolocator.getCurrentPosition();
+      final newLocation = LatLng(position.latitude, position.longitude);
+      
+      _updateMarkerInWebView(newLocation);
+      await _reverseGeocode(newLocation);
+    } catch (e) {
+      if (mounted) ShowSnapToast.error(context, 'Error getting location: $e');
+      setState(() => _isLoadingAddress = false);
+    }
   }
 
   Future<void> _pickStart() async {
@@ -288,6 +544,8 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
         city: _cityCtrl.text.trim(),
         startTs: startTs,
         endTs: endTs,
+        lat: _selectedLocation.latitude,
+        lng: _selectedLocation.longitude,
         category: _category,
         description: _descCtrl.text.trim(),
         posterUrl: posterUrl,
@@ -380,6 +638,87 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
                 ),
               ],
             ).animate().fadeIn(duration: 300.ms, delay: 200.ms).slideY(begin: 0.05, end: 0),
+            const SizedBox(height: 16),
+            _SectionHeader('Venue Location')
+              .animate()
+              .fadeIn(duration: 300.ms, delay: 220.ms),
+            const SizedBox(height: 12),
+            Container(
+              height: 250,
+              decoration: BoxDecoration(
+                color: ShowSnapColors.grey100,
+                borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                border: Border.all(color: ShowSnapColors.grey300),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _isWebViewInitialized
+                  ? (_webViewInitFailed || (!kIsWeb && (Platform.isLinux || Platform.isMacOS)))
+                      ? (dotenv.env['MAPBOX_ACCESS_TOKEN']?.isNotEmpty == true)
+                          ? Image.network(
+                              'https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+ea4335(${_selectedLocation.longitude},${_selectedLocation.latitude})/${_selectedLocation.longitude},${_selectedLocation.latitude},14,0/600x300?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN']}',
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => const Center(child: Text('Map preview unavailable')),
+                            )
+                          : Container(
+                              color: ShowSnapColors.grey100,
+                              child: const Center(
+                                child: Text('MAPBOX_ACCESS_TOKEN missing in .env\nCannot load static map.', textAlign: TextAlign.center, style: TextStyle(color: ShowSnapColors.grey600)),
+                              ),
+                            )
+                      : (!kIsWeb && Platform.isWindows)
+                          ? win_web.Webview(_windowsWebViewController)
+                          : WebViewWidget(controller: _webViewController!)
+                  : const Center(child: CircularProgressIndicator()),
+            ).animate().fadeIn(duration: 300.ms, delay: 230.ms).slideY(begin: 0.05, end: 0),
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Tap map or use your current location:', 
+                    style: TextStyle(color: ShowSnapColors.grey600, fontSize: 13)),
+                  ElevatedButton.icon(
+                    onPressed: _fetchCurrentLocation,
+                    icon: const Icon(Icons.my_location, size: 16, color: ShowSnapColors.primary),
+                    label: const Text('My Location', style: TextStyle(color: ShowSnapColors.primary)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ShowSnapColors.primary.withOpacity(0.1),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (_fetchedAddress.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ShowSnapColors.grey100,
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+                    border: Border.all(color: ShowSnapColors.grey300),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.pin_drop, color: ShowSnapColors.primary, size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Fetched Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            const SizedBox(height: 4),
+                            Text('City: $_fetchedCity', style: const TextStyle(fontSize: 13)),
+                            Text('Full Address: $_fetchedAddress', style: TextStyle(color: ShowSnapColors.grey600, fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ).animate().fadeIn(),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               value: _category,

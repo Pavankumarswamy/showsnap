@@ -88,6 +88,7 @@ class _SeatMapWidgetState extends State<SeatMapWidget> {
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Curved movie screen indicator (attached to seats)
@@ -103,7 +104,7 @@ class _SeatMapWidgetState extends State<SeatMapWidget> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               SizedBox(
-                                width: double.infinity,
+                                width: (maxCol + 1) * 34.0,
                                 height: 20,
                                 child: CustomPaint(
                                   painter: _CurvedScreenPainter(

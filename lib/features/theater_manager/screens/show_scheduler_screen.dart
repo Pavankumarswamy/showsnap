@@ -14,7 +14,6 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
 import '../../../core/widgets/showsnap_toast.dart';
-import '../../movies/providers/booking_provider.dart';
 
 final _schedulerDataProvider = FutureProvider<
     ({
@@ -70,13 +69,12 @@ class ShowSchedulerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dataAsync = ref.watch(_schedulerDataProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: TMColors.background,
       drawer: TMDrawer(
         currentRoute: AppRoutes.showScheduler,
         onNavigateTo: (route) => context.push(route),
         theaterName: 'My Theater',
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: TMColors.surface,
@@ -126,30 +124,11 @@ class ShowSchedulerScreen extends ConsumerWidget {
               message: 'Add screens before scheduling shows.',
             );
           }
-          final showsAsync =
-              ref.watch(theaterShowsStreamProvider(data.theaterId));
-          return showsAsync.when(
-            loading: () => ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: 3,
-              itemBuilder: (_, __) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: StaffShimmerCard(
-                  height: 130,
-                  baseColor: TMColors.surface,
-                  highlightColor: TMColors.surfaceElevated,
-                ),
-              ),
-            ),
-            error: (e, _) => Center(
-                child: Text('Error: $e',
-                    style: const TextStyle(color: AdminColors.error))),
-            data: (realTimeShows) => _ShowGrid(
-              shows: realTimeShows,
-              screens: data.screens,
-              movies: data.movies,
-            ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.05, end: 0),
-          );
+          return _ShowGrid(
+            shows: data.shows,
+            screens: data.screens,
+            movies: data.movies,
+          ).animate().fadeIn(duration: 450.ms).slideY(begin: 0.05, end: 0);
         },
       ),
     );

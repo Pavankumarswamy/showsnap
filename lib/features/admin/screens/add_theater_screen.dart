@@ -46,9 +46,10 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
   String? _existingLogoUrl;
   
   LatLng _selectedLocation = const LatLng(20.5937, 78.9629); // Default center (India)
-  late final WebViewController _webViewController;
+  WebViewController? _webViewController;
   final win_web.WebviewController _windowsWebViewController = win_web.WebviewController();
   bool _isWebViewInitialized = false;
+  bool _webViewInitFailed = false;
 
   String _generateMapboxHTML(LatLng center) {
     final token = dotenv.env['MAPBOX_ACCESS_TOKEN'] ?? '';
@@ -109,24 +110,30 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
 
   Future<void> _initWebView() async {
     if (!kIsWeb && Platform.isWindows) {
-      await _windowsWebViewController.initialize();
-      _windowsWebViewController.webMessage.listen((message) {
-        try {
-          final data = jsonDecode(message);
-          if (data['type'] == 'MAP_CLICK') {
-            final lat = data['lat'] as double;
-            final lng = data['lng'] as double;
-            _reverseGeocode(LatLng(lat, lng));
+      try {
+        await _windowsWebViewController.initialize();
+        _windowsWebViewController.webMessage.listen((message) {
+          try {
+            final data = jsonDecode(message);
+            if (data['type'] == 'MAP_CLICK') {
+              final lat = data['lat'] as double;
+              final lng = data['lng'] as double;
+              _reverseGeocode(LatLng(lat, lng));
+            }
+          } catch (e) {
+            debugPrint('Web message error: $e');
           }
-        } catch (e) {
-          debugPrint('Web message error: $e');
-        }
-      });
-      await _windowsWebViewController.loadStringContent(_generateMapboxHTML(_selectedLocation));
-      if (mounted) {
-        setState(() {
-          _isWebViewInitialized = true;
         });
+        await _windowsWebViewController.loadStringContent(_generateMapboxHTML(_selectedLocation));
+      } catch (e) {
+        debugPrint('Windows WebView initialization failed: $e');
+        if (mounted) setState(() => _webViewInitFailed = true);
+      } finally {
+        if (mounted) {
+          setState(() {
+            _isWebViewInitialized = true;
+          });
+        }
       }
       return;
     }
@@ -138,44 +145,59 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
       return; // Skip WebView setup for unsupported desktop platforms
     }
 
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.transparent)
-      ..addJavaScriptChannel(
-        'MapChannel',
-        onMessageReceived: (message) {
-          final data = jsonDecode(message.message);
-          if (data['type'] == 'MAP_CLICK') {
-            final lat = data['lat'] as double;
-            final lng = data['lng'] as double;
-            _reverseGeocode(LatLng(lat, lng));
-          }
-        },
-      );
-    _loadMapHtml(_selectedLocation);
-    setState(() {
-      _isWebViewInitialized = true;
-    });
+    try {
+      _webViewController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(Colors.transparent)
+        ..addJavaScriptChannel(
+          'MapChannel',
+          onMessageReceived: (message) {
+            final data = jsonDecode(message.message);
+            if (data['type'] == 'MAP_CLICK') {
+              final lat = data['lat'] as double;
+              final lng = data['lng'] as double;
+              _reverseGeocode(LatLng(lat, lng));
+            }
+          },
+        );
+      _loadMapHtml(_selectedLocation);
+      if (mounted) {
+        setState(() {
+          _isWebViewInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('WebViewController initialization failed: $e');
+      if (mounted) {
+        setState(() {
+          _webViewInitFailed = true;
+          _isWebViewInitialized = true;
+        });
+      }
+    }
   }
 
   void _loadMapHtml(LatLng location) {
     if (!kIsWeb && Platform.isWindows) {
-      // For windows, we can just run JS to update marker or reload string
-      _windowsWebViewController.loadStringContent(_generateMapboxHTML(location));
+      if (!_webViewInitFailed) {
+        _windowsWebViewController.loadStringContent(_generateMapboxHTML(location));
+      }
       return;
     }
     if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) return;
-    _webViewController.loadHtmlString(_generateMapboxHTML(location));
+    _webViewController?.loadHtmlString(_generateMapboxHTML(location));
   }
 
   void _updateMarkerInWebView(LatLng location) {
     final script = 'if(window.updateMarker) window.updateMarker(${location.longitude}, ${location.latitude});';
     if (!kIsWeb && Platform.isWindows) {
-      _windowsWebViewController.executeScript(script);
+      if (!_webViewInitFailed) {
+        _windowsWebViewController.executeScript(script);
+      }
     } else if (!kIsWeb && (Platform.isLinux || Platform.isMacOS)) {
       return;
     } else {
-      _webViewController.runJavaScript(script);
+      _webViewController?.runJavaScript(script);
     }
   }
 
@@ -196,6 +218,11 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
     _initWebView();
     if (widget.theaterId != null) {
       _loadExistingTheater();
+    } else {
+      // Automatically fetch current location for new theaters
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fetchCurrentLocation();
+      });
     }
   }
 
@@ -476,23 +503,22 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
               ),
               clipBehavior: Clip.antiAlias,
               child: _isWebViewInitialized
-                  ? (!kIsWeb && Platform.isWindows)
-                      ? win_web.Webview(_windowsWebViewController)
-                      : (!kIsWeb && (Platform.isLinux || Platform.isMacOS))
-                          ? Container(
+                  ? (_webViewInitFailed || (!kIsWeb && (Platform.isLinux || Platform.isMacOS)))
+                      ? (dotenv.env['MAPBOX_ACCESS_TOKEN']?.isNotEmpty == true)
+                          ? Image.network(
+                              'https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+ea4335(${_selectedLocation.longitude},${_selectedLocation.latitude})/${_selectedLocation.longitude},${_selectedLocation.latitude},14,0/600x300?access_token=${dotenv.env['MAPBOX_ACCESS_TOKEN']}',
+                              fit: BoxFit.cover,
+                              errorBuilder: (c, e, s) => const Center(child: Text('Map preview unavailable')),
+                            )
+                          : Container(
                               color: ShowSnapColors.grey100,
                               child: const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: Text(
-                                    'Map is not supported on Desktop natively yet.\nPlease use the app on Web or Mobile.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: ShowSnapColors.grey600),
-                                  ),
-                                ),
+                                child: Text('MAPBOX_ACCESS_TOKEN missing in .env\nCannot load static map.', textAlign: TextAlign.center, style: TextStyle(color: ShowSnapColors.grey600)),
                               ),
                             )
-                          : WebViewWidget(controller: _webViewController)
+                      : (!kIsWeb && Platform.isWindows)
+                          ? win_web.Webview(_windowsWebViewController)
+                          : WebViewWidget(controller: _webViewController!)
                   : const Center(child: CircularProgressIndicator()),
             ).animate().fadeIn(duration: 300.ms, delay: 300.ms).slideY(begin: 0.05, end: 0),
             Padding(

@@ -344,7 +344,7 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       SizedBox(
-                                        width: double.infinity,
+                                        width: _gridCols * 32.0,
                                         height: 20,
                                         child: CustomPaint(
                                           painter: _CurvedScreenPainter(

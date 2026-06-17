@@ -35,7 +35,6 @@ class AdRequestsScreen extends ConsumerWidget {
         drawer: AdminDrawer(
           currentRoute: AppRoutes.adRequests,
           onNavigateTo: (route) => context.push(route),
-          onSignOut: () {},
         ),
         appBar: AppBar(
           backgroundColor: AdminColors.surface,

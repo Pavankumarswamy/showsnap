@@ -274,19 +274,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
           const SizedBox(height: 16),
 
           if (_activeCategory == 'Movies') ...[
-            // Recommended
-            if (feed.recommended.isNotEmpty)
-              _SectionHeader(
-                title: 'Recommended for You',
-                onSeeAll: () => context.push('/explore?tab=movies'),
-              ),
-            if (feed.recommended.isNotEmpty)
-              _HorizontalMovieList(movies: feed.recommended
-                  .map((m) => MovieCard(movie: m, heroTagSuffix: 'recommended')).toList())
-                  .animate()
-                  .fadeIn(duration: ShowSnapDuration.normal)
-                  .slideY(begin: 0.04, end: 0),
-            const SizedBox(height: 16),
+
 
             // Now Showing
             _SectionHeader(
@@ -318,94 +306,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
               const SizedBox(height: 16),
             ],
 
-            // Trending (ranked list style)
-            if (feed.trending.isNotEmpty) ...[
-              _SectionHeader(title: 'Trending This Week'),
-              ...feed.trending.take(5).toList().asMap().entries.map((e) {
-                final rank = e.key + 1;
-                final movie = e.value;
-                return TappableScale(
-                  onTap: () => context.push('/movie/${movie.movieId}'),
-                  child: Container(
-                    margin:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: ShowSnapColors.surface,
-                      borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-                      boxShadow: ShowSnapShadow.card,
-                    ),
-                    child: Row(
-                      children: [
-                        Text(
-                          '$rank',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            color: rank == 1
-                                ? ShowSnapColors.primary
-                                : ShowSnapColors.grey300,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: CachedNetworkImage(
-                            imageUrl: movie.posterUrl,
-                            width: 44,
-                            height: 60,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
-                              width: 44,
-                              height: 60,
-                              color: ShowSnapColors.grey300,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(movie.title,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 2),
-                              Text(
-                                movie.genres.take(2).join(' • '),
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: ShowSnapColors.grey600),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (movie.rating > 0) ...[
-                          const Icon(Icons.star_rounded,
-                              size: 14, color: ShowSnapColors.primary),
-                          const SizedBox(width: 2),
-                          Text(movie.rating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ],
-                    ),
-                  ),
-                )
-                    .animate()
-                    .fadeIn(
-                        duration: ShowSnapDuration.normal,
-                        delay: Duration(milliseconds: 400 + 50 * e.key))
-                    .slideX(
-                        begin: 0.05,
-                        end: 0,
-                        delay: Duration(milliseconds: 400 + 50 * e.key));
-              }),
-            ],
+
           ] else if (_activeCategory == 'Events') ...[
             // Events
             if (feed.events.isNotEmpty) ...[
@@ -481,7 +382,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                 onSeeAll: () => context.push('/explore?tab=events'),
               ),
               SizedBox(
-                height: 250, // Increased for new EventCard height
+                height: 200, // Adjusted to remove bottom gap
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,

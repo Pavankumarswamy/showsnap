@@ -10,7 +10,7 @@ import '../../../core/services/database_service.dart';
 // ─── Show Stream Provider ─────────────────────────────────────────────────────
 
 final showStreamProvider =
-    StreamProvider.family<ShowModel, String>((ref, showId) {
+    StreamProvider.family<ShowModel?, String>((ref, showId) {
   return ref.watch(databaseServiceProvider).streamShow(showId);
 });
 

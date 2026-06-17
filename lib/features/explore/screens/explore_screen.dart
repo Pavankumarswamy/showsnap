@@ -303,20 +303,38 @@ class _EventsTab extends ConsumerWidget {
                 ),
               )
             else
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 116),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (c, i) => Padding(
-                      padding: const EdgeInsets.only(bottom: 24),
-                      child: EventCard(event: events[i], width: double.infinity)
-                          .animate()
-                          .fadeIn(delay: Duration(milliseconds: 50 * i)),
-                    ),
-                    childCount: events.length,
+              ...AppConstants.eventCategories.map((category) {
+                final catEvents = events.where((e) => e.category.toLowerCase() == category.toLowerCase()).toList();
+                if (catEvents.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+                return SliverToBoxAdapter(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                        child: Text(category, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                      SizedBox(
+                        height: 280,
+                        child: ListView.separated(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          scrollDirection: Axis.horizontal,
+                          itemCount: catEvents.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 16),
+                          itemBuilder: (_, i) => SizedBox(
+                            width: 280, // Wide card, YT style
+                            child: EventCard(event: catEvents[i])
+                                .animate()
+                                .fadeIn(delay: Duration(milliseconds: 30 * i)),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                ),
-              ),
+                );
+              }),
+            const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
         );
       },

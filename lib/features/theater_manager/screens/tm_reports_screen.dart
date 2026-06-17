@@ -111,12 +111,11 @@ class TmReportsScreen extends ConsumerWidget {
     final reportAsync = ref.watch(_tmReportDataProvider);
     final period = ref.watch(_tmReportPeriodProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: TMColors.background,
       drawer: TMDrawer(
         currentRoute: AppRoutes.tmReports,
         onNavigateTo: (route) => context.push(route),
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: TMColors.surface,

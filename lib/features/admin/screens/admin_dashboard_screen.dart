@@ -138,7 +138,6 @@ class AdminDashboardScreen extends ConsumerWidget {
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminDashboard,
         onNavigateTo: (route) => context.push(route),
-        onSignOut: () => _signOut(context, ref),
       ),
       appBar: _buildAppBar(context, ref),
       body: Stack(

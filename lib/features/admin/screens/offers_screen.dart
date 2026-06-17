@@ -49,7 +49,6 @@ class _OffersScreenState extends ConsumerState<OffersScreen>
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminOffers,
         onNavigateTo: (route) => context.push(route),
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: AdminColors.surface,

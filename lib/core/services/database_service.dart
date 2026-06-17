@@ -20,11 +20,14 @@ class DatabaseService {
 
   // ─── Shows ───────────────────────────────────────────────────────────────
 
-  Stream<ShowModel> streamShow(String showId) {
+  Stream<ShowModel?> streamShow(String showId) {
     return _db
         .ref('${AppConstants.showsPath}/$showId')
         .onValue
-        .map((e) => ShowModel.fromJson(showId, e.snapshot.value as Map));
+        .map((e) {
+      if (!e.snapshot.exists || e.snapshot.value == null) return null;
+      return ShowModel.fromJson(showId, e.snapshot.value as Map);
+    });
   }
 
   Stream<List<ShowModel>> streamShowsForTheater(String theaterId) {

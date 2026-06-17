@@ -2,19 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timeline_tile/timeline_tile.dart';
 import '../../../core/config/router.dart';
 import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
-import '../../../core/models/movie_model.dart';
-import '../../../core/models/screen_model.dart';
 import '../../../core/models/show_model.dart';
 import '../../../core/models/theater_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
-import '../../../core/widgets/showsnap_toast.dart';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
@@ -125,20 +121,6 @@ final _tmDashStatsProvider = FutureProvider<_TmDashStats>((ref) async {
 class TmDashboardScreen extends ConsumerWidget {
   const TmDashboardScreen({super.key});
 
-  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
-    final ok = await StaffConfirmDialog.show(
-      context,
-      title: 'Sign Out',
-      message: 'Are you sure you want to sign out?',
-      confirmLabel: 'Sign Out',
-      isDangerous: true,
-    );
-    if (ok == true && context.mounted) {
-      await ref.read(authServiceProvider).signOut();
-      if (context.mounted) context.go(AppRoutes.login);
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final statsAsync = ref.watch(_tmDashStatsProvider);
@@ -146,13 +128,12 @@ class TmDashboardScreen extends ConsumerWidget {
     final theaterName =
         theaterAsync.valueOrNull?.name ?? 'My Theater';
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: TMColors.background,
       drawer: TMDrawer(
         currentRoute: AppRoutes.tmDashboard,
         theaterName: theaterName,
         onNavigateTo: (route) => context.push(route),
-        onSignOut: () => _signOut(context, ref),
       ),
       appBar: AppBar(
         backgroundColor: TMColors.surface,
@@ -179,14 +160,11 @@ class TmDashboardScreen extends ConsumerWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () => _signOut(context, ref),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor: TMColors.primaryGlow,
-                child: const Icon(Icons.person,
-                    color: TMColors.primary, size: 18),
-              ),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: TMColors.primaryGlow,
+              child: const Icon(Icons.person,
+                  color: TMColors.primary, size: 18),
             ),
           ),
         ],
@@ -311,38 +289,16 @@ class TmDashboardScreen extends ConsumerWidget {
   Widget _buildContent(
       BuildContext context, WidgetRef ref, _TmDashStats stats) {
     return ListView(
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: const EdgeInsets.only(top: 20, bottom: 32),
       children: [
         // Snapshot cards
         _buildSnapshotCards(stats),
         const SizedBox(height: 24),
-        // Today's show timeline
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  const Text(
-                    "Today's Shows",
-                    style: TextStyle(
-                        color: TMColors.textPrimary,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: () => context.push(AppRoutes.showScheduler),
-                    child: const Text('View All',
-                        style: TextStyle(
-                            color: TMColors.primary, fontSize: 13)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              _buildShowTimeline(context, stats),
-              const SizedBox(height: 24),
               // Recent bookings
               const Text(
                 'Recent Bookings',
@@ -456,84 +412,6 @@ class TmDashboardScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Widget _buildShowTimeline(BuildContext context, _TmDashStats stats) {
-    if (stats.todayShowList.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: TMColors.surface,
-          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-          border: Border.all(color: TMColors.border),
-        ),
-        child: StaffEmptyState(
-          icon: Icons.schedule_outlined,
-          message: 'No shows scheduled for today',
-          ctaLabel: 'Schedule a Show',
-          onCta: () => context.push(AppRoutes.showScheduler),
-          iconColor: TMColors.primary,
-        ),
-      );
-    }
-
-    final now = DateTime.now().millisecondsSinceEpoch;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-      ),
-      child: Column(
-        children: stats.todayShowList.asMap().entries.map((entry) {
-          final i = entry.key;
-          final show = entry.value;
-          final isFirst = i == 0;
-          final isLast = i == stats.todayShowList.length - 1;
-          final isActive =
-              show.startTs <= now && show.endTs >= now;
-          final isPast = show.endTs < now;
-
-          final dotColor = isActive
-              ? TMColors.success
-              : isPast
-                  ? TMColors.textMuted
-                  : TMColors.primary;
-
-          return TimelineTile(
-            isFirst: isFirst,
-            isLast: isLast,
-            axis: TimelineAxis.vertical,
-            alignment: TimelineAlign.start,
-            indicatorStyle: IndicatorStyle(
-              width: 14,
-              height: 14,
-              color: dotColor,
-              padding: const EdgeInsets.all(2),
-              indicator: isActive
-                  ? _PulsingDot(color: dotColor)
-                  : null,
-            ),
-            beforeLineStyle:
-                LineStyle(color: TMColors.border, thickness: 2),
-            afterLineStyle:
-                LineStyle(color: TMColors.border, thickness: 2),
-            endChild: _ShowTimelineRow(
-              show: show,
-              isActive: isActive,
-              isPast: isPast,
-              movieTitle: stats.movieTitles[show.movieId] ?? 'Unknown',
-              screenName: stats.screenNames[show.screenId] ?? '',
-              onTap: () => context.push(
-                AppRoutes.tmShowDetails.replaceFirst(':id', show.showId),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    ).animate().fadeIn(duration: 500.ms, delay: 300.ms);
-  }
-
   Widget _buildRecentBookings(_TmDashStats stats) {
     if (stats.recentBookings.isEmpty) {
       return Container(
@@ -697,150 +575,3 @@ class TmDashboardScreen extends ConsumerWidget {
   }
 }
 
-// ─── Show Timeline Row ────────────────────────────────────────────────────────
-
-class _ShowTimelineRow extends StatelessWidget {
-  final ShowModel show;
-  final bool isActive;
-  final bool isPast;
-  final VoidCallback onTap;
-  final String movieTitle;
-  final String screenName;
-
-  const _ShowTimelineRow({
-    required this.show,
-    required this.isActive,
-    required this.isPast,
-    required this.onTap,
-    required this.movieTitle,
-    required this.screenName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final statusColor = isActive
-        ? TMColors.success
-        : isPast
-            ? TMColors.textMuted
-            : TMColors.primary;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(left: 8, top: 4, bottom: 4, right: 4),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isActive
-              ? TMColors.success.withOpacity(0.05)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
-          border: isActive
-              ? Border.all(color: TMColors.success.withOpacity(0.3))
-              : null,
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 60,
-              child: Text(
-                show.startTs.epochToTimeLabel,
-                style: TextStyle(
-                  color: statusColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    movieTitle,
-                    style: TextStyle(
-                      color: isPast
-                          ? TMColors.textMuted
-                          : TMColors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    screenName,
-                    style: const TextStyle(
-                        color: TMColors.textSecondary, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            if (isActive)
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: TMColors.success.withOpacity(0.15),
-                  borderRadius:
-                      BorderRadius.circular(ShowSnapRadius.pill),
-                ),
-                child: const Text(
-                  'Live',
-                  style: TextStyle(
-                      color: TMColors.success,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold),
-                ),
-              )
-            else
-              const Icon(Icons.chevron_right,
-                  color: TMColors.textMuted, size: 16),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ─── Pulsing Dot (for live show) ─────────────────────────────────────────────
-
-class _PulsingDot extends StatefulWidget {
-  final Color color;
-  const _PulsingDot({required this.color});
-
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) => Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: widget.color.withOpacity(0.4 + _ctrl.value * 0.6),
-        ),
-      ),
-    );
-  }
-}

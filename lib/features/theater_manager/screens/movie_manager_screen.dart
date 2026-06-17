@@ -65,13 +65,12 @@ class MovieManagerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final moviesAsync = ref.watch(_tmMoviesProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: TMColors.background,
       drawer: TMDrawer(
         currentRoute: AppRoutes.movieManager,
         onNavigateTo: (route) => context.push(route),
         theaterName: 'My Theater',
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: TMColors.surface,

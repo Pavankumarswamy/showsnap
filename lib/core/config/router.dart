@@ -15,6 +15,7 @@ import '../../features/movies/screens/seat_selection_screen.dart';
 import '../../features/events/screens/event_detail_screen.dart';
 import '../../features/checkout/screens/order_summary_screen.dart';
 import '../../features/checkout/screens/ticket_screen.dart';
+import '../../features/events/screens/event_order_summary_screen.dart';
 import '../../features/bookings/screens/my_bookings_screen.dart';
 import '../../features/offers/screens/offers_screen.dart';
 import '../../features/user_dashboard/screens/user_dashboard_screen.dart';
@@ -65,6 +66,7 @@ class AppRoutes {
   static const String showSelection = '/show-selection/:movieId';
   static const String seatSelection = '/seat-selection/:showId';
   static const String eventDetail = '/event/:eventId';
+  static const String eventSummary = '/event-summary';
   static const String orderSummary = '/order-summary';
   static const String ticket = '/ticket/:bookingId';
   static const String adminDashboard = '/admin';
@@ -182,23 +184,19 @@ final routerProvider = Provider<GoRouter>((ref) {
         // Logged-in users should never see auth screens
         final onAuthRoute = authRoutes.contains(loc);
 
-        // Admin must always be inside /admin
-        if (isAdmin && (!loc.startsWith('/admin') || onAuthRoute)) {
+        // Staff default routes (redirect from auth or root)
+        if (isAdmin && (loc == '/' || onAuthRoute)) {
           return AppRoutes.adminDashboard;
         }
-
-        // Theater manager must always be inside /tm
-        if (isTM && (!loc.startsWith('/tm') || onAuthRoute)) {
+        if (isTM && (loc == '/' || onAuthRoute)) {
           return AppRoutes.tmDashboard;
         }
-
-        // Event manager must always be inside /em
-        if (isEM && (!loc.startsWith('/em') || onAuthRoute)) {
+        if (isEM && (loc == '/' || onAuthRoute)) {
           return AppRoutes.emDashboard;
         }
 
         // Regular user — redirect away from auth screens
-        if (!isAdmin && !isTM && !isEM && onAuthRoute) {
+        if (!isAdmin && !isTM && !isEM && (loc == '/' || onAuthRoute)) {
           return AppRoutes.home;
         }
       }
@@ -315,6 +313,20 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Checkout (vertical) ───────────────────────────────────────────────
+      GoRoute(
+          path: AppRoutes.eventSummary,
+          pageBuilder: (context, state) {
+            final extra = state.extra as Map<String, dynamic>? ?? {};
+            return _fadePage(
+              context,
+              state,
+              EventOrderSummaryScreen(
+                eventId: extra['eventId'] as String? ?? '',
+                tierQuantities: extra['tierQuantities'] as Map<int, int>? ?? {},
+              ),
+            );
+          },
+        ),
       GoRoute(
         path: AppRoutes.orderSummary,
         pageBuilder: (c, s) {

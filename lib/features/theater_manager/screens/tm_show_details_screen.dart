@@ -4,11 +4,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../movies/providers/booking_provider.dart';
 import '../../movies/widgets/seat_map_widget.dart';
 import '../../../core/config/theme.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/seat_model.dart';
 import '../../../core/models/seat_status_model.dart';
@@ -65,22 +67,18 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
     });
   }
 
-  void _showBookingDialog(
+  Future<void> _confirmBooking(
     ShowModel show,
     ScreenModel screen,
     MovieModel movie,
     TheaterModel theater,
-  ) {
+  ) async {
     // Generate the Firebase push ID beforehand so the QR code can render it
     final bookingsRef = FirebaseDatabase.instance.ref().child('bookings');
     final bookingId = bookingsRef.push().key ?? 'booking_${DateTime.now().millisecondsSinceEpoch}';
 
-    final dt = DateTime.fromMillisecondsSinceEpoch(show.startTs);
-    final formattedDateTime = DateFormat('EEE, d MMM yyyy • h:mm a').format(dt);
-
     final seatInfos = <BookedSeatInfo>[];
     int subtotal = 0;
-    final seatLabels = <String>[];
 
     for (final seatId in _selectedSeatIds) {
       final seatModel = screen.seatLayout.firstWhere(
@@ -89,7 +87,6 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
       );
       final price = show.priceForCategory(seatModel.category.name);
       subtotal += price;
-      seatLabels.add('${seatModel.row}${seatModel.number}');
       seatInfos.add(BookedSeatInfo(
         seatId: seatId,
         row: seatModel.row,
@@ -99,343 +96,58 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
       ));
     }
 
-    String bookingState = 'input'; // 'input', 'processing', 'success', 'error'
-    String statusMessage = '';
-    String errorMessage = '';
-    String cloudinaryUrl = '';
-
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          // 1. Input State
-          if (bookingState == 'input') {
-            return AlertDialog(
-              title: const Text('Confirm Offline Booking'),
-              content: SizedBox(
-                width: 320,
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextFormField(
-                          controller: _phoneController,
-                          keyboardType: TextInputType.phone,
-                          decoration: const InputDecoration(
-                            labelText: 'Customer WhatsApp Number',
-                            prefixText: '+91 ',
-                            hintText: '10-digit number',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.phone),
-                          ),
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Please enter a phone number';
-                            }
-                            final clean = value.replaceAll(RegExp(r'\D'), '');
-                            if (clean.length != 10) {
-                              return 'Please enter a valid 10-digit number';
-                            }
-                            return null;
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Verify details below. Confirming will save the booking, download the PNG ticket, and open the WhatsApp send dialog.',
-                          style: TextStyle(fontSize: 12, color: ShowSnapColors.grey600),
-                        ),
-                        const SizedBox(height: 16),
-                        RepaintBoundary(
-                          key: _ticketBoundaryKey,
-                          child: _TicketCard(
-                            bookingId: bookingId,
-                            movieTitle: movie.title,
-                            theaterName: theater.name,
-                            screenName: screen.name,
-                            formattedDateTime: formattedDateTime,
-                            seatLabels: seatLabels,
-                            totalAmount: subtotal,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('CANCEL'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (!_formKey.currentState!.validate()) return;
-                    
-                    setDialogState(() {
-                      bookingState = 'processing';
-                      statusMessage = 'Saving booking to database...';
-                    });
-
-                    try {
-                      // 1. Create booking model
-                      final booking = BookingModel(
-                        bookingId: bookingId,
-                        uid: 'offline_counter',
-                        showId: show.showId,
-                        movieId: show.movieId,
-                        movieTitle: movie.title,
-                        theaterId: show.theaterId,
-                        theaterName: theater.name,
-                        screenId: show.screenId,
-                        screenName: screen.name,
-                        showStartTs: show.startTs,
-                        seats: seatInfos,
-                        subtotal: subtotal,
-                        convenienceFee: 0,
-                        totalAmount: subtotal,
-                        status: BookingStatus.confirmed,
-                        createdAt: DateTime.now().millisecondsSinceEpoch,
-                      );
-
-                      // 2. Save to database
-                      await ref
-                          .read(databaseServiceProvider)
-                          .createBookingWithId(bookingId, booking);
-
-                      setDialogState(() {
-                        statusMessage = 'Generating ticket PNG...';
-                      });
-
-                      // 3. Render ticket to PNG
-                      // Add a small delay to make sure UI is fully settled
-                      await Future.delayed(const Duration(milliseconds: 250));
-                      final boundary = _ticketBoundaryKey.currentContext
-                          ?.findRenderObject() as RenderRepaintBoundary?;
-                      if (boundary == null) {
-                        throw Exception('Ticket render boundary not found');
-                      }
-                      final image = await boundary.toImage(pixelRatio: 3.0);
-                      final byteData =
-                          await image.toByteData(format: ui.ImageByteFormat.png);
-                      if (byteData == null) {
-                        throw Exception('Failed to convert image to bytes');
-                      }
-                      final pngBytes = byteData.buffer.asUint8List();
-
-                      setDialogState(() {
-                        statusMessage = 'Downloading ticket file...';
-                      });
-
-                      // 4. Download file locally
-                      await saveAndDownloadPng(pngBytes, 'ticket_$bookingId.png');
-
-                      setDialogState(() {
-                        statusMessage = 'Uploading ticket to cloud...';
-                      });
-
-                      // 5. Upload to Cloudinary to get an online link
-                      final url = await ref
-                          .read(cloudinaryServiceProvider)
-                          .uploadImageBytes(
-                            pngBytes,
-                            'ticket_$bookingId.png',
-                            AppConstants.cloudinaryEtickets,
-                          );
-
-                      setDialogState(() {
-                        bookingState = 'success';
-                        cloudinaryUrl = url;
-                      });
-                    } catch (e) {
-                      setDialogState(() {
-                        bookingState = 'error';
-                        errorMessage = e.toString();
-                      });
-                    }
-                  },
-                  child: const Text('CONFIRM & DOWNLOAD'),
-                ),
-              ],
-            );
-          }
-
-          // 2. Processing State
-          if (bookingState == 'processing') {
-            return AlertDialog(
-              title: const Text('Processing Booking'),
-              content: Container(
-                width: 320,
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(),
-                    const SizedBox(height: 24),
-                    Text(
-                      statusMessage,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: ShowSnapColors.onBackground,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          // 3. Success State
-          if (bookingState == 'success') {
-            final digits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
-            final phoneWithCountryCode = '91$digits';
-            final message = 'Hi! Here is your ShowSnap ticket for *${movie.title}* at *${theater.name}*:\n\n'
-                'Seats: *${seatLabels.join(', ')}*\n'
-                'Total: *₹$subtotal*\n\n'
-                'View Ticket: $cloudinaryUrl';
-            final whatsappUrl = 'https://wa.me/$phoneWithCountryCode?text=${Uri.encodeComponent(message)}';
-
-            return AlertDialog(
-              title: const Text(
-                'Booking Confirmed!',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              content: SizedBox(
-                width: 320,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: const BoxDecoration(
-                        color: ShowSnapColors.secondary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.check,
-                        color: Colors.white,
-                        size: 40,
-                      ),
-                    ).animate().scale(
-                          duration: 400.ms,
-                          curve: Curves.elasticOut,
-                        ),
-                    const SizedBox(height: 24),
-                    const Text(
-                      'Ticket has been generated and downloaded successfully.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: ShowSnapColors.onBackground,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Customer Phone: +91 $digits',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                        color: ShowSnapColors.grey600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Click below to open WhatsApp and send the ticket link to the customer.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: ShowSnapColors.grey600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _phoneController.clear();
-                    Navigator.pop(dialogContext); // Close dialog
-                    if (mounted) {
-                      setState(() {
-                        _selectedSeatIds.clear(); // Clear selection
-                      });
-                    }
-                  },
-                  child: const Text('CLOSE'),
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: ShowSnapColors.secondary,
-                    foregroundColor: Colors.white,
-                  ),
-                  onPressed: () async {
-                    await launchBrowserUrl(whatsappUrl);
-                  },
-                  icon: const Icon(Icons.send),
-                  label: const Text('SEND VIA WHATSAPP'),
-                ),
-              ],
-            );
-          }
-
-          // 4. Error State
-          return AlertDialog(
-            title: const Text('Booking Failed'),
-            content: SizedBox(
-              width: 320,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: const BoxDecoration(
-                      color: ShowSnapColors.error,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.error_outline,
-                      color: Colors.white,
-                      size: 40,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    errorMessage,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: ShowSnapColors.error,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(dialogContext);
-                },
-                child: const Text('CLOSE'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  setDialogState(() {
-                    bookingState = 'input';
-                  });
-                },
-                child: const Text('RETRY'),
-              ),
-            ],
-          );
-        },
+      builder: (ctx) => const AlertDialog(
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Confirming booking...'),
+          ],
+        ),
       ),
     );
+
+    try {
+      final booking = BookingModel(
+        bookingId: bookingId,
+        uid: 'offline_counter',
+        showId: show.showId,
+        movieId: show.movieId,
+        movieTitle: movie.title,
+        theaterId: show.theaterId,
+        theaterName: theater.name,
+        screenId: show.screenId,
+        screenName: screen.name,
+        showStartTs: show.startTs,
+        seats: seatInfos,
+        subtotal: subtotal,
+        convenienceFee: 0,
+        totalAmount: subtotal,
+        status: BookingStatus.confirmed,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      await ref
+          .read(databaseServiceProvider)
+          .createBookingWithId(bookingId, booking);
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        context.push('/ticket/$bookingId');
+        setState(() {
+          _selectedSeatIds.clear(); // Clear selection after booking
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+        context.showSnackbar('Booking failed: $e', isError: true);
+      }
+    }
   }
 
   @override
@@ -443,59 +155,53 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
     final showAsync = ref.watch(showStreamProvider(widget.showId));
 
     return Scaffold(
+      backgroundColor: TMColors.background,
       appBar: AppBar(
-        title: const Text('Box Office'),
-        toolbarHeight: 70,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(35),
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        flexibleSpace: Container(
-          decoration:
-              BoxDecoration(gradient: ShowSnapTheme.appBarGradient),
-        ),
+        backgroundColor: TMColors.surface,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Box Office', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
       body: showAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        loading: () => const Center(child: CircularProgressIndicator(color: TMColors.primary)),
+        error: (e, _) => Center(child: Text('Error: $e', style: const TextStyle(color: AdminColors.error))),
         data: (show) {
+          if (show == null) return const Center(child: Text('Show not found', style: TextStyle(color: TMColors.textMuted)));
           final screenAsync = ref.watch(screenProvider(show.screenId));
           final movieAsync = ref.watch(movieProvider(show.movieId));
           final theaterAsync = ref.watch(theaterProvider(show.theaterId));
 
           return screenAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(child: Text('Error loading screen layout: $e')),
+            loading: () => const Center(child: CircularProgressIndicator(color: TMColors.primary)),
+            error: (e, _) => Center(child: Text('Error loading screen layout: $e', style: const TextStyle(color: AdminColors.error))),
             data: (screen) {
               if (screen == null) {
-                return const Center(child: Text('Screen layout not found'));
+                return const Center(child: Text('Screen layout not found', style: TextStyle(color: TMColors.textMuted)));
               }
               final layout = screen.seatLayout;
               final bookedCount = layout.length - show.seatsAvailable;
 
               return movieAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Error loading movie: $e')),
+                loading: () => const Center(child: CircularProgressIndicator(color: TMColors.primary)),
+                error: (e, _) => Center(child: Text('Error loading movie: $e', style: const TextStyle(color: AdminColors.error))),
                 data: (movie) {
                   if (movie == null) {
-                    return const Center(child: Text('Movie not found'));
+                    return const Center(child: Text('Movie not found', style: TextStyle(color: TMColors.textMuted)));
                   }
 
                   return theaterAsync.when(
-                    loading: () => const Center(child: CircularProgressIndicator()),
-                    error: (e, _) => Center(child: Text('Error loading theater: $e')),
+                    loading: () => const Center(child: CircularProgressIndicator(color: TMColors.primary)),
+                    error: (e, _) => Center(child: Text('Error loading theater: $e', style: const TextStyle(color: AdminColors.error))),
                     data: (theater) {
                       if (theater == null) {
-                        return const Center(child: Text('Theater not found'));
+                        return const Center(child: Text('Theater not found', style: TextStyle(color: TMColors.textMuted)));
                       }
 
                       return Column(
                         children: [
                           Container(
                             padding: const EdgeInsets.all(16),
-                            color: ShowSnapColors.grey100,
+                            color: TMColors.surfaceElevated,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
@@ -503,11 +209,11 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
                                 _StatCard(
                                     label: 'Booked',
                                     value: '$bookedCount',
-                                    color: ShowSnapColors.error),
+                                    color: AdminColors.error),
                                 _StatCard(
                                     label: 'Available',
                                     value: '${show.seatsAvailable}',
-                                    color: ShowSnapColors.secondary),
+                                    color: AdminColors.success),
                               ],
                             ),
                           ).animate().fadeIn(duration: 400.ms).slideY(begin: -0.1, end: 0),
@@ -525,14 +231,8 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                               decoration: BoxDecoration(
-                                color: ShowSnapColors.surface,
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.05),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, -4),
-                                  ),
-                                ],
+                                color: TMColors.surface,
+                                border: const Border(top: BorderSide(color: TMColors.border)),
                               ),
                               child: SafeArea(
                                 child: Row(
@@ -547,25 +247,27 @@ class _TmShowDetailsScreenState extends ConsumerState<TmShowDetailsScreen> {
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: 16,
+                                            color: Colors.white,
                                           ),
                                         ),
                                         const Text(
                                           'Offline Counter Booking',
                                           style: TextStyle(
                                             fontSize: 12,
-                                            color: ShowSnapColors.grey600,
+                                            color: TMColors.textMuted,
                                           ),
                                         ),
                                       ],
                                     ),
-                                    ElevatedButton(
-                                      onPressed: () => _showBookingDialog(show, screen, movie, theater),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: ShowSnapColors.primary,
-                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                      ElevatedButton(
+                                        onPressed: () => _confirmBooking(show, screen, movie, theater),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: TMColors.primary,
+                                          foregroundColor: Colors.white,
+                                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                                        ),
+                                        child: const Text('CONFIRM'),
                                       ),
-                                      child: const Text('BOOK SEATS'),
-                                    ),
                                   ],
                                 ),
                               ),
@@ -598,9 +300,9 @@ class _StatCard extends StatelessWidget {
             style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: color ?? ShowSnapColors.primary)),
+                color: color ?? TMColors.primary)),
         Text(label,
-            style: const TextStyle(fontSize: 12, color: ShowSnapColors.grey600)),
+            style: const TextStyle(fontSize: 12, color: TMColors.textMuted)),
       ],
     );
   }

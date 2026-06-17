@@ -28,7 +28,6 @@ class AdminBannersScreen extends ConsumerWidget {
       drawer: AdminDrawer(
         currentRoute: AppRoutes.adminBanners,
         onNavigateTo: (route) => context.push(route),
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: AdminColors.surface,

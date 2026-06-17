@@ -111,13 +111,12 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: TMColors.background,
       drawer: TMDrawer(
         currentRoute: AppRoutes.ticketScanner,
         onNavigateTo: (route) => context.push(route),
         theaterName: 'My Theater',
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: TMColors.surface,

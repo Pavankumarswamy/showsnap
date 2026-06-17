@@ -31,13 +31,12 @@ class ScreenManagerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final screensAsync = ref.watch(_tmScreensProvider);
 
-    return Scaffold(
+    return PushDrawerLayout(
       backgroundColor: TMColors.background,
       drawer: TMDrawer(
         currentRoute: AppRoutes.screenManager,
         onNavigateTo: (route) => context.push(route),
         theaterName: 'My Theater',
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: TMColors.surface,

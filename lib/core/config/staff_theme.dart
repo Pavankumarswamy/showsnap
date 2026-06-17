@@ -1,7 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+import 'router.dart';
 import 'theme.dart';
+import '../../features/auth/providers/auth_provider.dart';
 
 // ─── Admin Palette — Dark Command Center ──────────────────────────────────────
 
@@ -29,23 +33,23 @@ class AdminColors {
 // ─── Theater Manager Palette — Warm Operational ───────────────────────────────
 
 class TMColors {
-  static const background = Color(0xFF1A1208);
-  static const surface = Color(0xFF261B0C);
-  static const surfaceElevated = Color(0xFF332410);
-  static const border = Color(0xFF4A3520);
+  static const background = AdminColors.background;
+  static const surface = AdminColors.surface;
+  static const surfaceElevated = AdminColors.surfaceElevated;
+  static const border = AdminColors.border;
 
-  static const primary = Color(0xFFF5A800);
-  static const primaryGlow = Color(0x40F5A800);
-  static const secondary = Color(0xFF8D6E63);
-  static const accent = Color(0xFFFF8F00);
+  static const primary = AdminColors.primary;
+  static const primaryGlow = AdminColors.primaryGlow;
+  static const secondary = AdminColors.secondary;
+  static const accent = AdminColors.primary;
 
-  static const success = Color(0xFF66BB6A);
-  static const warning = Color(0xFFFFCA28);
-  static const error = Color(0xFFEF5350);
+  static const success = AdminColors.success;
+  static const warning = AdminColors.warning;
+  static const error = AdminColors.error;
 
-  static const textPrimary = Color(0xFFF5E6D0);
-  static const textSecondary = Color(0xFFBCAAA4);
-  static const textMuted = Color(0xFF795548);
+  static const textPrimary = AdminColors.textPrimary;
+  static const textSecondary = AdminColors.textSecondary;
+  static const textMuted = AdminColors.textMuted;
 }
 
 // ─── Shared Staff Shadows ─────────────────────────────────────────────────────
@@ -390,7 +394,7 @@ class StaffConfirmDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AdminColors.surface,
+      backgroundColor: const Color(0xFF1C1C1F),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(ShowSnapRadius.md),
         side: const BorderSide(color: AdminColors.border),
@@ -542,18 +546,14 @@ class StaffSearchBar extends StatelessWidget {
 
 // ─── Admin Drawer ─────────────────────────────────────────────────────────────
 
-class AdminDrawer extends StatelessWidget {
+class AdminDrawer extends ConsumerWidget {
   final String currentRoute;
   final Function(String route) onNavigateTo;
-  final VoidCallback? onSignOut;
-  final VoidCallback? onClose;
 
   const AdminDrawer({
     super.key,
     required this.currentRoute,
     required this.onNavigateTo,
-    this.onSignOut,
-    this.onClose,
   });
 
   static const _items = [
@@ -567,8 +567,22 @@ class AdminDrawer extends StatelessWidget {
     _NavItem(Icons.analytics_rounded, 'Analytics', '/admin/analytics'),
   ];
 
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final ok = await StaffConfirmDialog.show(
+      context,
+      title: 'Sign Out',
+      message: 'Are you sure you want to sign out?',
+      confirmLabel: 'Sign Out',
+      isDangerous: true,
+    );
+    if (ok == true && context.mounted) {
+      await ref.read(authNotifierProvider.notifier).signOut();
+      if (context.mounted) context.go(AppRoutes.login);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Drawer(
       backgroundColor: AdminColors.surface,
       child: SafeArea(
@@ -629,8 +643,6 @@ class AdminDrawer extends StatelessWidget {
                       final pushLayout = context.findAncestorStateOfType<PushDrawerLayoutState>();
                       if (pushLayout != null) {
                         pushLayout.closeDrawer();
-                      } else if (onClose != null) {
-                        onClose!();
                       } else {
                         Navigator.pop(context);
                       }
@@ -651,12 +663,10 @@ class AdminDrawer extends StatelessWidget {
                 final pushLayout = context.findAncestorStateOfType<PushDrawerLayoutState>();
                 if (pushLayout != null) {
                   pushLayout.closeDrawer();
-                } else if (onClose != null) {
-                  onClose!();
                 } else {
                   Navigator.pop(context);
                 }
-                if (onSignOut != null) onSignOut!();
+                _signOut(context, ref);
               },
             ),
           ],
@@ -730,18 +740,16 @@ class _DrawerNavTile extends StatelessWidget {
 
 // ─── TM Drawer ────────────────────────────────────────────────────────────────
 
-class TMDrawer extends StatelessWidget {
+class TMDrawer extends ConsumerWidget {
   final String currentRoute;
   final String theaterName;
   final Function(String route) onNavigateTo;
-  final VoidCallback? onSignOut;
 
   const TMDrawer({
     super.key,
     required this.currentRoute,
     required this.onNavigateTo,
     this.theaterName = 'My Theater',
-    this.onSignOut,
   });
 
   static const _items = [
@@ -753,10 +761,51 @@ class TMDrawer extends StatelessWidget {
     _NavItem(Icons.bar_chart_rounded, 'Reports', '/tm/reports'),
   ];
 
+  Future<void> _signOut(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1F),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          side: const BorderSide(color: TMColors.border),
+        ),
+        title: const Text('Sign Out',
+            style: TextStyle(
+                color: TMColors.textPrimary, fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to sign out?',
+            style: TextStyle(color: TMColors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: TMColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TMColors.error,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+              ),
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sign Out',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) {
+      await ref.read(authNotifierProvider.notifier).signOut();
+      if (context.mounted) context.go(AppRoutes.login);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Drawer(
-      backgroundColor: TMColors.surface,
+      backgroundColor: const Color(0xFF09090B),
       child: SafeArea(
         child: Column(
           children: [
@@ -815,7 +864,12 @@ class TMDrawer extends StatelessWidget {
                     inactiveColor: TMColors.textSecondary,
                     activeBgColor: TMColors.primaryGlow,
                     onTap: () {
-                      Navigator.pop(context);
+                      final pushLayout = context.findAncestorStateOfType<PushDrawerLayoutState>();
+                      if (pushLayout != null) {
+                        pushLayout.closeDrawer();
+                      } else {
+                        Navigator.pop(context);
+                      }
                       if (!isActive) onNavigateTo(item.route);
                     },
                   );
@@ -829,8 +883,13 @@ class TMDrawer extends StatelessWidget {
               title: const Text('Sign Out',
                   style: TextStyle(color: TMColors.error)),
               onTap: () {
-                Navigator.pop(context);
-                if (onSignOut != null) onSignOut!();
+                final pushLayout = context.findAncestorStateOfType<PushDrawerLayoutState>();
+                if (pushLayout != null) {
+                  pushLayout.closeDrawer();
+                } else {
+                  Navigator.pop(context);
+                }
+                _signOut(context, ref);
               },
             ),
           ],
@@ -920,7 +979,7 @@ class PushDrawerLayoutState extends State<PushDrawerLayout> with SingleTickerPro
         elevation: ab.elevation,
         scrolledUnderElevation: ab.scrolledUnderElevation,
         shadowColor: ab.shadowColor,
-        shape: ab.shape,
+        shape: ab.shape ?? const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         backgroundColor: ab.backgroundColor,
         foregroundColor: ab.foregroundColor,
         iconTheme: ab.iconTheme,
@@ -940,11 +999,11 @@ class PushDrawerLayoutState extends State<PushDrawerLayout> with SingleTickerPro
     }
 
     return Scaffold(
-      backgroundColor: AdminColors.background,
+      backgroundColor: widget.backgroundColor ?? AdminColors.background,
       body: Stack(
         children: [
           Container(
-            color: AdminColors.background,
+            color: widget.backgroundColor ?? AdminColors.background,
             child: Align(
               alignment: Alignment.centerLeft,
               child: SizedBox(
@@ -963,7 +1022,7 @@ class PushDrawerLayoutState extends State<PushDrawerLayout> with SingleTickerPro
                   ..scale(1.0 - (_controller.value * 0.08)),
                 alignment: Alignment.centerLeft,
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(_controller.value * ShowSnapRadius.md),
+                  borderRadius: BorderRadius.zero,
                   child: Stack(
                     children: [
                       Scaffold(

@@ -32,7 +32,6 @@ class UserManagementScreen extends ConsumerWidget {
       drawer: AdminDrawer(
         currentRoute: AppRoutes.userManagement,
         onNavigateTo: (route) => context.push(route),
-        onSignOut: () {},
       ),
       appBar: AppBar(
         backgroundColor: AdminColors.surface,

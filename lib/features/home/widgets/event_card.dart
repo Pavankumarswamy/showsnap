@@ -21,7 +21,7 @@ class EventCard extends StatelessWidget {
         width: width ?? 200, // Default to 200 for horizontal lists, but GridView can override
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(ShowSnapRadius.lg),
+          borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
@@ -40,7 +40,7 @@ class EventCard extends StatelessWidget {
                 children: [
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(ShowSnapRadius.lg)),
+                        top: Radius.circular(20)),
                     child: event.posterUrl.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: event.posterUrl,

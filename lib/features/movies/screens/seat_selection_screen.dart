@@ -145,6 +145,7 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
               const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),
           data: (show) {
+            if (show == null) return const Center(child: Text('Show not found'));
             final screenAsync = ref.watch(screenProvider(show.screenId));
             return screenAsync.when(
               loading: () =>
