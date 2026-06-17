@@ -19,6 +19,7 @@ import '../../../core/config/theme.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../onboarding/feature_walkthrough.dart';
+import '../../explore/screens/explore_screen.dart';
 
 // (City preferences removed in favor of LocationProvider)
 
@@ -93,6 +94,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               pinned: true,
               backgroundColor: ShowSnapColors.background,
               elevation: 0,
+              toolbarHeight: 80,
               titleSpacing: 0,
               bottom: _isSearchVisible
                   ? PreferredSize(
@@ -139,36 +141,56 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               title: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // City selector
+                    // Tagline & City selector
                     Expanded(
-                      child: ShowcaseTarget(
-                      showcaseKey: walkthroughCityKey,
-                      title: 'Your City',
-                      description: 'Tap to switch city and see local shows.',
-                      child: TappableScale(
-                        onTap: () => _showCityPicker(context),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.location_on_rounded,
-                                color: ShowSnapColors.primary, size: 16),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                address?.fullAddress ?? 'Select Location',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text(
+                            'It All Starts Here !',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.white,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          ShowcaseTarget(
+                            showcaseKey: walkthroughCityKey,
+                            title: 'Your City',
+                            description: 'Tap to switch city and see local shows.',
+                            child: TappableScale(
+                              onTap: () => _showCityPicker(context),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.location_on_rounded,
+                                      color: ShowSnapColors.primary, size: 14),
+                                  const SizedBox(width: 4),
+                                  Flexible(
+                                    child: Text(
+                                      address?.fullAddress ?? 'Select Location',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: ShowSnapColors.primary,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(Icons.keyboard_arrow_right_rounded,
+                                      color: ShowSnapColors.primary, size: 16),
+                                ],
                               ),
                             ),
-                          ],
-                        ),
-                      ),
+                          ),
+                        ],
                       ),
                     ),
                     // Search icon
@@ -301,6 +323,8 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 16),
+            const _QuickActionIcons(),
             const SizedBox(height: 16),
             // Promo Banner
           _PromoBanner(controller: widget.bannerCtrl),
@@ -847,4 +871,142 @@ class _HorizontalMovieList extends StatelessWidget {
   }
 }
 
+// ─── Quick Action Icons ───────────────────────────────────────────────────────
 
+class _QuickActionIcons extends ConsumerWidget {
+  const _QuickActionIcons();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    void navigateToExploreTab(int tabIndex) {
+      ref.read(exploreTabIndexProvider.notifier).state = tabIndex;
+      context.go('/explore');
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ActionIcon(
+            icon: Icons.movie_filter_rounded,
+            label: 'Movies',
+            onTap: () => navigateToExploreTab(0),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.ondemand_video_rounded,
+            label: 'Stream',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.theater_comedy_rounded,
+            label: 'Comedy Shows',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.music_note_rounded,
+            label: 'Music Shows',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.attractions_rounded,
+            label: 'Amusement Parks',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.explore_rounded,
+            label: 'Adventure',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.handyman_rounded,
+            label: 'Workshops',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.toys_rounded,
+            label: 'Kids Zone',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.map_rounded,
+            label: 'Unique Tours',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.star_rounded,
+            label: 'Performances',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.museum_rounded,
+            label: 'Tourist Attractions',
+            onTap: () => navigateToExploreTab(1),
+          ),
+          const SizedBox(width: 8),
+          _ActionIcon(
+            icon: Icons.grid_view_rounded,
+            label: 'Explore More',
+            onTap: () => navigateToExploreTab(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionIcon extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionIcon({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return TappableScale(
+      onTap: onTap,
+      child: SizedBox(
+        width: 72,
+        child: Column(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: ShowSnapColors.surface,
+                shape: BoxShape.circle,
+                boxShadow: ShowSnapShadow.card,
+                border: Border.all(color: ShowSnapColors.grey300.withOpacity(0.1)),
+              ),
+              child: Icon(icon, color: ShowSnapColors.primary, size: 24),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+                height: 1.1,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

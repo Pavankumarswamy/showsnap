@@ -31,8 +31,6 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
     super.initState();
     _startTimer();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Set default to 1 ticket
-      ref.read(seatSelectionProvider(widget.showId).notifier).setRequestedTickets(1);
       _showTicketQuantitySelector();
     });
   }
@@ -438,24 +436,17 @@ class _TicketQuantityBottomSheet extends ConsumerWidget {
   final String showId;
   const _TicketQuantityBottomSheet({required this.showId});
 
-  String _getImageUrl(int count) {
-    switch (count) {
-      case 1:
-        return 'https://i.ibb.co/p66MrQkd/1ticket.png';
-      case 2:
-        return 'https://i.ibb.co/ZRLKfBy2/2ticket.png';
-      case 3:
-        return 'https://i.ibb.co/J46Yr9M/3ticket.png';
-      case 0:
-      default:
-        return 'https://i.ibb.co/fzKStyCS/4ticket.png';
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(seatSelectionProvider(showId));
     final count = state.requestedTickets;
+
+    String getImageUrl(int c) {
+      if (c == 1) return 'https://i.ibb.co/p66MrQkd/1ticket.png';
+      if (c == 2) return 'https://i.ibb.co/ZRLKfBy2/2ticket.png';
+      if (c == 3) return 'https://i.ibb.co/J46Yr9M/3ticket.png';
+      return 'https://i.ibb.co/fzKStyCS/4ticket.png';
+    }
 
     return Container(
       decoration: const BoxDecoration(
@@ -466,7 +457,7 @@ class _TicketQuantityBottomSheet extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -485,92 +476,79 @@ class _TicketQuantityBottomSheet extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 16),
-            
-            // Dynamic Illustration
-            AnimatedSwitcher(
-              duration: ShowSnapDuration.normal,
-              transitionBuilder: (child, animation) => FadeTransition(
-                opacity: animation,
-                child: ScaleTransition(scale: animation, child: child),
-              ),
-              child: Image.network(
-                _getImageUrl(count),
-                key: ValueKey(count),
-                height: 140,
-                fit: BoxFit.contain,
+            Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child: Image.network(
+                  getImageUrl(count),
+                  key: ValueKey(count),
+                  height: 140,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
-            
             const SizedBox(height: 24),
-            
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              alignment: WrapAlignment.center,
-              children: [1, 2, 3, 0].map((c) {
-                final isSelected = count == c;
-                final label = c == 0 ? '4+' : '$c';
-                
-                return InkWell(
-                  onTap: () {
-                    ref.read(seatSelectionProvider(showId).notifier).setRequestedTickets(c);
-                  },
-                  borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                  child: AnimatedContainer(
-                    duration: ShowSnapDuration.fast,
-                    width: 48,
-                    height: 48,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isSelected ? ShowSnapColors.primary : Colors.transparent,
-                      border: Border.all(
-                        color: isSelected ? ShowSnapColors.primary : ShowSnapColors.grey600,
-                        width: isSelected ? 0 : 1.5,
+            Center(
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [1, 2, 3, 0].map((opt) {
+                  final isSelected = count == opt;
+                  final label = opt == 0 ? '+4' : '$opt';
+                  
+                  return InkWell(
+                    onTap: () {
+                      ref.read(seatSelectionProvider(showId).notifier).setRequestedTickets(opt);
+                    },
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected ? ShowSnapColors.primary : Colors.transparent,
+                        border: Border.all(
+                          color: isSelected ? ShowSnapColors.primary : ShowSnapColors.grey600,
+                        ),
                       ),
-                      boxShadow: isSelected
-                          ? [
-                              BoxShadow(
-                                color: ShowSnapColors.primary.withOpacity(0.3),
-                                blurRadius: 12,
-                                spreadRadius: 1,
-                              )
-                            ]
-                          : [],
-                    ),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: isSelected ? Colors.black : Colors.white,
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: isSelected ? Colors.black87 : Colors.white,
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
-            const SizedBox(height: 32),
-            
+            const SizedBox(height: 16),
+            const Center(
+              child: Text(
+                'Select a number, then tap a seat to auto-select.',
+                style: TextStyle(color: ShowSnapColors.grey600, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              height: 54,
               child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: ShowSnapColors.primary,
                   foregroundColor: Colors.black,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md),
                   ),
-                  elevation: 0,
                 ),
-                onPressed: () => Navigator.pop(context),
                 child: const Text(
-                  'Select Seats',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  'Confirm',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),

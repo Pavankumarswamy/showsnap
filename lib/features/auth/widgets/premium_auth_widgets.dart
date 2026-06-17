@@ -106,8 +106,9 @@ class _PremiumTextFieldState extends State<PremiumTextField> {
                       : Colors.white.withOpacity(0.6),
                 ),
                 suffixIcon: widget.suffixIcon,
+                isDense: true,
                 contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 16),
+                    horizontal: 16, vertical: 8),
               ),
               validator: (val) {
                 final err = widget.validator?.call(val);

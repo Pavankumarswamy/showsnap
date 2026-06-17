@@ -8,6 +8,7 @@ import '../config/theme.dart';
 import '../constants/app_constants.dart';
 import '../services/auth_service.dart';
 import '../../features/onboarding/feature_walkthrough.dart';
+import '../../features/explore/screens/explore_screen.dart';
 
 // ─── Unread notification count (real-time) ───────────────────────────────────
 
@@ -34,23 +35,9 @@ class MainShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return FeatureWalkthroughWrapper(
       child: Scaffold(
+        extendBody: true,
         body: navigationShell,
-        floatingActionButtonLocation:
-            FloatingActionButtonLocation.centerDocked,
-        floatingActionButton: ShowcaseTarget(
-          showcaseKey: walkthroughFabKey,
-          title: 'Quick Book',
-          description: 'Tap here any time to quickly search and book shows.',
-          shape: const CircleBorder(),
-          child: FloatingActionButton(
-            backgroundColor: ShowSnapColors.primary,
-            elevation: 4,
-            onPressed: () => _showQuickBook(context, ref),
-            child: const Icon(Icons.confirmation_number_rounded,
-                color: Colors.black87),
-          ),
-        ),
-        bottomNavigationBar: _ShowSnapBottomNav(
+        bottomNavigationBar: _CurvedBottomNavBar(
           currentIndex: navigationShell.currentIndex,
           onTap: (i) {
             HapticFeedback.selectionClick();
@@ -77,66 +64,151 @@ class MainShell extends ConsumerWidget {
 
 // ─── Bottom Navigation Bar ────────────────────────────────────────────────────
 
-class _ShowSnapBottomNav extends StatelessWidget {
+class _CurvedBottomNavBar extends StatefulWidget {
   final int currentIndex;
   final void Function(int) onTap;
 
-  const _ShowSnapBottomNav({
+  const _CurvedBottomNavBar({
     required this.currentIndex,
     required this.onTap,
   });
 
   @override
+  State<_CurvedBottomNavBar> createState() => _CurvedBottomNavBarState();
+}
+
+class _CurvedBottomNavBarState extends State<_CurvedBottomNavBar> with SingleTickerProviderStateMixin {
+  late AnimationController _animCtrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 300));
+    _anim = Tween<double>(begin: widget.currentIndex.toDouble(), end: widget.currentIndex.toDouble()).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutBack),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_CurvedBottomNavBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentIndex != widget.currentIndex) {
+      _anim = Tween<double>(begin: _anim.value, end: widget.currentIndex.toDouble()).animate(
+        CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOutBack),
+      );
+      _animCtrl.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _animCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BottomAppBar(
-      shape: const CircularNotchedRectangle(),
-      notchMargin: 6,
-      color: Colors.white,
-      elevation: 12,
-      height: 68,
-      padding: EdgeInsets.zero,
-      child: Row(
+    final items = [
+      {'icon': Icons.home_rounded, 'label': 'Home'},
+      {'icon': Icons.explore_rounded, 'label': 'Explore'},
+      {'icon': Icons.campaign_rounded, 'label': 'Ad Request'},
+      {'icon': Icons.person_rounded, 'label': 'Profile'},
+    ];
+
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final barHeight = 68.0 + bottomPadding;
+    final totalHeight = 90.0 + bottomPadding;
+
+    return SizedBox(
+      height: totalHeight,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.bottomCenter,
         children: [
-          // ── Left: Home, Explore ──────────────────────────────────────────
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _NavItem(
-                  icon: Icons.home_rounded,
-                  label: 'Home',
-                  isActive: currentIndex == 0,
-                  onTap: () => onTap(0),
-                ),
-                _NavItem(
-                  icon: Icons.explore_rounded,
-                  label: 'Explore',
-                  isActive: currentIndex == 1,
-                  onTap: () => onTap(1),
-                ),
-              ],
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: barHeight,
+            child: AnimatedBuilder(
+              animation: _anim,
+              builder: (context, _) {
+                return CustomPaint(
+                  painter: _NavPainter(
+                    currentPos: _anim.value,
+                    itemsCount: items.length,
+                  ),
+                );
+              },
             ),
           ),
-          // ── FAB gap ──────────────────────────────────────────────────────
-          const SizedBox(width: 72),
-          // ── Right: Bookings, Offers ──────────────────────────────────
-          Expanded(
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: bottomPadding,
+            height: 90, 
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _NavItem(
-                  icon: Icons.receipt_long_rounded,
-                  label: 'Bookings',
-                  isActive: currentIndex == 2,
-                  onTap: () => onTap(2),
-                ),
-                _NavItem(
-                  icon: Icons.person_rounded,
-                  label: 'Profile',
-                  isActive: currentIndex == 3,
-                  onTap: () => onTap(3),
-                ),
-              ],
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(items.length, (i) {
+                final isSelected = widget.currentIndex == i;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => widget.onTap(i),
+                    behavior: HitTestBehavior.opaque,
+                    child: SizedBox(
+                      height: 90,
+                      child: AnimatedAlign(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeOutBack,
+                        alignment: isSelected ? const Alignment(0, -0.55) : const Alignment(0, 0.4),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          width: isSelected ? 56 : 50,
+                          height: isSelected ? 56 : 50,
+                          decoration: isSelected
+                              ? BoxDecoration(
+                                  color: ShowSnapColors.primary,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: ShowSnapColors.primary.withOpacity(0.4),
+                                      blurRadius: 8,
+                                      offset: const Offset(0, 4),
+                                    )
+                                  ],
+                                )
+                              : const BoxDecoration(
+                                  color: Colors.transparent,
+                                  shape: BoxShape.circle,
+                                ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                items[i]['icon'] as IconData,
+                                color: isSelected ? Colors.black87 : ShowSnapColors.grey600,
+                                size: isSelected ? 26 : 24,
+                              ),
+                              if (!isSelected) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  items[i]['label'] as String,
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: ShowSnapColors.grey600,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ]
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ),
           ),
         ],
@@ -145,64 +217,32 @@ class _ShowSnapBottomNav extends StatelessWidget {
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
+class _NavPainter extends CustomPainter {
+  final double currentPos;
+  final int itemsCount;
 
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
+  _NavPainter({required this.currentPos, required this.itemsCount});
 
   @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: SizedBox(
-        width: 64,
-        height: 68,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedContainer(
-              duration: ShowSnapDuration.fast,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-              decoration: isActive
-                  ? BoxDecoration(
-                      color: ShowSnapColors.primary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    )
-                  : null,
-              child: Icon(
-                icon,
-                color: isActive
-                    ? ShowSnapColors.primary
-                    : ShowSnapColors.grey600,
-                size: 22,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive
-                    ? ShowSnapColors.primary
-                    : ShowSnapColors.grey600,
-                fontSize: 10,
-                fontWeight:
-                    isActive ? FontWeight.w700 : FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final itemWidth = size.width / itemsCount;
+    final centerX = (currentPos * itemWidth) + (itemWidth / 2);
+
+    final host = Rect.fromLTWH(0, 0, size.width, size.height);
+    final guest = Rect.fromCenter(center: Offset(centerX, 0), width: 64, height: 64);
+
+    final path = const CircularNotchedRectangle().getOuterPath(host, guest);
+
+    canvas.drawShadow(path, Colors.black87, 8, true);
+    canvas.drawPath(path, paint);
   }
+
+  @override
+  bool shouldRepaint(_NavPainter oldDelegate) => oldDelegate.currentPos != currentPos;
 }
 
 
@@ -235,7 +275,8 @@ class _QuickBookSheet extends ConsumerWidget {
               subtitle: 'Browse now showing movies',
               onTap: () {
                 Navigator.pop(context);
-                context.go('/explore?tab=movies');
+                ref.read(exploreTabIndexProvider.notifier).state = 0;
+                context.go('/explore');
               },
             ),
             const SizedBox(height: 12),
@@ -246,7 +287,8 @@ class _QuickBookSheet extends ConsumerWidget {
               subtitle: 'Concerts, sports, plays & more',
               onTap: () {
                 Navigator.pop(context);
-                context.go('/explore?tab=events');
+                ref.read(exploreTabIndexProvider.notifier).state = 1;
+                context.go('/explore');
               },
             ),
             const SizedBox(height: 12),

@@ -27,21 +27,21 @@ const _pages = [
     subtitle:
         'Browse the latest blockbuster movies, exclusive events, and unforgettable concerts all in one place.',
     bgColor: Color(0xFFFFF8E1),
-    imageUrl: 'https://i.ibb.co/gb1vvxCD/erasebg-transformed-6.jpg',
+    imageUrl: 'assets/images/welcome_1.jpg',
   ),
   _OnboardPage(
     title: 'Secure Your Best Spot',
     subtitle:
         'Choose your favorite seats instantly with our interactive and real-time theater maps.',
     bgColor: Color(0xFFE8F5E9),
-    imageUrl: 'https://i.ibb.co/9mKK30wJ/erasebg-transformed-7.jpg',
+    imageUrl: 'assets/images/welcome_2.jpg',
   ),
   _OnboardPage(
     title: 'Unlock Exclusive Rewards',
     subtitle:
         'Earn points with every ticket you book and enjoy free movies, discounts, and VIP perks.',
     bgColor: Color(0xFFFCE4EC),
-    imageUrl: 'https://i.ibb.co/whJZdng4/erasebg-transformed-8.jpg',
+    imageUrl: 'assets/images/welcome_3.jpg',
   ),
 ];
 
@@ -195,7 +195,7 @@ class _PageContent extends StatelessWidget {
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: TappableScale(
-                    child: Image.network(
+                    child: Image.asset(
                       page.imageUrl,
                       fit: BoxFit.cover,
                     ),

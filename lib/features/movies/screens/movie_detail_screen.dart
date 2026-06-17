@@ -226,6 +226,24 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
               expandedHeight: MediaQuery.of(context).size.width / (4 / 3),
               pinned: true,
               systemOverlayStyle: SystemUiOverlayStyle.light,
+              leading: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/home');
+                  }
+                },
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                ),
+              ),
               shape: const RoundedRectangleBorder(
                 borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
               ),

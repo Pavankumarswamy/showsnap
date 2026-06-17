@@ -94,10 +94,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Expanded(
                     flex: 4,
                     child: Center(
-                      child: Image.network(
-                        'https://i.ibb.co/ccD640W2/erasebg-transformed-10.png',
-                        width: 320,
-                        height: 320,
+                      child: Image.asset(
+                        'assets/images/auth_logo.png',
+                        width: 280,
+                        height: 280,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -128,7 +128,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           topRight: Radius.circular(40),
                         ),
                         child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
+                          padding: const EdgeInsets.fromLTRB(32, 32, 32, 24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -143,19 +143,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   letterSpacing: 1.2,
                                 ),
                               ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
+
                               
-                              const SizedBox(height: 8),
-                              
-                              Text(
-                                'Sign in to continue your cinematic journey',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.white.withOpacity(0.6),
-                                ),
-                              ).animate().fadeIn(delay: 200.ms, duration: 600.ms),
-                              
-                              const SizedBox(height: 40),
+                              const SizedBox(height: 24),
 
                               // Form
                               Form(
@@ -170,7 +160,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       validator: Validators.email,
                                     ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.1, end: 0),
                                     
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 8),
                                     
                                     PremiumTextField(
                                       controller: _passwordCtrl,
@@ -252,7 +242,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ],
                                     ).animate().fadeIn(delay: 600.ms),
 
-                                    const SizedBox(height: 32),
+                                    const SizedBox(height: 24),
 
                                     // Login Button
                                     ShakeWidget(
@@ -264,9 +254,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                       ),
                                     ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.9, 0.9)),
 
-                                    const SizedBox(height: 32),
-
-
+                                    const SizedBox(height: 24),
 
                                     // Register Link
                                     Row(

@@ -238,15 +238,18 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: AppRoutes.explore,
-              pageBuilder: (c, s) => _fadePage(c, s, const ExploreScreen()),
+              pageBuilder: (c, s) {
+                final tab = s.uri.queryParameters['tab'];
+                return _fadePage(c, s, ExploreScreen(initialTab: tab));
+              },
             ),
           ]),
-          // Tab 2 — My Bookings
+          // Tab 2 — Ad Request
           StatefulShellBranch(routes: [
             GoRoute(
-              path: AppRoutes.myBookings,
+              path: AppRoutes.adRequestForm,
               pageBuilder: (c, s) =>
-                  _fadePage(c, s, const MyBookingsScreen()),
+                  _fadePage(c, s, const AdRequestFormScreen()),
             ),
           ]),
           // Tab 3 — Profile
@@ -259,6 +262,12 @@ final routerProvider = Provider<GoRouter>((ref) {
           ]),
         ],
       ),
+
+      // ── Bookings Standalone ───────────────────────────────────────────────
+      GoRoute(
+          path: AppRoutes.myBookings,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const MyBookingsScreen())),
 
       // ── Booking drill-down (horizontal) ───────────────────────────────────
       GoRoute(
@@ -439,11 +448,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const EventTicketScannerScreen())),
 
-      // ── Influencer ────────────────────────────────────────────────────────
-      GoRoute(
-          path: AppRoutes.adRequestForm,
-          pageBuilder: (c, s) =>
-              _verticalPage(c, s, const AdRequestFormScreen())),
     ],
     errorBuilder: (_, state) => Scaffold(
       body: Center(child: Text('Page not found: ${state.error}')),

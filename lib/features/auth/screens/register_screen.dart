@@ -143,10 +143,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Expanded(
                     flex: 3,
                     child: Center(
-                      child: Image.network(
-                        'https://i.ibb.co/ccD640W2/erasebg-transformed-10.png',
-                        width: 320,
-                        height: 320,
+                      child: Image.asset(
+                        'assets/images/auth_logo.png',
+                        width: 240,
+                        height: 240,
                         fit: BoxFit.contain,
                       ),
                     ),
@@ -177,7 +177,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           topRight: Radius.circular(40),
                         ),
                         child: SingleChildScrollView(
-                          padding: const EdgeInsets.fromLTRB(32, 40, 32, 40),
+                          padding: const EdgeInsets.fromLTRB(32, 32, 32, 24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -192,19 +192,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                   letterSpacing: 1.2,
                                 ),
                               ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
+
                               
-                              const SizedBox(height: 8),
-                              
-                              Text(
-                                'Join ShowSnap today for exclusive perks',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 15,
-                                  color: Colors.white.withOpacity(0.6),
-                                ),
-                              ).animate().fadeIn(delay: 200.ms, duration: 600.ms),
-                              
-                              const SizedBox(height: 32),
+                              const SizedBox(height: 20),
 
                               // Form
                               Form(
@@ -219,7 +209,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                       validator: Validators.name,
                                     ).animate().fadeIn(delay: 300.ms).slideX(begin: 0.1, end: 0),
                                     
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 8),
                                     
                                     PremiumTextField(
                                       controller: _emailCtrl,
@@ -229,7 +219,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                       validator: Validators.email,
                                     ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.1, end: 0),
                                     
-                                    const SizedBox(height: 16),
+                                    const SizedBox(height: 8),
                                     
                                     PremiumTextField(
                                       controller: _passwordCtrl,
@@ -253,8 +243,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     ).animate().fadeIn(delay: 500.ms).slideX(begin: 0.1, end: 0),
                                     
                                     const SizedBox(height: 8),
-                                    _PasswordStrengthBar(strength: _strength).animate().fadeIn(delay: 550.ms),
-                                    const SizedBox(height: 16),
                                     
                                     PremiumTextField(
                                       controller: _confirmCtrl,
@@ -288,7 +276,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                       ),
                                     ).animate().fadeIn(delay: 600.ms).slideX(begin: 0.1, end: 0),
                                     
-                                    const SizedBox(height: 32),
+                                    const SizedBox(height: 8),
+                                    _PasswordStrengthBar(strength: _strength).animate().fadeIn(delay: 550.ms),
+                                    const SizedBox(height: 24),
 
                                     // Submit Button
                                     ShakeWidget(
@@ -300,9 +290,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                       ),
                                     ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.9, 0.9)),
 
-                                    const SizedBox(height: 32),
-
-
+                                    const SizedBox(height: 24),
 
                                     // Sign In Link
                                     Row(

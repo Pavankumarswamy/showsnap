@@ -24,12 +24,15 @@ final _allEventsProvider = FutureProvider<List<EventModel>>((ref) =>
 final _allTheatersProvider = FutureProvider<List<TheaterModel>>((ref) =>
     ref.watch(databaseServiceProvider).getAllTheaters());
 
+final exploreTabIndexProvider = StateProvider<int>((ref) => 0);
+
 
 
 // ─── ExploreScreen ────────────────────────────────────────────────────────────
 
 class ExploreScreen extends ConsumerStatefulWidget {
-  const ExploreScreen({super.key});
+  final String? initialTab;
+  const ExploreScreen({super.key, this.initialTab});
 
   @override
   ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
@@ -44,7 +47,26 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this);
+    int initialIndex = ref.read(exploreTabIndexProvider);
+    if (widget.initialTab == 'events') initialIndex = 1;
+    else if (widget.initialTab == 'theaters') initialIndex = 2;
+    
+    _tabCtrl = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+    _tabCtrl.addListener(() {
+      if (!_tabCtrl.indexIsChanging) {
+        ref.read(exploreTabIndexProvider.notifier).state = _tabCtrl.index;
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(ExploreScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialTab != oldWidget.initialTab) {
+      if (widget.initialTab == 'events') _tabCtrl.animateTo(1);
+      else if (widget.initialTab == 'theaters') _tabCtrl.animateTo(2);
+      else if (widget.initialTab == 'movies') _tabCtrl.animateTo(0);
+    }
   }
 
   @override
@@ -56,6 +78,12 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(exploreTabIndexProvider, (prev, next) {
+      if (_tabCtrl.index != next) {
+        _tabCtrl.animateTo(next);
+      }
+    });
+
     return Scaffold(
       backgroundColor: ShowSnapColors.grey100,
       appBar: AppBar(
