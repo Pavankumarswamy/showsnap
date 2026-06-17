@@ -42,7 +42,8 @@ class EventModel {
   final String posterUrl;
   final List<TicketTier> ticketTiers;
   final String managerId;
-  final bool isActive;
+  final String status; // 'draft' | 'published' | 'closed'
+  final bool isActive; // Computed from status, kept for backward compatibility
 
   const EventModel({
     required this.eventId,
@@ -60,6 +61,7 @@ class EventModel {
     this.posterUrl = '',
     this.ticketTiers = const [],
     this.managerId = '',
+    this.status = 'draft',
     this.isActive = true,
   });
 
@@ -90,6 +92,8 @@ class EventModel {
       posterUrl: json['posterUrl']?.toString() ?? '',
       ticketTiers: tiers,
       managerId: json['managerId']?.toString() ?? '',
+      status: json['status']?.toString() ?? 
+              (json['isActive'] == false ? 'closed' : 'published'),
       isActive: json['isActive'] as bool? ?? true,
     );
   }
@@ -109,11 +113,16 @@ class EventModel {
         'posterUrl': posterUrl,
         'ticketTiers': ticketTiers.map((t) => t.toJson()).toList(),
         'managerId': managerId,
-        'isActive': isActive,
+        'status': status,
+        'isActive': status == 'published',
       };
 
   int get lowestPrice {
     if (ticketTiers.isEmpty) return 0;
     return ticketTiers.map((t) => t.price).reduce((a, b) => a < b ? a : b);
   }
+
+  int get totalSeats => ticketTiers.fold(0, (sum, t) => sum + t.totalSeats);
+  int get availableSeats => ticketTiers.fold(0, (sum, t) => sum + t.availableSeats);
+  bool get fewTicketsLeft => totalSeats > 0 && availableSeats < (totalSeats * 0.2) && availableSeats > 0;
 }

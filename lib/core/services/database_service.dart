@@ -250,6 +250,17 @@ class DatabaseService {
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
+  Stream<List<BookingModel>> streamAllBookings() {
+    return _db.ref(AppConstants.bookingsPath).onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final map = event.snapshot.value as Map;
+      return map.entries
+          .map((e) => BookingModel.fromJson(e.key.toString(), e.value as Map))
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    });
+  }
+
   Stream<List<BookingModel>> streamUserBookings(String uid) {
     return _db
         .ref(AppConstants.bookingsPath)
@@ -420,8 +431,14 @@ class DatabaseService {
     final map = snap.value as Map;
     return map.entries
         .map((e) => EventModel.fromJson(e.key.toString(), e.value as Map))
-        .where((e) => e.isActive)
+        .where((e) => e.status == 'published')
         .toList();
+  }
+
+  Future<EventModel?> getEvent(String eventId) async {
+    final snap = await _db.ref('${AppConstants.eventsPath}/$eventId').get();
+    if (!snap.exists || snap.value == null) return null;
+    return EventModel.fromJson(eventId, snap.value as Map);
   }
 
   Future<List<EventModel>> getEventsForManager(String managerId) async {
@@ -432,6 +449,17 @@ class DatabaseService {
         .map((e) => EventModel.fromJson(e.key.toString(), e.value as Map))
         .where((e) => e.managerId == managerId)
         .toList();
+  }
+
+  Stream<List<EventModel>> streamEventsForManager(String managerId) {
+    return _db.ref(AppConstants.eventsPath).onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final map = event.snapshot.value as Map;
+      return map.entries
+          .map((e) => EventModel.fromJson(e.key.toString(), e.value as Map))
+          .where((e) => e.managerId == managerId)
+          .toList();
+    });
   }
 
   Future<String> saveEvent(EventModel event) async {

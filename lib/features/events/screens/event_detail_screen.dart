@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/booking_model.dart';
@@ -30,11 +31,7 @@ import '../../../core/widgets/tappable_scale.dart';
 
 final _eventDetailProvider =
     FutureProvider.family<EventModel?, String>((ref, eventId) async {
-  final events = await ref.watch(databaseServiceProvider).getAllEvents();
-  return events.cast<EventModel?>().firstWhere(
-    (e) => e?.eventId == eventId,
-    orElse: () => null,
-  );
+  return await ref.watch(databaseServiceProvider).getEvent(eventId);
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -104,6 +101,20 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
           SliverAppBar(
             expandedHeight: 280,
             pinned: true,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.share, color: Colors.white),
+                onPressed: () {
+                  final message =
+                      '🎉 Check out *${event.name}*!\n\n'
+                      '📍 ${event.venueName}, ${event.city}\n'
+                      '📅 ${event.startTs.epochToDateTimeLabel}\n'
+                      '🎟️ Tickets from ₹${event.lowestPrice}\n\n'
+                      'Book now on ShowSnap: https://showsnap.web.app/event/${event.eventId}';
+                  Share.share(message);
+                },
+              ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: Text(event.name,
                   style: const TextStyle(

@@ -52,4 +52,21 @@ class AppConstants {
   // Home section limits
   static const int homeSectionLimit = 10;
   static const int trendingDaysWindow = 7;
+
+  // Event Categories
+  static const List<String> eventCategories = [
+    'Comedy Shows',
+    'Music Shows',
+    'Amusement Parks',
+    'Adventure',
+    'Workshops',
+    'Kids Zone',
+    'Unique Tours',
+    'Movies',
+    'Stream',
+    'Performances',
+    'Tourist Attractions',
+    'Explore More',
+    'Other',
+  ];
 }
