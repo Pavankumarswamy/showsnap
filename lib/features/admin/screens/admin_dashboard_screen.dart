@@ -261,29 +261,36 @@ class AdminDashboardScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // KPI Cards
-              _buildKpiGrid(stats),
-              const SizedBox(height: 24),
-              // Revenue Chart
-              _buildRevenueChart(stats),
-              const SizedBox(height: 24),
-              // Two-column split: top theaters + ticket status
               LayoutBuilder(builder: (_, constraints) {
-                if (constraints.maxWidth > 700) {
-                  return Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(child: _buildTopTheatersChart(stats)),
-                      const SizedBox(width: 16),
-                      SizedBox(
+                final isWide = constraints.maxWidth > 700;
+                if (isWide) {
+                  return IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _buildKpiGrid(stats, isWideGrid: true),
+                              const SizedBox(height: 24),
+                              _buildRevenueChart(stats),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        SizedBox(
                           width: 260,
-                          child: _buildTicketStatusChart(stats)),
-                    ],
+                          child: _buildTicketStatusChart(stats, fillHeight: true),
+                        ),
+                      ],
+                    ),
                   );
                 }
                 return Column(
                   children: [
-                    _buildTopTheatersChart(stats),
+                    _buildKpiGrid(stats, isWideGrid: false),
+                    const SizedBox(height: 24),
+                    _buildRevenueChart(stats),
                     const SizedBox(height: 16),
                     _buildTicketStatusChart(stats),
                   ],
@@ -300,7 +307,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildKpiGrid(_AdminStats stats) {
+  Widget _buildKpiGrid(_AdminStats stats, {bool isWideGrid = true}) {
     final cards = [
       (
         '₹${_formatRevenue(stats.totalRevenue)}',
@@ -336,33 +343,62 @@ class AdminDashboardScreen extends ConsumerWidget {
       ),
     ];
 
-    return LayoutBuilder(builder: (_, constraints) {
-      final cols = constraints.maxWidth > 700 ? 4 : 2;
-      return GridView.count(
-        crossAxisCount: cols,
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: cols == 4 ? 1.8 : 1.5,
-        children: cards.asMap().entries.map((entry) {
-          final i = entry.key;
-          final c = entry.value;
-          return StaffStatCard(
-            value: c.$1,
-            label: c.$2,
-            icon: c.$3,
-            accentColor: c.$4,
-            bgColor: AdminColors.surface,
-            delta: c.$5,
-            isPositive: c.$6,
-          )
-              .animate()
-              .fadeIn(duration: 400.ms, delay: (i * 80).ms)
-              .slideY(begin: 0.15, end: 0, curve: Curves.easeOutQuad);
-        }).toList(),
+    final cardWidgets = cards.asMap().entries.map((entry) {
+      final i = entry.key;
+      final c = entry.value;
+      return StaffStatCard(
+        value: c.$1,
+        label: c.$2,
+        icon: c.$3,
+        accentColor: c.$4,
+        bgColor: AdminColors.surface,
+        delta: c.$5,
+        isPositive: c.$6,
+      )
+          .animate()
+          .fadeIn(duration: 400.ms, delay: (i * 80).ms)
+          .slideY(begin: 0.15, end: 0, curve: Curves.easeOutQuad);
+    }).toList();
+
+    if (isWideGrid) {
+      return IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (int i = 0; i < 4; i++) ...[
+              Expanded(child: cardWidgets[i]),
+              if (i < 3) const SizedBox(width: 12),
+            ]
+          ],
+        ),
       );
-    });
+    } else {
+      return Column(
+        children: [
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cardWidgets[0]),
+                const SizedBox(width: 12),
+                Expanded(child: cardWidgets[1]),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: cardWidgets[2]),
+                const SizedBox(width: 12),
+                Expanded(child: cardWidgets[3]),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
   }
 
   String _formatRevenue(int amount) {
@@ -385,7 +421,7 @@ class AdminDashboardScreen extends ConsumerWidget {
           if (stats.revenueSpots.isEmpty ||
               stats.revenueSpots.every((s) => s.y == 0))
             const SizedBox(
-              height: 160,
+              height: 120,
               child: Center(
                 child: Text('No revenue data yet',
                     style: TextStyle(color: AdminColors.textSecondary)),
@@ -393,7 +429,7 @@ class AdminDashboardScreen extends ConsumerWidget {
             )
           else
             SizedBox(
-              height: 180,
+              height: 120,
               child: LineChart(
                 LineChartData(
                   backgroundColor: AdminColors.surface,
@@ -555,7 +591,7 @@ class AdminDashboardScreen extends ConsumerWidget {
     ).animate().fadeIn(duration: 500.ms, delay: 450.ms);
   }
 
-  Widget _buildTicketStatusChart(_AdminStats stats) {
+  Widget _buildTicketStatusChart(_AdminStats stats, {bool fillHeight = false}) {
     final statusData = stats.ticketStatusCount;
     final total = statusData.values.fold(0, (a, b) => a + b);
     if (total == 0) {
@@ -586,7 +622,7 @@ class AdminDashboardScreen extends ConsumerWidget {
         value: entry.value.toDouble(),
         color: colors[i % colors.length],
         title: '${pct.round()}%',
-        radius: 60,
+        radius: 40,
         titleStyle: const TextStyle(
             fontSize: 11,
             color: Colors.white,
@@ -601,16 +637,29 @@ class AdminDashboardScreen extends ConsumerWidget {
         children: [
           const StaffSectionHeader(title: 'Ticket Status'),
           const SizedBox(height: 16),
-          SizedBox(
-            height: 160,
-            child: PieChart(
-              PieChartData(
-                sections: sections,
-                centerSpaceRadius: 36,
-                sectionsSpace: 2,
+          if (fillHeight)
+            Expanded(
+              child: Center(
+                child: PieChart(
+                  PieChartData(
+                    sections: sections,
+                    centerSpaceRadius: 24,
+                    sectionsSpace: 2,
+                  ),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 120,
+              child: PieChart(
+                PieChartData(
+                  sections: sections,
+                  centerSpaceRadius: 24,
+                  sectionsSpace: 2,
+                ),
               ),
             ),
-          ),
           const SizedBox(height: 12),
           ...statusData.entries.toList().asMap().entries.map((e) {
             final i = e.key;
