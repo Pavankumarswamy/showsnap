@@ -12,6 +12,7 @@ import '../../../core/services/database_service.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../home/widgets/movie_card.dart';
 import '../../home/widgets/event_card.dart';
+import '../../../core/widgets/main_app_bar.dart';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
 
@@ -86,12 +87,11 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
 
     return Scaffold(
       backgroundColor: ShowSnapColors.grey100,
-      appBar: AppBar(
-        shape: const RoundedRectangleBorder(),
-        backgroundColor: ShowSnapColors.background,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: _searchActive
+      appBar: MainAppBar(
+        title: 'Explore',
+        showSearch: !_searchActive,
+        onSearchTap: () => setState(() => _searchActive = true),
+        customTitle: _searchActive
             ? _SearchBar(
                 ctrl: _searchCtrl,
                 onClose: () {
@@ -101,15 +101,7 @@ class _ExploreScreenState extends ConsumerState<ExploreScreen>
                   });
                 },
               )
-            : const Text('Explore',
-                style: TextStyle(fontWeight: FontWeight.w800)),
-        actions: [
-          if (!_searchActive)
-            IconButton(
-              icon: const Icon(Icons.search_rounded),
-              onPressed: () => setState(() => _searchActive = true),
-            ),
-        ],
+            : null,
         bottom: _searchActive
             ? null
             : TabBar(

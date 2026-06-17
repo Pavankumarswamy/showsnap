@@ -38,7 +38,7 @@ class UserOffersScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: ShowSnapColors.background,
       appBar: AppBar(
-        backgroundColor: ShowSnapColors.background,
+        backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
         title: const Text('Offers & Rewards',

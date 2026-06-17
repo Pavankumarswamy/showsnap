@@ -9,6 +9,7 @@ import '../../../core/services/database_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../home/providers/location_provider.dart';
+import '../../../core/widgets/main_app_bar.dart';
 
 class AdRequestFormScreen extends ConsumerStatefulWidget {
   const AdRequestFormScreen({super.key});
@@ -98,20 +99,6 @@ class _AdRequestFormScreenState extends ConsumerState<AdRequestFormScreen> {
 
     return Scaffold(
       backgroundColor: ShowSnapColors.background,
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.pop(),
-        ),
-        title: const Text('New Ad Request', style: TextStyle(fontWeight: FontWeight.w800)),
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
-        ),
-        flexibleSpace: ClipRRect(
-          borderRadius: const BorderRadius.vertical(bottom: Radius.circular(25)),
-          child: Container(decoration: BoxDecoration(gradient: ShowSnapTheme.appBarGradient)),
-        ),
-      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),

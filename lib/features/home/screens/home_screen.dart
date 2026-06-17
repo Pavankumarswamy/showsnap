@@ -20,6 +20,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/widgets/tappable_scale.dart';
 import '../../onboarding/feature_walkthrough.dart';
 import '../../explore/screens/explore_screen.dart';
+import '../../../core/widgets/main_app_bar.dart';
 
 // (City preferences removed in favor of LocationProvider)
 
@@ -85,139 +86,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: ShowSnapColors.grey100,
+      appBar: MainAppBar(
+        title: 'It All Starts Here !',
+        enableShowcase: true,
+        onSearchTap: () {
+          setState(() {
+            _isSearchVisible = !_isSearchVisible;
+            if (_isSearchVisible) {
+              _searchFocus.requestFocus();
+            } else {
+              _searchCtrl.clear();
+            }
+          });
+        },
+        bottom: _isSearchVisible
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(60),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    focusNode: _searchFocus,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(
+                      hintText: 'Search movies...',
+                      prefixIcon: const Icon(Icons.search, color: ShowSnapColors.grey600, size: 20),
+                      suffixIcon: _searchCtrl.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, color: ShowSnapColors.grey600, size: 16),
+                              onPressed: () {
+                                _searchCtrl.clear();
+                                setState(() {});
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: ShowSnapColors.grey100,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                        borderSide: BorderSide.none,
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                        borderSide: const BorderSide(color: ShowSnapColors.primary, width: 2),
+                      ),
+                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                  ),
+                ),
+              )
+            : null,
+      ),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(homeFeedProvider.future),
         child: CustomScrollView(
           slivers: [
-            // ── App Bar ───────────────────────────────────────────────────
-            SliverAppBar(
-              pinned: true,
-              backgroundColor: ShowSnapColors.background,
-              elevation: 0,
-              toolbarHeight: 80,
-              titleSpacing: 0,
-              bottom: _isSearchVisible
-                  ? PreferredSize(
-                      preferredSize: const Size.fromHeight(60),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: TextField(
-                          controller: _searchCtrl,
-                          focusNode: _searchFocus,
-                          onChanged: (_) => setState(() {}),
-                          decoration: InputDecoration(
-                            hintText: 'Search movies...',
-                            prefixIcon: const Icon(Icons.search, color: ShowSnapColors.grey600, size: 20),
-                            suffixIcon: _searchCtrl.text.isNotEmpty
-                                ? IconButton(
-                                    icon: const Icon(Icons.clear, color: ShowSnapColors.grey600, size: 16),
-                                    onPressed: () {
-                                      _searchCtrl.clear();
-                                      setState(() {});
-                                    },
-                                  )
-                                : null,
-                            filled: true,
-                            fillColor: ShowSnapColors.grey100,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                              borderSide: BorderSide.none,
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                              borderSide: BorderSide.none,
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
-                              borderSide: const BorderSide(color: ShowSnapColors.primary, width: 2),
-                            ),
-                          ),
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
-                        ),
-                      ),
-                    )
-                  : null,
-              title: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Tagline & City selector
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text(
-                            'It All Starts Here !',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          ShowcaseTarget(
-                            showcaseKey: walkthroughCityKey,
-                            title: 'Your City',
-                            description: 'Tap to switch city and see local shows.',
-                            child: TappableScale(
-                              onTap: () => _showCityPicker(context),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.location_on_rounded,
-                                      color: ShowSnapColors.primary, size: 14),
-                                  const SizedBox(width: 4),
-                                  Flexible(
-                                    child: Text(
-                                      address?.fullAddress ?? 'Select Location',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: ShowSnapColors.primary,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.keyboard_arrow_right_rounded,
-                                      color: ShowSnapColors.primary, size: 16),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Search icon
-                    TappableScale(
-                      onTap: () {
-                        setState(() {
-                          _isSearchVisible = !_isSearchVisible;
-                          if (_isSearchVisible) {
-                            _searchFocus.requestFocus();
-                          } else {
-                            _searchCtrl.clear();
-                          }
-                        });
-                      },
-                      child: const Icon(Icons.search, color: Colors.white),
-                    ),
-                    const SizedBox(width: 16),
-                    // Notification bell
-                    TappableScale(
-                      onTap: () {},
-                      child: const Icon(Icons.notifications_outlined,
-                          color: Colors.white),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+
 
             // ── Body content ──────────────────────────────────────────────
             SliverToBoxAdapter(

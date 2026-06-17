@@ -105,3 +105,10 @@ flutter:
     - assets/images/
     - assets/lottie/
     - .env
+  fonts:
+    - family: Gilroy
+      fonts:
+        - asset: assets/gilroy-font/Gilroy-FREE/Gilroy-Light.otf
+          weight: 300
+        - asset: assets/gilroy-font/Gilroy-FREE/Gilroy-ExtraBold.otf
+          weight: 800

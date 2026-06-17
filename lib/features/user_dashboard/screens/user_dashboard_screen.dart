@@ -28,7 +28,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/widgets/skeleton_widgets.dart';
 import '../../../core/widgets/tappable_scale.dart';
-
+import '../../../core/widgets/main_app_bar.dart';
 // ─── Providers ────────────────────────────────────────────────────────────────
 
 final _wishlistProvider = StreamProvider.autoDispose<Map<String, String>>((ref) {

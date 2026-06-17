@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 // ─── Seat colours ─────────────────────────────────────────────────────────────
 
@@ -96,12 +95,13 @@ class ShowSnapTheme {
       scaffoldBackgroundColor: ShowSnapColors.background,
       cardColor: ShowSnapColors.surface,
       dialogBackgroundColor: ShowSnapColors.surface,
-      textTheme: GoogleFonts.poppinsTextTheme(base.textTheme).apply(
+      textTheme: base.textTheme.apply(
+        fontFamily: 'Gilroy',
         bodyColor: Colors.white,
         displayColor: Colors.white,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: ShowSnapColors.background,
+        backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
         shape: const RoundedRectangleBorder(
@@ -212,7 +212,7 @@ class ShowSnapTheme {
   }
 
   static LinearGradient get appBarGradient => const LinearGradient(
-        colors: [ShowSnapColors.primary, ShowSnapColors.primaryLight],
+        colors: [Colors.transparent, Colors.transparent],
         begin: Alignment.centerLeft,
         end: Alignment.centerRight,
       );

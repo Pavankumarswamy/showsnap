@@ -59,6 +59,7 @@ class _TheaterDetailContent extends ConsumerWidget {
           SliverAppBar(
             expandedHeight: 200,
             pinned: true,
+            backgroundColor: Colors.transparent,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 theater.name,
