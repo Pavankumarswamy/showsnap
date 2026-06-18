@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/theme.dart';
 import 'tappable_scale.dart';
+import 'package:go_router/go_router.dart';
 import '../../features/home/providers/location_provider.dart';
 import '../../features/home/widgets/location_bottom_sheet.dart';
 import '../../features/onboarding/feature_walkthrough.dart';
+import '../navigation/main_shell.dart';
+import 'showsnap_toast.dart';
 
 class MainAppBar extends ConsumerWidget implements PreferredSizeWidget {
   final String title;
@@ -129,9 +132,41 @@ class MainAppBar extends ConsumerWidget implements PreferredSizeWidget {
               const SizedBox(width: 16),
             ],
             // Notification bell
-            TappableScale(
-              onTap: () {},
-              child: const Icon(Icons.notifications_outlined, color: Colors.white),
+            Consumer(
+              builder: (context, ref, child) {
+                final unreadCount = ref.watch(unreadNotifCountProvider).valueOrNull ?? 0;
+                return TappableScale(
+                  onTap: () {
+                    context.push('/notifications');
+                  },
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(Icons.notifications_outlined, color: Colors.white),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: -2,
+                          top: -2,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: ShowSnapColors.primary,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              unreadCount > 9 ? '9+' : unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
             ),
           ],
         ),

@@ -19,6 +19,7 @@ import '../../features/events/screens/event_order_summary_screen.dart';
 import '../../features/bookings/screens/my_bookings_screen.dart';
 import '../../features/offers/screens/offers_screen.dart';
 import '../../features/user_dashboard/screens/user_dashboard_screen.dart';
+import '../../features/user_dashboard/screens/notifications_screen.dart';
 import '../../features/admin/screens/admin_dashboard_screen.dart';
 import '../../features/admin/screens/theaters_screen.dart';
 import '../../features/admin/screens/user_management_screen.dart';
@@ -61,6 +62,7 @@ class AppRoutes {
   static const String explore = '/explore';
   static const String theaterDetail = '/theater/:theaterId';
   static const String userDashboard = '/dashboard';
+  static const String notifications = '/notifications';
   static const String myBookings = '/my-bookings';
   static const String offers = '/offers';
   static const String movieDetail = '/movie/:movieId';
@@ -172,13 +174,15 @@ final routerProvider = Provider<GoRouter>((ref) {
         final email = firebaseUser?.email ?? '';
         final userModel = ref.read(currentUserModelProvider).valueOrNull;
 
-        // Still loading the user model from DB — stay put.
-        // The _RouterNotifier will re-fire once the stream emits.
-        // Exception: if email is admin@gmail.com we can redirect immediately.
-        final isAdminByEmail = email == 'admin@gmail.com';
-        if (userModel == null && !isAdminByEmail) return null;
+        // Still loading the user model from DB.
+        // We only allow staying on splash or auth routes while loading.
+        if (userModel == null) {
+          if (loc == AppRoutes.splash || authRoutes.contains(loc)) return null;
+          return AppRoutes.splash;
+        }
 
-        final role = userModel?.role ?? AppConstants.roleUser;
+        final isAdminByEmail = email == 'admin@gmail.com';
+        final role = userModel.role;
         final isAdmin = isAdminByEmail || role == AppConstants.roleAdmin;
         final isTM = !isAdmin && role == AppConstants.roleTheaterManager;
         final isEM = !isAdmin && !isTM && role == AppConstants.roleEventManager;
@@ -265,7 +269,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // ── Bookings Standalone ───────────────────────────────────────────────
+      // ── Bookings & Notifications Standalone ───────────────────────────────────────────────
+      GoRoute(
+          path: AppRoutes.notifications,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const NotificationsScreen())),
       GoRoute(
           path: AppRoutes.myBookings,
           pageBuilder: (c, s) =>

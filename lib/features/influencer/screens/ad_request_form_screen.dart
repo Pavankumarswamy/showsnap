@@ -79,7 +79,11 @@ class _AdRequestFormScreenState extends ConsumerState<AdRequestFormScreen> {
 
       if (mounted) {
         ShowSnapToast.show(context, message: 'Ad Request Submitted Successfully!');
-        context.pop();
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/home');
+        }
       }
     } catch (e) {
       if (mounted) {

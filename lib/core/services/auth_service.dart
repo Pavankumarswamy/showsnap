@@ -50,10 +50,20 @@ class AuthService {
   Future<void> ensureAdminRole() async {
     final user = _auth.currentUser;
     if (user == null || user.email != 'admin@gmail.com') return;
-    final roleRef = _db.ref('${AppConstants.usersPath}/${user.uid}/role');
-    final snap = await roleRef.get();
-    if (snap.value?.toString() != AppConstants.roleAdmin) {
-      await roleRef.set(AppConstants.roleAdmin);
+    
+    final ref = _db.ref('${AppConstants.usersPath}/${user.uid}');
+    final snap = await ref.get();
+    
+    if (!snap.exists) {
+      await ref.set(UserModel(
+        uid: user.uid,
+        displayName: user.displayName ?? 'Admin',
+        email: user.email ?? '',
+        role: AppConstants.roleAdmin,
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      ).toJson());
+    } else if (snap.child('role').value?.toString() != AppConstants.roleAdmin) {
+      await ref.child('role').set(AppConstants.roleAdmin);
     }
   }
 

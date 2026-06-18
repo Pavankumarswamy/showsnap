@@ -11,6 +11,7 @@ class AppConstants {
   static const String adRequestsPath = 'adRequests';
   static const String eventsPath = 'events';
   static const String bannersPath = 'banners';
+  static const String notificationsPath = 'notifications';
 
   // User roles
   static const String roleAdmin = 'admin';

@@ -361,11 +361,7 @@ class _AddTheaterScreenState extends ConsumerState<AddTheaterScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final managerId = widget.fixedManagerId ?? _selectedManager?.uid;
-    if (managerId == null) {
-      ShowSnapToast.error(context, 'Please select a manager');
-      return;
-    }
+    final managerId = widget.fixedManagerId ?? _selectedManager?.uid ?? '';
 
     if (_fetchedAddress.isEmpty || _fetchedCity.isEmpty) {
       ShowSnapToast.error(context, 'Please drop a pin on the map to fetch the address');

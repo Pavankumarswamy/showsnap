@@ -14,6 +14,7 @@ import '../models/theater_model.dart';
 import '../models/user_model.dart';
 import '../models/ad_request_model.dart';
 import '../models/banner_model.dart';
+import '../models/notification_model.dart';
 
 class DatabaseService {
   final FirebaseDatabase _db = FirebaseDatabase.instance;
@@ -813,6 +814,34 @@ class DatabaseService {
         await _db.ref('referrals/$uid/count').get();
     if (!snap.exists) return 0;
     return (snap.value as num?)?.toInt() ?? 0;
+  }
+
+  // ─── Notifications ────────────────────────────────────────────────────────
+  
+  Stream<List<NotificationModel>> watchNotifications(String uid) {
+    return _db.ref('${AppConstants.notificationsPath}/$uid').onValue.map((e) {
+      if (!e.snapshot.exists || e.snapshot.value == null) return [];
+      final map = e.snapshot.value as Map;
+      final all = map.entries
+          .map((entry) => NotificationModel.fromJson(
+              entry.key.toString(), entry.value as Map))
+          .toList();
+      all.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return all;
+    });
+  }
+
+  Future<void> markNotificationAsRead(String uid, String notificationId) async {
+    final ref = _db.ref('${AppConstants.notificationsPath}/$uid/$notificationId/isRead');
+    await ref.set(true);
+
+    // Also decrement unread count if it's > 0
+    final countRef = _db.ref('${AppConstants.usersPath}/$uid/unreadNotifications');
+    final snap = await countRef.get();
+    final count = (snap.value as num?)?.toInt() ?? 0;
+    if (count > 0) {
+      await countRef.set(count - 1);
+    }
   }
 }
 

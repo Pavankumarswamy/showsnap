@@ -257,3 +257,118 @@ exports.sendShowReminders = functions.pubsub
     await Promise.allSettled(promises);
     return null;
   });
+
+// CF-06: Notify Admins on New Ad Request
+exports.onAdRequestCreated = functions.database
+  .ref("adRequests/{requestId}")
+  .onCreate(async (snap, context) => {
+    const request = snap.val();
+    if (!request) return null;
+
+    const adminsByRoleSnap = await db.ref("users").orderByChild("role").equalTo("admin").once("value");
+    const adminsByEmailSnap = await db.ref("users").orderByChild("email").equalTo("admin@gmail.com").once("value");
+
+    const adminUsers = {};
+    if (adminsByRoleSnap.exists()) {
+      adminsByRoleSnap.forEach(snap => { adminUsers[snap.key] = snap.val(); });
+    }
+    if (adminsByEmailSnap.exists()) {
+      adminsByEmailSnap.forEach(snap => { adminUsers[snap.key] = snap.val(); });
+    }
+
+    if (Object.keys(adminUsers).length === 0) return null;
+
+    const messaging = admin.messaging();
+    const promises = [];
+    const updates = {};
+    const timestamp = Date.now();
+    const notifId = `notif_${timestamp}`;
+
+    for (const [adminId, adminUser] of Object.entries(adminUsers)) {
+      // Create in-app notification
+      updates[`notifications/${adminId}/${notifId}`] = {
+        title: "New Ad Request",
+        body: `From: ${request.brandName}`,
+        type: "ad_request",
+        relatedId: context.params.requestId,
+        isRead: false,
+        createdAt: timestamp,
+      };
+      
+      // Increment unread count
+      updates[`users/${adminId}/unreadNotifications`] = admin.database.ServerValue.increment(1);
+
+      // Send FCM push notification
+      if (adminUser.fcmToken) {
+        promises.push(
+          messaging.send({
+            token: adminUser.fcmToken,
+            notification: {
+              title: "New Ad Request",
+              body: `Brand: ${request.brandName} submitted a new request.`,
+            },
+            data: { type: "ad_request", requestId: context.params.requestId },
+          }).catch((err) => console.error("FCM Send Error:", err))
+        );
+      }
+    }
+
+    promises.push(db.ref().update(updates));
+    await Promise.allSettled(promises);
+    return null;
+  });
+
+// CF-07: Notify User on Ad Request Status Update
+exports.onAdRequestStatusUpdated = functions.database
+  .ref("adRequests/{requestId}/status")
+  .onUpdate(async (change, context) => {
+    const newStatus = change.after.val();
+    const oldStatus = change.before.val();
+    if (newStatus === oldStatus) return null;
+
+    const requestSnap = await db.ref(`adRequests/${context.params.requestId}`).once("value");
+    const request = requestSnap.val();
+    if (!request || !request.uid) return null;
+
+    const userSnap = await db.ref(`users/${request.uid}`).once("value");
+    const user = userSnap.val();
+    if (!user) return null;
+
+    const messaging = admin.messaging();
+    const promises = [];
+    const updates = {};
+    const timestamp = Date.now();
+    const notifId = `notif_${timestamp}`;
+
+    const title = `Ad Request ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`;
+    const body = `Your request for ${request.brandName} has been ${newStatus}.`;
+
+    // Create in-app notification
+    updates[`notifications/${request.uid}/${notifId}`] = {
+      title,
+      body,
+      type: "ad_request",
+      relatedId: context.params.requestId,
+      isRead: false,
+      createdAt: timestamp,
+    };
+    
+    // Increment unread count
+    updates[`users/${request.uid}/unreadNotifications`] = admin.database.ServerValue.increment(1);
+
+    // Send FCM push notification
+    if (user.fcmToken) {
+      promises.push(
+        messaging.send({
+          token: user.fcmToken,
+          notification: { title, body },
+          data: { type: "ad_request", requestId: context.params.requestId },
+        }).catch((err) => console.error("FCM Send Error:", err))
+      );
+    }
+
+    promises.push(db.ref().update(updates));
+    await Promise.allSettled(promises);
+    return null;
+  });
+

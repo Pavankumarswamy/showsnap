@@ -9,6 +9,7 @@ import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
+import '../../../core/navigation/main_shell.dart';
 import '../../auth/providers/auth_provider.dart';
 
 // ─── Data Model ───────────────────────────────────────────────────────────────
@@ -203,10 +204,39 @@ class AdminDashboardScreen extends ConsumerWidget {
             fontSize: 18),
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined,
-              color: AdminColors.textSecondary),
-          onPressed: () {},
+        Consumer(
+          builder: (context, ref, child) {
+            final unreadCount = ref.watch(unreadNotifCountProvider).valueOrNull ?? 0;
+            return IconButton(
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.notifications_outlined, color: AdminColors.textSecondary),
+                  if (unreadCount > 0)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: AdminColors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          unreadCount > 9 ? '9+' : unreadCount.toString(),
+                          style: const TextStyle(
+                            color: Colors.black87,
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              onPressed: () => context.push('/notifications'),
+            );
+          },
         ),
         Padding(
           padding: const EdgeInsets.only(right: 12),
