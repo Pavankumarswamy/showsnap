@@ -104,7 +104,7 @@ class EventCard extends StatelessWidget {
                           const Icon(Icons.calendar_month, size: 12, color: ShowSnapColors.primary),
                           const SizedBox(width: 4),
                           Text(
-                            event.startTs.epochToDateLabel,
+                            event.startTs.epochToDateLabelShort,
                             style: const TextStyle(
                               color: Colors.black87,
                               fontSize: 10,

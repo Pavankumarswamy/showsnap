@@ -88,72 +88,16 @@ class _EventOrderSummaryScreenState extends ConsumerState<EventOrderSummaryScree
 
       setState(() => _paymentInProgress = false);
 
-      // 2. Generate and upload ticket
-      if (mounted) {
-        _showProcessingDialog('Generating ticket PNG...');
-      }
-
-      await Future.delayed(const Duration(milliseconds: 500)); // wait for boundary to render
-      final boundary = _ticketBoundaryKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) throw Exception('Ticket render boundary not found');
-      
-      final image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) throw Exception('Failed to convert image to bytes');
-      
-      final pngBytes = byteData.buffer.asUint8List();
+      setState(() => _paymentInProgress = false);
 
       if (mounted) {
-        Navigator.pop(context); // close processing dialog
-        _showProcessingDialog('Downloading ticket...');
-      }
-
-      await saveAndDownloadPng(pngBytes, 'event_ticket_$bookingId.png');
-
-      if (mounted) {
-        Navigator.pop(context);
-        _showProcessingDialog('Uploading to cloud...');
-      }
-
-      final url = await ref.read(cloudinaryServiceProvider).uploadImageBytes(
-            pngBytes,
-            'event_ticket_$bookingId.png',
-            AppConstants.cloudinaryEtickets,
-          );
-
-      if (mounted) {
-        Navigator.pop(context);
-      }
-
-      // 3. Show Success Dialog
-      final event = checkoutData.event!;
-      final dt = DateTime.fromMillisecondsSinceEpoch(event.startTs);
-      final formattedDateTime = DateFormat('EEE, d MMM yyyy • h:mm a').format(dt);
-      
-      final tierDetails = <String>[];
-      widget.tierQuantities.forEach((tierIdx, qty) {
-        if (qty > 0 && tierIdx < event.ticketTiers.length) {
-          tierDetails.add('${event.ticketTiers[tierIdx].name} x$qty');
-        }
-      });
-
-      final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
-      final phoneWithCountryCode = '91$digits';
-      final message = 'Hi! Here is your ticket for *${event.name}* at *${event.venueName}*:\n\n'
-          'Tickets: *${tierDetails.join(', ')}*\n'
-          'Total: *₹${checkoutData.total}*\n\n'
-          'View E-Ticket: $url';
-      final whatsappUrl = 'https://wa.me/$phoneWithCountryCode?text=${Uri.encodeComponent(message)}';
-
-      if (mounted) {
-        _showSuccessDialog(bookingId, whatsappUrl, digits);
+        context.go('/ticket/$bookingId', extra: {'isNewBooking': true});
       }
     } catch (e) {
       if (mounted) {
         if (Navigator.canPop(context)) Navigator.pop(context); // clear any dialogs
         setState(() => _paymentInProgress = false);
-        ShowSnapToast.show(context, message: 'Booking completed but ticket generation failed: $e', type: ToastType.error);
-        context.go('/my-bookings');
+        ShowSnapToast.show(context, message: 'Booking failed: $e', type: ToastType.error);
       }
     }
   }
@@ -264,7 +208,7 @@ class _EventOrderSummaryScreenState extends ConsumerState<EventOrderSummaryScree
           TextButton(
             onPressed: () {
               Navigator.pop(dialogContext);
-              context.go('/ticket/$bookingId');
+              context.go('/ticket/$bookingId', extra: {'isNewBooking': true});
             },
             child: const Text('VIEW TICKET'),
           ),

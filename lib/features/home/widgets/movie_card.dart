@@ -22,7 +22,7 @@ class MovieCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final heroTag = 'movie_poster_${movie.movieId}${heroTagSuffix != null ? '_$heroTagSuffix' : ''}';
     return TappableScale(
-      onTap: () => context.push('/movie/${movie.movieId}', extra: heroTag),
+      onTap: () => context.push('/movie/${movie.movieId}', extra: {'heroTag': heroTag, 'movie': movie}),
       child: SizedBox(
         width: width,
         child: Column(

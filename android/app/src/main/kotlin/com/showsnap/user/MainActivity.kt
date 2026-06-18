@@ -1,4 +1,4 @@
-package com.example.showsnap
+package com.showsnap.user
 
 import io.flutter.embedding.android.FlutterActivity
 

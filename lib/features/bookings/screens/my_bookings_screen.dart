@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
@@ -222,8 +223,10 @@ class _BookingCardState extends ConsumerState<_BookingCard> {
   @override
   Widget build(BuildContext context) {
     final booking = widget.booking;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+    return GestureDetector(
+      onTap: () => context.push('/ticket/${booking.bookingId}'),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: ShowSnapColors.surface,
         borderRadius: BorderRadius.circular(ShowSnapRadius.md),
@@ -386,6 +389,50 @@ class _BookingCardState extends ConsumerState<_BookingCard> {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TappableScale(
+                        onTap: () async {
+                          Uri url;
+                          if (booking.locationUrl.isNotEmpty) {
+                            url = Uri.parse(booking.locationUrl);
+                            if (!url.hasScheme) {
+                               url = Uri.parse('https://${booking.locationUrl}');
+                            }
+                          } else {
+                            final query = Uri.encodeComponent(booking.theaterName);
+                            url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$query');
+                          }
+                          if (await canLaunchUrl(url)) {
+                            await launchUrl(url, mode: LaunchMode.externalApplication);
+                          } else {
+                            if (context.mounted) {
+                              ShowSnapToast.show(context, message: 'Could not open maps', type: ToastType.error);
+                            }
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: ShowSnapColors.secondary),
+                            borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.directions_rounded,
+                                  size: 16, color: ShowSnapColors.secondary),
+                              SizedBox(width: 6),
+                              Text('Directions',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: ShowSnapColors.secondary)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                     if (_canCancel) ...[
                       const SizedBox(width: 8),
                       Expanded(
@@ -467,7 +514,7 @@ class _BookingCardState extends ConsumerState<_BookingCard> {
           ),
         ],
       ),
-    );
+    ));
   }
 
   String get _countdownLabel {

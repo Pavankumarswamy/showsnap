@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -416,8 +417,17 @@ class _TheaterRow extends StatelessWidget {
                 color: ShowSnapColors.primaryLighter,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.theaters_rounded,
-                  color: ShowSnapColors.primary),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: theater.logoUrl.isNotEmpty
+                    ? CachedNetworkImage(
+                        imageUrl: theater.logoUrl,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))),
+                        errorWidget: (context, url, error) => const Icon(Icons.theaters_rounded, color: ShowSnapColors.primary),
+                      )
+                    : const Icon(Icons.theaters_rounded, color: ShowSnapColors.primary),
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(

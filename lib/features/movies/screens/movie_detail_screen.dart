@@ -55,10 +55,15 @@ final _userMovieRatingProvider =
 class MovieDetailScreen extends ConsumerWidget {
   final String movieId;
   final String? heroTag;
-  const MovieDetailScreen({super.key, required this.movieId, this.heroTag});
+  final MovieModel? initialMovie;
+  const MovieDetailScreen({super.key, required this.movieId, this.heroTag, this.initialMovie});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (initialMovie != null) {
+      return _MovieDetailContent(movie: initialMovie!, heroTag: heroTag);
+    }
+    
     final movieAsync = ref.watch(_movieDetailProvider(movieId));
     return movieAsync.when(
       loading: () => Scaffold(
@@ -185,7 +190,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
     final movie = widget.movie;
     return Scaffold(
         backgroundColor: ShowSnapColors.background,
-        bottomNavigationBar: movie.status == 'nowShowing'
+        bottomNavigationBar: movie.status != 'closed'
             ? Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: BoxDecoration(

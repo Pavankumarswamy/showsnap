@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
@@ -30,7 +31,8 @@ final _bookingProvider =
 
 class TicketScreen extends ConsumerWidget {
   final String bookingId;
-  const TicketScreen({super.key, required this.bookingId});
+  final bool isNewBooking;
+  const TicketScreen({super.key, required this.bookingId, this.isNewBooking = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -57,7 +59,7 @@ class TicketScreen extends ConsumerWidget {
           if (booking == null) {
             return const Center(child: Text('Booking not found'));
           }
-          return _TicketContent(booking: booking);
+          return _TicketContent(booking: booking, isNewBooking: isNewBooking);
         },
       ),
     );
@@ -68,7 +70,8 @@ class TicketScreen extends ConsumerWidget {
 
 class _TicketContent extends StatefulWidget {
   final BookingModel booking;
-  const _TicketContent({required this.booking});
+  final bool isNewBooking;
+  const _TicketContent({required this.booking, this.isNewBooking = false});
 
   @override
   State<_TicketContent> createState() => _TicketContentState();
@@ -84,7 +87,9 @@ class _TicketContentState extends State<_TicketContent> {
     _confetti = ConfettiController(duration: const Duration(seconds: 2));
     HapticFeedback.heavyImpact();
     Future.delayed(const Duration(milliseconds: 700), () {
-      if (mounted) _confetti.play();
+      if (mounted) {
+        _confetti.play();
+      }
     });
   }
 
@@ -202,18 +207,28 @@ class _TicketContentState extends State<_TicketContent> {
     }
   }
 
-  Future<void> _saveTicket(BuildContext context) async {
+  Future<void> _saveTicket(BuildContext context, {bool auto = false}) async {
     try {
       final bytes = await _captureImage();
-      final dir = await getApplicationDocumentsDirectory();
-      final file =
-          File('${dir.path}/ticket_${widget.booking.bookingId}.png');
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/ticket_${widget.booking.bookingId}.png');
       await file.writeAsBytes(bytes);
+      
+      final hasAccess = await Gal.hasAccess();
+      if (!hasAccess) {
+        final granted = await Gal.requestAccess();
+        if (!granted && context.mounted && !auto) {
+          ShowSnapToast.show(context, message: 'Gallery permission denied', type: ToastType.error);
+          return;
+        }
+      }
+      
+      await Gal.putImage(file.path);
       if (context.mounted) {
-        ShowSnapToast.show(context, message: 'Ticket saved!');
+        ShowSnapToast.show(context, message: 'Ticket saved to gallery!');
       }
     } catch (e) {
-      if (context.mounted) {
+      if (context.mounted && !auto) {
         ShowSnapToast.show(context, message: 'Failed to save: $e', type: ToastType.error);
       }
     }
@@ -475,7 +490,7 @@ class _TicketCard extends StatelessWidget {
                       style: const TextStyle(
                         fontWeight: FontWeight.w800,
                         fontSize: 20,
-                        color: Colors.black87,
+                        color: Colors.white,
                       ),
                       textAlign: TextAlign.center,
                     ),
@@ -483,7 +498,7 @@ class _TicketCard extends StatelessWidget {
                     Text(
                       booking.showStartTs.epochToDateTimeLabel,
                       style: const TextStyle(
-                          fontSize: 13, color: Colors.black54),
+                          fontSize: 13, color: Colors.white70),
                     ),
                     const SizedBox(height: 16),
                     Container(
@@ -512,11 +527,11 @@ class _TicketCard extends StatelessWidget {
                       children: [
                         Expanded(
                             child: _InfoChip(
-                                'Theater', booking.theaterName)),
+                                'Venue/Theater', booking.theaterName)),
                         const SizedBox(width: 12),
                         Expanded(
                             child:
-                                _InfoChip('Screen', booking.screenName)),
+                                _InfoChip('Category/Screen', booking.screenName)),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -559,12 +574,12 @@ class _TicketCard extends StatelessWidget {
                       alignment: Alignment.centerRight,
                       child: Opacity(
                         opacity: 0.2,
-                        child: Text(
+                        child: const Text(
                           'ShowSnap',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
-                            color: ShowSnapColors.primary,
+                            color: Colors.white,
                           ),
                         ),
                       ),

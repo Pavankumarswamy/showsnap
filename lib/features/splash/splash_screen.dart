@@ -98,86 +98,26 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       onWillPop: () async => false,
       child: Scaffold(
         body: Container(
-          decoration: BoxDecoration(gradient: ShowSnapTheme.splashGradient),
+          color: Colors.white,
           child: Stack(
             children: [
               Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
-                        boxShadow: ShowSnapShadow.elevated,
-                      ),
-                      child: const Center(
-                        child: Text(
-                          'S',
-                          style: TextStyle(
-                            fontSize: 52,
-                            fontWeight: FontWeight.w900,
-                            color: ShowSnapColors.primary,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    )
-                        .animate(target: reduceMotion ? 0 : 1)
-                        .scale(
-                          begin: const Offset(0.4, 0.4),
-                          end: const Offset(1, 1),
-                          duration: const Duration(milliseconds: 800),
-                          delay: const Duration(milliseconds: 200),
-                          curve: Curves.elasticOut,
-                        ),
-
-                    const SizedBox(height: 24),
-
-                    // App name
-                    const Text(
-                      'ShowSnap',
-                      style: TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w800,
-                        color: Colors.white,
-                        letterSpacing: 1.5,
-                      ),
-                    )
-                        .animate(target: reduceMotion ? 0 : 1)
-                        .slideY(
-                          begin: 0.5,
-                          end: 0,
-                          duration: const Duration(milliseconds: 500),
-                          delay: const Duration(milliseconds: 600),
-                          curve: Curves.easeOutCubic,
-                        )
-                        .fadeIn(
-                          duration: const Duration(milliseconds: 500),
-                          delay: const Duration(milliseconds: 600),
-                        ),
-
-                    const SizedBox(height: 8),
-
-                    // Tagline
-                    const Text(
-                      'Book Your Moment',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white70,
-                        letterSpacing: 2.0,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    )
-                        .animate(target: reduceMotion ? 0 : 1)
-                        .fadeIn(
-                          duration: const Duration(milliseconds: 400),
-                          delay: const Duration(milliseconds: 900),
-                        ),
-                  ],
+                child: Image.asset(
+                  'assets/images/show_snap_logo.png',
+                  width: 250,
+                  fit: BoxFit.contain,
+                )
+                .animate(target: reduceMotion ? 0 : 1)
+                .scale(
+                  begin: const Offset(0.8, 0.8),
+                  end: const Offset(1, 1),
+                  duration: const Duration(milliseconds: 800),
+                  delay: const Duration(milliseconds: 200),
+                  curve: Curves.elasticOut,
+                )
+                .fadeIn(
+                  duration: const Duration(milliseconds: 500),
+                  delay: const Duration(milliseconds: 200),
                 ),
               ),
 
@@ -193,7 +133,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       Container(
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white24,
+                          color: ShowSnapColors.grey300,
                           borderRadius:
                               BorderRadius.circular(ShowSnapRadius.pill),
                         ),
@@ -206,7 +146,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         child: Container(
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: ShowSnapColors.primary,
                             borderRadius:
                                 BorderRadius.circular(ShowSnapRadius.pill),
                           ),

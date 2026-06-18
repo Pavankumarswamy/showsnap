@@ -1403,7 +1403,7 @@ class _RecentBookings extends StatelessWidget {
             TextButton.icon(
               icon: const Icon(Icons.arrow_right_alt, size: 16),
               label: const Text('View All'),
-              onPressed: () => context.push(AppRoutes.myBookings),
+              onPressed: () => context.go(AppRoutes.myBookings),
             ),
           ],
         ),

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,11 +14,20 @@ final _theaterDetailProvider =
     FutureProvider.family<TheaterModel?, String>((ref, theaterId) =>
         ref.watch(databaseServiceProvider).getTheater(theaterId));
 
-final _nowShowingMoviesProvider =
-    FutureProvider<List<MovieModel>>((ref) async {
+final _theaterMoviesProvider =
+    FutureProvider.family<List<MovieModel>, String>((ref, theaterId) async {
   final db = ref.watch(databaseServiceProvider);
-  final movies = await db.getAllMovies();
-  return movies.where((m) => m.status == 'nowShowing').toList();
+  final shows = await db.getShowsForTheater(theaterId);
+  final movieIds = shows.map((s) => s.movieId).toSet().toList();
+  
+  final List<MovieModel> movies = [];
+  for (final mId in movieIds) {
+    final m = await db.getMovie(mId);
+    if (m != null && m.status == 'nowShowing') {
+      movies.add(m);
+    }
+  }
+  return movies;
 });
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -68,14 +78,45 @@ class _TheaterDetailContent extends ConsumerWidget {
                   shadows: [Shadow(color: Colors.black54, blurRadius: 6)],
                 ),
               ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: ShowSnapTheme.splashGradient,
-                ),
-                child: const Center(
-                  child: Icon(Icons.theaters_rounded,
-                      size: 80, color: Colors.white30),
-                ),
+              background: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (theater.logoUrl.isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: theater.logoUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(
+                        decoration: BoxDecoration(gradient: ShowSnapTheme.splashGradient),
+                        child: const Center(child: CircularProgressIndicator(color: Colors.white)),
+                      ),
+                      errorWidget: (context, url, error) => Container(
+                        decoration: BoxDecoration(gradient: ShowSnapTheme.splashGradient),
+                        child: const Center(
+                          child: Icon(Icons.theaters_rounded, size: 80, color: Colors.white30),
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      decoration: BoxDecoration(gradient: ShowSnapTheme.splashGradient),
+                      child: const Center(
+                        child: Icon(Icons.theaters_rounded, size: 80, color: Colors.white30),
+                      ),
+                    ),
+                  // Dark overlay for text readability
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.7),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -136,7 +177,7 @@ class _TheaterDetailContent extends ConsumerWidget {
                           fontWeight: FontWeight.w800, fontSize: 16)),
                   const SizedBox(height: 12),
 
-                  _NowShowingSection(),
+                  _NowShowingSection(theaterId: theater.theaterId),
                 ],
               ),
             ),
@@ -169,9 +210,12 @@ class _InfoTile extends StatelessWidget {
 }
 
 class _NowShowingSection extends ConsumerWidget {
+  final String theaterId;
+  const _NowShowingSection({required this.theaterId});
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final moviesAsync = ref.watch(_nowShowingMoviesProvider);
+    final moviesAsync = ref.watch(_theaterMoviesProvider(theaterId));
     return moviesAsync.when(
       loading: () => const Center(
           child: Padding(

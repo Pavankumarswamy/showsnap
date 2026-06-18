@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 extension DateTimeExt on DateTime {
   String get dateLabel => DateFormat('dd MMM yyyy').format(this);
+  String get dateLabelShort => DateFormat('dd MMM').format(this);
   String get timeLabel => DateFormat('hh:mm a').format(this);
   String get dateTimeLabel => DateFormat('dd MMM, hh:mm a').format(this);
   String get dayShort => DateFormat('EEE').format(this);
@@ -26,6 +27,7 @@ extension IntEpochExt on int {
       DateTime.fromMillisecondsSinceEpoch(this);
 
   String get epochToDateLabel => toDateTime.dateLabel;
+  String get epochToDateLabelShort => toDateTime.dateLabelShort;
   String get epochToTimeLabel => toDateTime.timeLabel;
   String get epochToDateTimeLabel => toDateTime.dateTimeLabel;
 

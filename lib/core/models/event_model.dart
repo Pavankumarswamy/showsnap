@@ -40,6 +40,7 @@ class EventModel {
   final String category; // 'concert' | 'comedy' | 'sports' | 'theatre' | 'other'
   final String description;
   final String posterUrl;
+  final String locationUrl;
   final List<TicketTier> ticketTiers;
   final String managerId;
   final String status; // 'draft' | 'published' | 'closed'
@@ -59,6 +60,7 @@ class EventModel {
     this.category = 'other',
     this.description = '',
     this.posterUrl = '',
+    this.locationUrl = '',
     this.ticketTiers = const [],
     this.managerId = '',
     this.status = 'draft',
@@ -90,6 +92,7 @@ class EventModel {
       category: json['category']?.toString() ?? 'other',
       description: json['description']?.toString() ?? '',
       posterUrl: json['posterUrl']?.toString() ?? '',
+      locationUrl: json['locationUrl']?.toString() ?? '',
       ticketTiers: tiers,
       managerId: json['managerId']?.toString() ?? '',
       status: json['status']?.toString() ?? 
@@ -111,6 +114,7 @@ class EventModel {
         'category': category,
         'description': description,
         'posterUrl': posterUrl,
+        'locationUrl': locationUrl,
         'ticketTiers': ticketTiers.map((t) => t.toJson()).toList(),
         'managerId': managerId,
         'status': status,

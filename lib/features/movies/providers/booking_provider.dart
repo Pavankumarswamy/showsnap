@@ -253,6 +253,10 @@ final theaterProvider = FutureProvider.family<TheaterModel?, String>((ref, theat
   return ref.watch(databaseServiceProvider).getTheater(theaterId);
 });
 
+final allTheatersProvider = FutureProvider<List<TheaterModel>>((ref) {
+  return ref.watch(databaseServiceProvider).getAllTheaters();
+});
+
 final theaterShowsStreamProvider = StreamProvider.family<List<ShowModel>, String>((ref, theaterId) {
   return ref.watch(databaseServiceProvider).streamShowsForTheater(theaterId);
 });

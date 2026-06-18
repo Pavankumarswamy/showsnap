@@ -9,6 +9,8 @@ import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/models/user_model.dart';
 
 enum _ScanState { idle, processing, valid, redeemed, invalid }
 
@@ -62,6 +64,22 @@ class _TicketScannerScreenState extends ConsumerState<TicketScannerScreen>
           _errorMessage = 'Booking not found';
         });
         return;
+      }
+
+      // Verify theater belongs to manager
+      final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
+      final allTheaters = await db.getAllTheaters();
+      final ownsTheater = allTheaters.any((t) => t.managerId == uid && t.theaterId == booking.theaterId);
+      
+      if (!ownsTheater) {
+        final role = ref.read(currentUserModelProvider).valueOrNull?.role;
+        if (role != 'admin') {
+          setState(() {
+            _state = _ScanState.invalid;
+            _errorMessage = 'Unauthorized: Ticket is for a different theater';
+          });
+          return;
+        }
       }
 
       if (booking.status == BookingStatus.redeemed) {

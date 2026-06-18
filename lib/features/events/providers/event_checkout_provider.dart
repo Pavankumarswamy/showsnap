@@ -180,6 +180,7 @@ class EventCheckoutNotifier extends StateNotifier<AsyncValue<EventCheckoutState>
       status: BookingStatus.confirmed,
       paymentTxnId: paymentTxnId,
       createdAt: DateTime.now().millisecondsSinceEpoch,
+      locationUrl: currentState.event!.locationUrl,
     );
 
     await _db.bookEventTickets(booking, currentState.event!, _tierQuantities);

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../models/movie_model.dart';
 import '../../features/auth/screens/login_screen.dart';
 import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/profile_setup_screen.dart';
@@ -242,11 +243,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, shell) =>
             MainShell(navigationShell: shell),
         branches: [
-          // Tab 0 — Home
+          // Tab 0 — Bookings
           StatefulShellBranch(routes: [
             GoRoute(
-              path: AppRoutes.home,
-              pageBuilder: (c, s) => _fadePage(c, s, const HomeScreen()),
+              path: AppRoutes.myBookings,
+              pageBuilder: (c, s) =>
+                  _fadePage(c, s, const MyBookingsScreen()),
             ),
           ]),
           // Tab 1 — Explore
@@ -259,7 +261,14 @@ final routerProvider = Provider<GoRouter>((ref) {
               },
             ),
           ]),
-          // Tab 2 — Ad Request
+          // Tab 2 — Home
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: AppRoutes.home,
+              pageBuilder: (c, s) => _fadePage(c, s, const HomeScreen()),
+            ),
+          ]),
+          // Tab 3 — Ad Request
           StatefulShellBranch(routes: [
             GoRoute(
               path: AppRoutes.adRequestForm,
@@ -267,7 +276,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   _fadePage(c, s, const AdRequestFormScreen()),
             ),
           ]),
-          // Tab 3 — Profile
+          // Tab 4 — Profile
           StatefulShellBranch(routes: [
             GoRoute(
               path: AppRoutes.userDashboard,
@@ -283,21 +292,24 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.notifications,
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const NotificationsScreen())),
-      GoRoute(
-          path: AppRoutes.myBookings,
-          pageBuilder: (c, s) =>
-              _horizontalPage(c, s, const MyBookingsScreen())),
 
-      // ── Booking drill-down (horizontal) ───────────────────────────────────
       GoRoute(
         path: AppRoutes.movieDetail,
         pageBuilder: (c, s) {
           final movieId = s.pathParameters['movieId']!;
-          final heroTag = s.extra as String?;
+          String? heroTag;
+          MovieModel? initialMovie;
+          if (s.extra is Map) {
+            final extra = s.extra as Map;
+            heroTag = extra['heroTag'] as String?;
+            initialMovie = extra['movie'] as MovieModel?;
+          } else if (s.extra is String) {
+            heroTag = s.extra as String;
+          }
           return _horizontalPage(
             c,
             s,
-            MovieDetailScreen(movieId: movieId, heroTag: heroTag),
+            MovieDetailScreen(movieId: movieId, heroTag: heroTag, initialMovie: initialMovie),
           );
         },
       ),
@@ -367,10 +379,18 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.ticket,
-        pageBuilder: (c, s) => _verticalPage(
+        pageBuilder: (c, s) {
+          final extra = s.extra as Map<String, dynamic>?;
+          final isNewBooking = extra?['isNewBooking'] as bool? ?? false;
+          return _verticalPage(
             c,
             s,
-            TicketScreen(bookingId: s.pathParameters['bookingId']!)),
+            TicketScreen(
+              bookingId: s.pathParameters['bookingId']!,
+              isNewBooking: isNewBooking,
+            ),
+          );
+        },
       ),
 
       // ── Admin ─────────────────────────────────────────────────────────────

@@ -38,8 +38,9 @@ final homeFeedProvider = FutureProvider<HomeData>((ref) async {
       allMovies.where((m) => m.status == 'nowShowing').toList();
   final upcoming = allMovies
       .where((m) =>
-          m.status == 'upcoming' ||
-          (m.releaseDateTs > 0 && m.releaseDateTs > now))
+          m.status != 'nowShowing' &&
+          (m.status == 'upcoming' ||
+              (m.releaseDateTs > 0 && m.releaseDateTs > now)))
       .toList();
 
   // Trending: sort by bookingCount descending, take top 10

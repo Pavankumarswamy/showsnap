@@ -188,8 +188,6 @@ class _HomeBody extends ConsumerStatefulWidget {
 }
 
 class _HomeBodyState extends ConsumerState<_HomeBody> {
-  String _activeCategory = 'Movies';
-  final _categories = ['Movies', 'Events'];
 
   @override
   Widget build(BuildContext context) {
@@ -263,20 +261,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
           _PromoBanner(controller: widget.bannerCtrl),
           const SizedBox(height: 16),
 
-          // Category pills
-          ShowcaseTarget(
-            showcaseKey: walkthroughCategoryKey,
-            title: 'Categories',
-            description: 'Filter by Movies, Events, Plays, and more.',
-            child: _CategoryPills(
-              categories: _categories,
-              active: _activeCategory,
-              onSelect: (c) => setState(() => _activeCategory = c),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          if (_activeCategory == 'Movies') ...[
+          // Removed category pills
 
 
             // Now Showing
@@ -308,10 +293,8 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                   .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 200)),
               const SizedBox(height: 16),
             ],
+          // Events Section
 
-
-          ] else if (_activeCategory == 'Events') ...[
-            // Events
             if (feed.events.isNotEmpty) ...[
               Builder(builder: (context) {
                 final now = DateTime.now().millisecondsSinceEpoch;
@@ -400,22 +383,10 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                       delay: const Duration(milliseconds: 300))
                   .slideY(begin: 0.04, end: 0, delay: const Duration(milliseconds: 300)),
               const SizedBox(height: 16),
-            ] else ...[
-              const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text(
-                    'No events found near you',
-                    style: TextStyle(color: ShowSnapColors.grey600),
-                  ),
-                ),
-              ),
             ],
+            const SizedBox(height: 100), // FAB clearance
           ],
-
-          const SizedBox(height: 100), // FAB clearance
-        ],
-      );
+        );
       },
     );
   }

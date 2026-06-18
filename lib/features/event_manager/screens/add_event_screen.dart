@@ -37,6 +37,7 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
   final _cityCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _posterCtrl = TextEditingController();
+  final _locationUrlCtrl = TextEditingController();
 
   DateTime _startDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _startTime = const TimeOfDay(hour: 18, minute: 0);
@@ -90,6 +91,7 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
       _descCtrl.text = event.description;
       _posterCtrl.text = event.posterUrl;
       _existingPosterUrl = event.posterUrl;
+      _locationUrlCtrl.text = event.locationUrl;
       _category = event.category;
       
       if (event.lat != 0 && event.lng != 0) {
@@ -125,6 +127,10 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
     _cityCtrl.dispose();
     _descCtrl.dispose();
     _posterCtrl.dispose();
+    _locationUrlCtrl.dispose();
+    if (Platform.isWindows) {
+      _windowsWebViewController.dispose();
+    }
     super.dispose();
   }
 
@@ -549,6 +555,7 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
         category: _category,
         description: _descCtrl.text.trim(),
         posterUrl: posterUrl,
+        locationUrl: _locationUrlCtrl.text.trim(),
         ticketTiers: _tiers,
         managerId: managerId,
         status: widget.eventId == null ? 'published' : _status,
@@ -642,6 +649,12 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
             _SectionHeader('Venue Location')
               .animate()
               .fadeIn(duration: 300.ms, delay: 220.ms),
+            const SizedBox(height: 12),
+            _Field(
+              controller: _locationUrlCtrl,
+              label: 'Maps URL (for accurate directions)',
+              icon: Icons.map_outlined,
+            ).animate().fadeIn(duration: 300.ms, delay: 225.ms).slideY(begin: 0.05, end: 0),
             const SizedBox(height: 12),
             Container(
               height: 250,

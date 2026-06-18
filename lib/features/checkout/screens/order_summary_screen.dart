@@ -115,8 +115,9 @@ class _OrderSummaryScreenState extends ConsumerState<OrderSummaryScreen>
       _lockTimer?.cancel();
       setState(() => _paymentInProgress = false);
 
-      if (mounted) context.go('/ticket/$bookingId');
-    } catch (e) {
+      if (mounted) {
+        context.go('/ticket/$bookingId', extra: {'isNewBooking': true});
+      }    } catch (e) {
       if (mounted) {
         setState(() => _paymentInProgress = false);
         ShowSnapToast.show(context, message: 'Booking failed: $e', type: ToastType.error);

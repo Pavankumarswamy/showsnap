@@ -84,6 +84,7 @@ class BookingModel {
   final String eTicketUrl;
   final String paymentTxnId;
   final int createdAt;
+  final String locationUrl;
 
   const BookingModel({
     required this.bookingId,
@@ -106,6 +107,7 @@ class BookingModel {
     this.eTicketUrl = '',
     this.paymentTxnId = '',
     required this.createdAt,
+    this.locationUrl = '',
   });
 
   factory BookingModel.fromJson(
@@ -141,6 +143,7 @@ class BookingModel {
       eTicketUrl: json['eTicketUrl']?.toString() ?? '',
       paymentTxnId: json['paymentTxnId']?.toString() ?? '',
       createdAt: (json['createdAt'] as num?)?.toInt() ?? 0,
+      locationUrl: json['locationUrl']?.toString() ?? '',
     );
   }
 
@@ -164,9 +167,10 @@ class BookingModel {
         'eTicketUrl': eTicketUrl,
         'paymentTxnId': paymentTxnId,
         'createdAt': createdAt,
+        'locationUrl': locationUrl,
       };
 
-  BookingModel copyWith({BookingStatus? status, String? eTicketUrl, String? paymentTxnId}) =>
+  BookingModel copyWith({BookingStatus? status, String? eTicketUrl, String? paymentTxnId, String? locationUrl}) =>
       BookingModel(
         bookingId: bookingId,
         uid: uid,

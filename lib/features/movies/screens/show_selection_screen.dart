@@ -51,6 +51,34 @@ class _ShowSelectionScreenState extends ConsumerState<ShowSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final showsAsync = ref.watch(showsForMovieProvider(widget.movieId));
+    
+    List<DateTime> displayDates = [];
+    if (showsAsync.hasValue && showsAsync.value != null) {
+      final theaterShows = showsAsync.value!;
+      final Set<String> validDateStrings = {};
+      for (final shows in theaterShows.values) {
+        for (final s in shows) {
+          if (s.seats.isNotEmpty && s.startTs > DateTime.now().millisecondsSinceEpoch) {
+            final dt = DateTime.fromMillisecondsSinceEpoch(s.startTs);
+            validDateStrings.add('${dt.year}-${dt.month}-${dt.day}');
+          }
+        }
+      }
+      displayDates = _dates.where((d) => validDateStrings.contains('${d.year}-${d.month}-${d.day}')).toList();
+      
+      // Auto-select the first available date if the current selection is invalid
+      if (displayDates.isNotEmpty) {
+        final currentValid = displayDates.any((d) => d.year == _selectedDate.year && d.month == _selectedDate.month && d.day == _selectedDate.day);
+        if (!currentValid) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _selectedDate = displayDates.first);
+          });
+        }
+      }
+    } else {
+      displayDates = _dates;
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Select Show'),
@@ -66,7 +94,7 @@ class _ShowSelectionScreenState extends ConsumerState<ShowSelectionScreen> {
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(72),
           child: _DateSelector(
-            dates: _dates,
+            dates: displayDates,
             selected: _selectedDate,
             onSelect: (d) => setState(() => _selectedDate = d),
           ),
@@ -93,9 +121,11 @@ class _ShowSelectionScreenState extends ConsumerState<ShowSelectionScreen> {
                     if (s.seats.isEmpty) return false; // Hide unconfigured shows
                     final dt =
                         DateTime.fromMillisecondsSinceEpoch(s.startTs);
-                    return dt.year == _selectedDate.year &&
+                    final isSameDay = dt.year == _selectedDate.year &&
                         dt.month == _selectedDate.month &&
                         dt.day == _selectedDate.day;
+                    final isFuture = s.startTs > DateTime.now().millisecondsSinceEpoch;
+                    return isSameDay && isFuture;
                   }).toList();
                   if (day.isNotEmpty) filtered[tid] = day;
                 });
@@ -210,11 +240,12 @@ class _TheaterShowList extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final locationAsync = ref.watch(_userLocationProvider);
     final userPos = locationAsync.valueOrNull;
+    final theatersAsync = ref.watch(allTheatersProvider);
 
-    return FutureBuilder<List<TheaterModel>>(
-      future: ref.read(databaseServiceProvider).getAllTheaters(),
-      builder: (context, snap) {
-        final theaters = snap.data ?? [];
+    return theatersAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
+      data: (theaters) {
         final theaterMap = {for (final t in theaters) t.theaterId: t};
 
         // Sort theater IDs by distance from user (nearest first)
@@ -288,25 +319,33 @@ class _TheaterShowList extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    FutureBuilder<List<String>>(
-                      future: Future.wait(
-                        shows.map((s) => s.screenId).toSet().map((sid) =>
-                          ref.read(databaseServiceProvider)
-                            .getScreen(sid)
-                            .then((sc) => sc?.name ?? sid)
-                        ),
-                      ),
-                      builder: (context, nameSnap) {
-                        final names = nameSnap.data?.map((n) => n.toUpperCase()).join(', ') ?? shows.map((s) => s.screenId).toSet().join(', ');
+                    Builder(
+                      builder: (context) {
+                        final screenIds = shows.map((s) => s.screenId).toSet().toList();
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              '$names  •  ${(theater?.city ?? '').toUpperCase()}',
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .bodySmall
-                                  ?.copyWith(color: ShowSnapColors.grey600, fontWeight: FontWeight.w500),
+                            Wrap(
+                              spacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                for (int idx = 0; idx < screenIds.length; idx++)
+                                  Consumer(
+                                    builder: (context, ref, child) {
+                                      final sid = screenIds[idx];
+                                      final screenAsync = ref.watch(screenProvider(sid));
+                                      final name = (screenAsync.valueOrNull?.name ?? sid).toUpperCase();
+                                      final suffix = idx < screenIds.length - 1 ? ',' : '  •  ${(theater?.city ?? '').toUpperCase()}';
+                                      return Text(
+                                        '$name$suffix',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(color: ShowSnapColors.grey600, fontWeight: FontWeight.w500),
+                                      );
+                                    },
+                                  ),
+                              ],
                             ),
                             if (theater?.address.isNotEmpty == true) ...[
                               const SizedBox(height: 2),

@@ -269,7 +269,6 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
             );
           })(),
       ),
-      ),
     );
   }
 }

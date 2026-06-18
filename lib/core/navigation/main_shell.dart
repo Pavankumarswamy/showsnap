@@ -110,8 +110,9 @@ class _CurvedBottomNavBarState extends State<_CurvedBottomNavBar> with SingleTic
   @override
   Widget build(BuildContext context) {
     final items = [
-      {'icon': Icons.home_rounded, 'label': 'Home'},
+      {'icon': Icons.receipt_long_rounded, 'label': 'Bookings'},
       {'icon': Icons.explore_rounded, 'label': 'Explore'},
+      {'icon': Icons.home_rounded, 'label': 'Home'},
       {'icon': Icons.campaign_rounded, 'label': 'Ads'},
       {'icon': Icons.person_rounded, 'label': 'Profile'},
     ];
