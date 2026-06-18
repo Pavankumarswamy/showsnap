@@ -12,6 +12,7 @@ import '../../../core/models/banner_model.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
+import '../../home/providers/home_provider.dart';
 
 final _allBannersProvider = FutureProvider<List<BannerModel>>(
     (ref) => ref.watch(databaseServiceProvider).getAllBanners());
@@ -106,47 +107,52 @@ class AdminBannersScreen extends ConsumerWidget {
                   ));
                 }
                 ref.invalidate(_allBannersProvider);
+                ref.invalidate(bannersProvider);
               },
               itemBuilder: (_, i) {
                 final banner = banners[i];
-                return _BannerTile(
+                return KeyedSubtree(
                   key: ValueKey(banner.bannerId),
-                  banner: banner,
-                  onEdit: () => _showBannerDialog(context, ref, banner),
-                  onDelete: () async {
-                    final ok = await StaffConfirmDialog.show(
-                      context,
-                      title: 'Delete Banner',
-                      message: 'Remove "${banner.title}"? This cannot be undone.',
-                      confirmLabel: 'Delete',
-                      isDangerous: true,
-                    );
-                    if (ok == true) {
-                      await ref
+                  child: _BannerTile(
+                    banner: banner,
+                    onEdit: () => _showBannerDialog(context, ref, banner),
+                    onDelete: () async {
+                      final ok = await StaffConfirmDialog.show(
+                        context,
+                        title: 'Delete Banner',
+                        message: 'Remove "${banner.title}"? This cannot be undone.',
+                        confirmLabel: 'Delete',
+                        isDangerous: true,
+                      );
+                      if (ok == true) {
+                        await ref
                           .read(databaseServiceProvider)
                           .deleteBanner(banner.bannerId);
-                      ref.invalidate(_allBannersProvider);
-                      if (context.mounted) {
-                        ShowSnapToast.success(context, 'Banner deleted');
+                        ref.invalidate(_allBannersProvider);
+                        ref.invalidate(bannersProvider);
+                        if (context.mounted) {
+                          ShowSnapToast.success(context, 'Banner deleted');
+                        }
                       }
-                    }
-                  },
-                  onToggle: (val) async {
-                    await ref.read(databaseServiceProvider).saveBanner(
-                          BannerModel(
-                            bannerId: banner.bannerId,
-                            title: banner.title,
-                            subtitle: banner.subtitle,
-                            imageUrl: banner.imageUrl,
-                            ctaText: banner.ctaText,
-                            ctaRoute: banner.ctaRoute,
-                            order: banner.order,
-                            isActive: val,
-                          ),
-                        );
-                    ref.invalidate(_allBannersProvider);
-                  },
-                ).animate().fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms);
+                    },
+                    onToggle: (val) async {
+                      await ref.read(databaseServiceProvider).saveBanner(
+                            BannerModel(
+                              bannerId: banner.bannerId,
+                              title: banner.title,
+                              subtitle: banner.subtitle,
+                              imageUrl: banner.imageUrl,
+                              ctaText: banner.ctaText,
+                              ctaRoute: banner.ctaRoute,
+                              order: banner.order,
+                              isActive: val,
+                            ),
+                          );
+                      ref.invalidate(_allBannersProvider);
+                      ref.invalidate(bannersProvider);
+                    },
+                  ).animate().fadeIn(duration: 350.ms, delay: (i % 6 * 50).ms),
+                );
               },
             ),
           );
@@ -211,10 +217,11 @@ class AdminBannersScreen extends ConsumerWidget {
                               if (file != null) {
                                 setS(() => isUploading = true);
                                 try {
+                                  final bytes = await file.readAsBytes();
                                   final cloudinary =
                                       ref.read(cloudinaryServiceProvider);
-                                  final url = await cloudinary.uploadImage(
-                                      File(file.path), 'banners');
+                                  final url = await cloudinary.uploadImageBytes(
+                                      bytes, file.name, 'banners');
                                   imageCtrl.text = url;
                                 } catch (e) {
                                   if (ctx.mounted) {
@@ -268,6 +275,7 @@ class AdminBannersScreen extends ConsumerWidget {
                         isActive: existing?.isActive ?? true,
                       ));
                       ref.invalidate(_allBannersProvider);
+                      ref.invalidate(bannersProvider);
                       if (ctx.mounted) Navigator.of(ctx).pop();
                       if (context.mounted) {
                         ShowSnapToast.success(

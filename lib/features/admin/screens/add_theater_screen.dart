@@ -702,30 +702,46 @@ class _ManagerPicker extends ConsumerWidget {
           );
         }
 
+        final isSelectedInList = selected == null || users.any((u) => u.uid == selected!.uid);
+        final allUsersForDropdown = List<UserModel>.from(users);
+        if (selected != null && !isSelectedInList) {
+          allUsersForDropdown.insert(0, selected!);
+        }
+
+        // Deduplicate users by UID to prevent duplicate value errors
+        final seenUids = <String>{};
+        final uniqueUsers = allUsersForDropdown.where((u) => seenUids.add(u.uid)).toList();
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Assign Theater Manager (optional)',
                 style: TextStyle(fontSize: 13, color: ShowSnapColors.grey600)),
             const SizedBox(height: 8),
-            DropdownButtonFormField<UserModel>(
-              value: selected,
+            DropdownButtonFormField<String>(
+              value: selected?.uid,
               decoration: const InputDecoration(
                 prefixIcon: Icon(Icons.manage_accounts_outlined),
                 hintText: 'Select a theater manager',
               ),
               items: [
-                const DropdownMenuItem<UserModel>(
+                const DropdownMenuItem<String>(
                   value: null,
                   child: Text('None (assign later)'),
                 ),
-                ...users.map((u) => DropdownMenuItem<UserModel>(
-                      value: u,
+                ...uniqueUsers.map((u) => DropdownMenuItem<String>(
+                      value: u.uid,
                       child: Text(
                           '${u.displayName.isNotEmpty ? u.displayName : u.email} · ${u.role}'),
                     )),
               ],
-              onChanged: onSelected,
+              onChanged: (uid) {
+                if (uid == null) {
+                  onSelected(null);
+                } else {
+                  onSelected(uniqueUsers.firstWhere((u) => u.uid == uid));
+                }
+              },
             ),
           ],
         );

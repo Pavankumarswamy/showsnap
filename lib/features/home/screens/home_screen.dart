@@ -144,7 +144,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             : null,
       ),
       body: RefreshIndicator(
-        onRefresh: () => ref.refresh(homeFeedProvider.future),
+        onRefresh: () async {
+          ref.invalidate(bannersProvider);
+          return ref.refresh(homeFeedProvider.future);
+        },
         child: CustomScrollView(
           slivers: [
 
@@ -556,16 +559,14 @@ class _BannerCard extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               // Background: image if available, else gradient
+              Container(decoration: BoxDecoration(gradient: _gradients[idx])),
               if (banner.imageUrl.isNotEmpty)
                 CachedNetworkImage(
                   imageUrl: banner.imageUrl,
                   fit: BoxFit.fill,
-                  errorWidget: (_, __, ___) => Container(
-                    decoration: BoxDecoration(gradient: _gradients[idx]),
-                  ),
-                )
-              else
-                Container(decoration: BoxDecoration(gradient: _gradients[idx])),
+                  placeholder: (_, __) => const SizedBox(),
+                  errorWidget: (_, __, ___) => const SizedBox(),
+                ),
 
               // Gradient overlay so text is always readable on images
               if (banner.imageUrl.isNotEmpty && (banner.title.isNotEmpty || banner.subtitle.isNotEmpty))
