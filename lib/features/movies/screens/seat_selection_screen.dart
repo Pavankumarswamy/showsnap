@@ -15,7 +15,8 @@ import '../../../core/utils/extensions.dart';
 
 class SeatSelectionScreen extends ConsumerStatefulWidget {
   final String showId;
-  const SeatSelectionScreen({super.key, required this.showId});
+  final ShowModel? initialShow;
+  const SeatSelectionScreen({super.key, required this.showId, this.initialShow});
 
   @override
   ConsumerState<SeatSelectionScreen> createState() =>
@@ -91,6 +92,7 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final showAsync = ref.watch(showStreamProvider(widget.showId));
+    final show = showAsync.valueOrNull ?? widget.initialShow;
     final selectionState = ref.watch(seatSelectionProvider(widget.showId));
     final uid = ref.watch(authStateProvider).valueOrNull?.uid ?? '';
 
@@ -140,14 +142,15 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
             },
           ),
         ),
-        body: showAsync.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (show) {
-            if (show == null) return const Center(child: Text('Show not found'));
-            final screenAsync = ref.watch(screenProvider(show.screenId));
-            return screenAsync.when(
+        body: show == null
+            ? showAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Error: $e')),
+                data: (_) => const Center(child: CircularProgressIndicator()),
+              )
+            : (() {
+                final screenAsync = ref.watch(screenProvider(show.screenId));
+                return screenAsync.when(
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(child: Text('Error loading screen layout: $e')),
@@ -264,8 +267,8 @@ class _SeatSelectionScreenState extends ConsumerState<SeatSelectionScreen> {
                 );
               },
             );
-          },
-        ),
+          })(),
+      ),
       ),
     );
   }

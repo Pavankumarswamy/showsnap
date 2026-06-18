@@ -354,7 +354,7 @@ class _TheaterShowList extends ConsumerWidget {
                         return GestureDetector(
                           onTap: s.bookingOpen && !s.isSoldOut
                               ? () => context
-                                  .push('/seat-selection/${s.showId}')
+                                  .push('/seat-selection/${s.showId}', extra: s)
                               : null,
                           child: Container(
                             padding: const EdgeInsets.symmetric(

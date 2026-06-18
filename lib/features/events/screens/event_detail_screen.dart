@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/booking_model.dart';
@@ -99,12 +100,31 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
-            expandedHeight: 280,
+            expandedHeight: MediaQuery.of(context).size.width / (4 / 3),
             pinned: true,
+            systemOverlayStyle: SystemUiOverlayStyle.light,
+            leading: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                if (context.canPop()) {
+                  context.pop();
+                } else {
+                  context.go('/home');
+                }
+              },
+              child: Container(
+                margin: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+              ),
+            ),
             actions: [
-              IconButton(
-                icon: const Icon(Icons.share, color: Colors.white),
-                onPressed: () {
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
                   final message =
                       '🎉 Check out *${event.name}*!\n\n'
                       '📍 ${event.venueName}, ${event.city}\n'
@@ -113,23 +133,86 @@ class _EventDetailScreenState extends ConsumerState<EventDetailScreen> {
                       'Book now on ShowSnap: https://showsnap.web.app/event/${event.eventId}';
                   Share.share(message);
                 },
+                child: Container(
+                  margin: const EdgeInsets.only(right: 16, top: 8, bottom: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.share, color: Colors.white, size: 20),
+                ),
               ),
             ],
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(bottom: Radius.circular(25)),
+            ),
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(event.name,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      shadows: [
-                        Shadow(color: Colors.black54, blurRadius: 4)
-                      ])),
-              background: event.posterUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: event.posterUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) =>
-                          Container(color: ShowSnapColors.primary),
-                    )
-                  : Container(color: ShowSnapColors.primary),
+              centerTitle: false,
+              titlePadding:
+                  const EdgeInsets.only(left: 16, bottom: 16, right: 16),
+              title: Text(
+                event.name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  shadows: [Shadow(color: Colors.black54, blurRadius: 6)],
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              background: ClipRRect(
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(25)),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Hero(
+                      tag: 'event_poster_${event.eventId}',
+                      child: event.posterUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: event.posterUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => Shimmer.fromColors(
+                                baseColor: ShowSnapColors.grey300,
+                                highlightColor: ShowSnapColors.grey100,
+                                child: Container(color: ShowSnapColors.grey300),
+                              ),
+                              errorWidget: (_, __, ___) => Container(
+                                color: ShowSnapColors.grey300,
+                                child: const Icon(Icons.celebration_outlined, size: 80),
+                              ),
+                            )
+                          : Container(
+                              color: ShowSnapColors.grey300,
+                              child: const Icon(Icons.celebration_outlined, size: 80),
+                            ),
+                    ),
+                    IgnorePointer(
+                      child: Stack(
+                        children: [
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 120,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.6),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
           SliverToBoxAdapter(

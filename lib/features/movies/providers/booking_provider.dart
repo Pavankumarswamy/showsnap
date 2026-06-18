@@ -231,15 +231,17 @@ final showsForMovieProvider = FutureProvider.family<
     String>((ref, movieId) async {
   // Returns a map of theaterId → shows sorted by startTs
   final db = ref.watch(databaseServiceProvider);
-  final theaters = await db.getAllTheaters();
+  final allShows = await db.getShowsForMovie(movieId);
   final result = <String, List<ShowModel>>{};
-  await Future.wait(theaters.map((t) async {
-    final shows = await db.getShowsForMovie(movieId, t.theaterId);
-    if (shows.isNotEmpty) {
-      shows.sort((a, b) => a.startTs.compareTo(b.startTs));
-      result[t.theaterId] = shows;
-    }
-  }));
+  
+  for (final show in allShows) {
+    result.putIfAbsent(show.theaterId, () => []).add(show);
+  }
+  
+  for (final theaterId in result.keys) {
+    result[theaterId]!.sort((a, b) => a.startTs.compareTo(b.startTs));
+  }
+  
   return result;
 });
 

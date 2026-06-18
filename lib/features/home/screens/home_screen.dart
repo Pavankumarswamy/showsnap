@@ -385,7 +385,7 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
                 onSeeAll: () => context.push('/explore?tab=events'),
               ),
               SizedBox(
-                height: 200, // Adjusted to remove bottom gap
+                height: 218, // Adjusted to fix 18px bottom overflow
                 child: ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   scrollDirection: Axis.horizontal,

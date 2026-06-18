@@ -65,8 +65,7 @@ class DatabaseService {
     return ShowModel.fromJson(showId, snap.value as Map);
   }
 
-  Future<List<ShowModel>> getShowsForMovie(
-      String movieId, String theaterId) async {
+  Future<List<ShowModel>> getShowsForMovie(String movieId) async {
     final snap = await _db
         .ref(AppConstants.showsPath)
         .orderByChild('movieId')
@@ -75,10 +74,6 @@ class DatabaseService {
     if (!snap.exists || snap.value == null) return [];
     final map = snap.value as Map;
     return map.entries
-        .where((e) {
-          final v = e.value as Map?;
-          return v?['theaterId'] == theaterId;
-        })
         .map((e) => ShowModel.fromJson(e.key.toString(), e.value as Map))
         .toList();
   }

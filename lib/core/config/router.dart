@@ -49,6 +49,7 @@ import '../../features/splash/splash_screen.dart';
 import '../../features/onboarding/welcome_screen.dart';
 import '../navigation/main_shell.dart';
 import '../models/user_model.dart';
+import '../models/show_model.dart';
 import '../services/auth_service.dart';
 import '../constants/app_constants.dart';
 import '../config/theme.dart';
@@ -309,10 +310,16 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.seatSelection,
-        pageBuilder: (c, s) => _horizontalPage(
-            c,
-            s,
-            SeatSelectionScreen(showId: s.pathParameters['showId']!)),
+        pageBuilder: (c, s) {
+          final extra = s.extra;
+          return _horizontalPage(
+              c,
+              s,
+              SeatSelectionScreen(
+                showId: s.pathParameters['showId']!,
+                initialShow: extra is ShowModel ? extra : null,
+              ));
+        },
       ),
       GoRoute(
         path: AppRoutes.eventDetail,

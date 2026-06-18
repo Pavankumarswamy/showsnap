@@ -315,18 +315,15 @@ class _EventsTab extends ConsumerWidget {
                         child: Text(category, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       ),
                       SizedBox(
-                        height: 280,
+                        height: 218,
                         child: ListView.separated(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           scrollDirection: Axis.horizontal,
                           itemCount: catEvents.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 16),
-                          itemBuilder: (_, i) => SizedBox(
-                            width: 280, // Wide card, YT style
-                            child: EventCard(event: catEvents[i])
-                                .animate()
-                                .fadeIn(delay: Duration(milliseconds: 30 * i)),
-                          ),
+                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          itemBuilder: (_, i) => EventCard(event: catEvents[i])
+                              .animate()
+                              .fadeIn(delay: Duration(milliseconds: 30 * i)),
                         ),
                       ),
                       const SizedBox(height: 16),

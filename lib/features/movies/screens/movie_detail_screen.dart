@@ -428,11 +428,11 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 80))
+                              delay: Duration.zero)
                           .slideY(
                               begin: 0.08,
                               end: 0,
-                              delay: const Duration(milliseconds: 80)),
+                              delay: Duration.zero),
 
                     const SizedBox(height: 16),
 
@@ -448,17 +448,17 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 160))
+                              delay: Duration.zero)
                           .slideY(
                               begin: 0.08,
                               end: 0,
-                              delay: const Duration(milliseconds: 160)),
+                              delay: Duration.zero),
                       const SizedBox(height: 8),
                       _ExpandableSynopsis(text: movie.synopsis)
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 200)),
+                              delay: Duration.zero),
                       const SizedBox(height: 16),
                     ],
 
@@ -469,7 +469,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 240)),
+                              delay: Duration.zero),
 
                     const SizedBox(height: 8),
 
@@ -485,13 +485,13 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 280)),
+                              delay: Duration.zero),
                       const SizedBox(height: 8),
                       _CastList(cast: movie.cast, movieName: movie.title)
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 320)),
+                              delay: Duration.zero),
                       const SizedBox(height: 16),
                     ],
 
@@ -503,7 +503,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
-                              delay: const Duration(milliseconds: 360)),
+                              delay: Duration.zero),
                     ],
 
                     const SizedBox(height: 20),
@@ -513,7 +513,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         .animate()
                         .fadeIn(
                             duration: ShowSnapDuration.normal,
-                            delay: const Duration(milliseconds: 400)),
+                            delay: Duration.zero),
 
                     const SizedBox(height: 40),
                   ],
@@ -681,7 +681,7 @@ class _RatingRow extends StatelessWidget {
             color: ShowSnapColors.primary,
             size: 20,
           )
-              .animate(delay: Duration(milliseconds: 60 * i))
+              .animate(delay: Duration.zero)
               .scale(
                 begin: const Offset(0.4, 0.4),
                 end: const Offset(1, 1),
