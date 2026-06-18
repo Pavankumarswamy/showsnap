@@ -15,6 +15,7 @@ class CouponModel {
   final int minOrderValue;
   final List<String> eligibleCategories; // ['silver','gold','platinum'] or empty = all
   final bool isActive;
+  final String managerId; // Which Event Manager owns this coupon (empty if global)
 
   const CouponModel({
     required this.code,
@@ -26,6 +27,7 @@ class CouponModel {
     this.minOrderValue = 0,
     this.eligibleCategories = const [],
     this.isActive = true,
+    this.managerId = '',
   });
 
   factory CouponModel.fromJson(String code, Map<dynamic, dynamic> json) {
@@ -46,6 +48,7 @@ class CouponModel {
       minOrderValue: (json['minOrderValue'] as num?)?.toInt() ?? 0,
       eligibleCategories: _list(json['eligibleCategories']),
       isActive: json['isActive'] as bool? ?? true,
+      managerId: json['managerId']?.toString() ?? '',
     );
   }
 
@@ -58,6 +61,7 @@ class CouponModel {
         'minOrderValue': minOrderValue,
         'eligibleCategories': eligibleCategories,
         'isActive': isActive,
+        'managerId': managerId,
       };
 
   bool get isExpired =>

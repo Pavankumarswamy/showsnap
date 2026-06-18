@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:ui' as ui;
+import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../../../core/config/staff_theme.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/models/booking_model.dart';
@@ -443,6 +446,56 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
     }
   }
 
+  Future<void> _exportToCsv(List<BookingModel> bookings, EventModel event) async {
+    try {
+      final rows = <List<dynamic>>[];
+      
+      // Header row
+      rows.add([
+        'Booking ID',
+        'Customer UID',
+        'Status',
+        'Total Amount',
+        'Ticket Count',
+        'Categories',
+        'Booking Time'
+      ]);
+
+      // Data rows
+      for (final b in bookings) {
+        final ticketCount = b.seats.length;
+        final categories = b.seats.map((s) => s.category).toSet().join(', ');
+        final dt = DateTime.fromMillisecondsSinceEpoch(b.createdAt);
+        final dateStr = DateFormat('yyyy-MM-dd HH:mm').format(dt);
+
+        rows.add([
+          b.bookingId,
+          b.uid,
+          b.status.name,
+          b.totalAmount,
+          ticketCount,
+          categories,
+          dateStr,
+        ]);
+      }
+
+      final String csvData = const ListToCsvConverter().convert(rows);
+      final List<int> utf8Bytes = utf8.encode(csvData);
+      final Uint8List bytes = Uint8List.fromList(utf8Bytes);
+
+      final filename = 'attendee_manifest_${event.eventId}.csv';
+      await saveAndDownloadFile(bytes, filename);
+
+      if (mounted) {
+        ShowSnapToast.success(context, 'CSV Exported Successfully');
+      }
+    } catch (e) {
+      if (mounted) {
+        ShowSnapToast.error(context, 'Failed to export CSV: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final eventAsync = ref.watch(_emEventDetailsProvider(widget.eventId));
@@ -465,6 +518,13 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
           ),
           actions: [
             if (eventAsync.value != null) ...[
+              IconButton(
+                icon: const Icon(Icons.download_rounded, color: Colors.white),
+                tooltip: 'Export Attendee Manifest CSV',
+                onPressed: bookingsAsync.value == null 
+                  ? null 
+                  : () => _exportToCsv(bookingsAsync.value!, eventAsync.value!),
+              ),
               if (eventAsync.value!.status == 'draft')
                 TextButton(
                   onPressed: () => _updateEventStatus(eventAsync.value!, 'published'),
@@ -472,7 +532,18 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
                 )
               else if (eventAsync.value!.status == 'published')
                 TextButton(
-                  onPressed: () => _updateEventStatus(eventAsync.value!, 'closed'),
+                  onPressed: () async {
+                    final confirm = await StaffConfirmDialog.show(
+                      context,
+                      title: 'Close Event',
+                      message: 'Are you sure you want to close this event? This action cannot be undone.',
+                      confirmLabel: 'Yes, Close Event',
+                      isDangerous: true,
+                    );
+                    if (confirm == true) {
+                      _updateEventStatus(eventAsync.value!, 'closed');
+                    }
+                  },
                   child: const Text('CLOSE EVENT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
             ]

@@ -72,7 +72,7 @@
     "coupons": {
       ".read": "auth != null",
       "$couponId": {
-        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'admin'"
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || ((root.child('users').child(auth.uid).child('role').val() === 'eventManager' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager') && (!data.exists() || data.child('managerId').val() === auth.uid) && (!newData.exists() || newData.child('managerId').val() === auth.uid)))"
       }
     },
 

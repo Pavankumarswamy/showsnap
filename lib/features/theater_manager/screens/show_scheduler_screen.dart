@@ -156,7 +156,7 @@ class ShowSchedulerScreen extends ConsumerWidget {
 
 // ─── Show grid ────────────────────────────────────────────────────────────────
 
-class _ShowGrid extends StatefulWidget {
+class _ShowGrid extends ConsumerStatefulWidget {
   final List<ShowModel> shows;
   final List<ScreenModel> screens;
   final List<MovieModel> movies;
@@ -165,10 +165,10 @@ class _ShowGrid extends StatefulWidget {
       {required this.shows, required this.screens, required this.movies});
 
   @override
-  State<_ShowGrid> createState() => _ShowGridState();
+  ConsumerState<_ShowGrid> createState() => _ShowGridState();
 }
 
-class _ShowGridState extends State<_ShowGrid> {
+class _ShowGridState extends ConsumerState<_ShowGrid> {
   late DateTime _selectedDate;
   final _dates = <DateTime>[];
 
@@ -180,6 +180,205 @@ class _ShowGridState extends State<_ShowGrid> {
     for (var i = 0; i < 30; i++) {
       _dates.add(today.add(Duration(days: i)));
     }
+  }
+
+  void _showEditPricingDialog(ShowModel show) {
+    final silverCtrl = TextEditingController(text: '${show.pricing['silver'] ?? 0}');
+    final goldCtrl = TextEditingController(text: '${show.pricing['gold'] ?? 0}');
+    final platinumCtrl = TextEditingController(text: '${show.pricing['platinum'] ?? 0}');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: TMColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          side: const BorderSide(color: TMColors.border),
+        ),
+        title: const Text(
+          'Edit Pricing',
+          style: TextStyle(color: TMColors.textPrimary, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _pricingField(silverCtrl, 'Silver'),
+            const SizedBox(height: 12),
+            _pricingField(goldCtrl, 'Gold'),
+            const SizedBox(height: 12),
+            _pricingField(platinumCtrl, 'Platinum'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: TMColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: TMColors.primary,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+            ),
+            onPressed: () async {
+              await ref.read(databaseServiceProvider).updateShow(show.showId, {
+                'pricing': {
+                  'silver': int.tryParse(silverCtrl.text) ?? 0,
+                  'gold': int.tryParse(goldCtrl.text) ?? 0,
+                  'platinum': int.tryParse(platinumCtrl.text) ?? 0,
+                },
+              });
+              ref.invalidate(_schedulerDataProvider);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ShowSnapToast.success(context, 'Pricing updated');
+              }
+            },
+            child: const Text('Save', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pricingField(TextEditingController ctrl, String label) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: TextInputType.number,
+      style: const TextStyle(color: TMColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: TMColors.textSecondary),
+        prefixText: '₹',
+        prefixStyle: const TextStyle(color: TMColors.textSecondary),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+          borderSide: const BorderSide(color: TMColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.sm),
+          borderSide: const BorderSide(color: TMColors.primary),
+        ),
+        filled: true,
+        fillColor: TMColors.surfaceElevated,
+      ),
+    );
+  }
+
+  void _showShowActions(ShowModel s) {
+    final dt = DateTime.fromMillisecondsSinceEpoch(s.startTs);
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: TMColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: TMColors.border,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Text(
+                'Show at ${DateFormat('h:mm a').format(dt)}',
+                style: const TextStyle(
+                  color: TMColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '₹${s.pricing['silver'] ?? 0} / ₹${s.pricing['gold'] ?? 0} / ₹${s.pricing['platinum'] ?? 0}',
+                style: const TextStyle(color: TMColors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.currency_rupee_rounded, color: TMColors.primary),
+                title: const Text('Edit Pricing', style: TextStyle(color: TMColors.textPrimary)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ShowSnapRadius.sm)),
+                tileColor: TMColors.surfaceElevated,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showEditPricingDialog(s);
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: Icon(
+                  s.bookingOpen ? Icons.lock_outline : Icons.lock_open_outlined,
+                  color: s.bookingOpen ? const Color(0xFFFF8F00) : TMColors.primary,
+                ),
+                title: Text(
+                  s.bookingOpen ? 'Close Booking' : 'Open Booking',
+                  style: const TextStyle(color: TMColors.textPrimary),
+                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ShowSnapRadius.sm)),
+                tileColor: TMColors.surfaceElevated,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await ref.read(databaseServiceProvider).updateShow(
+                    s.showId,
+                    {'bookingOpen': !s.bookingOpen},
+                  );
+                  ref.invalidate(_schedulerDataProvider);
+                  if (mounted) {
+                    ShowSnapToast.success(context,
+                        s.bookingOpen ? 'Booking closed' : 'Booking opened');
+                  }
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.visibility_outlined, color: TMColors.textSecondary),
+                title: const Text('View Details', style: TextStyle(color: TMColors.textPrimary)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ShowSnapRadius.sm)),
+                tileColor: TMColors.surfaceElevated,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  context.push('/tm/show-details/${s.showId}');
+                },
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: AdminColors.error),
+                title: const Text('Delete Show', style: TextStyle(color: AdminColors.error)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(ShowSnapRadius.sm)),
+                tileColor: TMColors.surfaceElevated,
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  final ok = await StaffConfirmDialog.show(
+                    context,
+                    title: 'Delete Show',
+                    message: 'Delete this show at ${DateFormat('h:mm a').format(dt)}? This cannot be undone.',
+                    confirmLabel: 'Delete',
+                    isDangerous: true,
+                  );
+                  if (ok == true) {
+                    await ref.read(databaseServiceProvider).deleteShow(s.showId);
+                    ref.invalidate(_schedulerDataProvider);
+                    if (mounted) {
+                      ShowSnapToast.success(context, 'Show deleted');
+                    }
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -249,16 +448,12 @@ class _ShowGridState extends State<_ShowGrid> {
                               (m) => m.movieId == movieId,
                               orElse: () =>
                                   MovieModel(movieId: movieId, title: 'Unknown'));
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 10),
-                            padding: const EdgeInsets.all(14),
-                            decoration: BoxDecoration(
-                              color: TMColors.surface,
-                              borderRadius:
-                                  BorderRadius.circular(ShowSnapRadius.md),
-                              border: Border.all(color: TMColors.border),
-                            ),
-                            child: Column(
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: StaffGlassCard(
+                              padding: const EdgeInsets.all(16),
+                              surfaceColor: TMColors.surface,
+                              child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
@@ -294,6 +489,7 @@ class _ShowGridState extends State<_ShowGrid> {
                                     return GestureDetector(
                                       onTap: () => context.push(
                                           '/tm/show-details/${s.showId}'),
+                                      onLongPress: () => _showShowActions(s),
                                       child: Container(
                                         padding: const EdgeInsets.symmetric(
                                             horizontal: 12, vertical: 8),
@@ -333,7 +529,8 @@ class _ShowGridState extends State<_ShowGrid> {
                                 ),
                               ],
                             ),
-                          );
+                          ),
+                        );
                         }),
                         const Divider(color: TMColors.border, height: 1),
                         const SizedBox(height: 4),

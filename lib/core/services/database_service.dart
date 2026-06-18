@@ -106,6 +106,9 @@ class DatabaseService {
   Future<void> updateShow(String showId, Map<String, dynamic> updates) =>
       _db.ref('${AppConstants.showsPath}/$showId').update(updates);
 
+  Future<void> deleteShow(String showId) =>
+      _db.ref('${AppConstants.showsPath}/$showId').remove();
+
   // ─── Seat Locking ─────────────────────────────────────────────────────────
 
   /// RTDB transaction-based optimistic seat lock.
@@ -375,6 +378,9 @@ class DatabaseService {
   Future<void> updateScreen(String screenId, Map<String, dynamic> updates) =>
       _db.ref('${AppConstants.screensPath}/$screenId').update(updates);
 
+  Future<void> deleteScreen(String screenId) =>
+      _db.ref('${AppConstants.screensPath}/$screenId').remove();
+
   // ─── Coupons ──────────────────────────────────────────────────────────────
 
   Future<CouponModel?> getCoupon(String code) async {
@@ -393,8 +399,6 @@ class DatabaseService {
         .toList();
   }
 
-  Future<void> saveCoupon(CouponModel coupon) =>
-      _db.ref('${AppConstants.couponsPath}/${coupon.code}').set(coupon.toJson());
 
   Future<int> validateCoupon(
       String code, int orderValue, String category) async {
@@ -404,6 +408,21 @@ class DatabaseService {
     if (coupon.eligibleCategories.isNotEmpty &&
         !coupon.eligibleCategories.contains(category)) {
       throw Exception('Coupon not valid for $category seats');
+    }
+    if (orderValue < coupon.minOrderValue) {
+      throw Exception(
+          'Minimum order value ₹${coupon.minOrderValue} required');
+    }
+    return coupon.calculateDiscount(orderValue);
+  }
+
+  Future<int> validateEventCoupon(
+      String code, int orderValue, String managerId) async {
+    final coupon = await getCoupon(code);
+    if (coupon == null) throw Exception('Coupon not found');
+    if (!coupon.isValid) throw Exception('Coupon is expired or exhausted');
+    if (coupon.managerId.isNotEmpty && coupon.managerId != managerId) {
+      throw Exception('Coupon is not valid for this event');
     }
     if (orderValue < coupon.minOrderValue) {
       throw Exception(
@@ -616,6 +635,28 @@ class DatabaseService {
 
   Future<void> deleteBanner(String bannerId) =>
       _db.ref('${AppConstants.bannersPath}/$bannerId').remove();
+
+  // ─── Coupons ─────────────────────────────────────────────────────────────
+
+  Future<void> saveCoupon(CouponModel coupon) async {
+    await _db
+        .ref('${AppConstants.couponsPath}/${coupon.code}')
+        .set(coupon.toJson());
+  }
+
+  Stream<List<CouponModel>> streamCouponsForManager(String managerId) {
+    return _db.ref(AppConstants.couponsPath).onValue.map((event) {
+      if (event.snapshot.value == null) return [];
+      final map = event.snapshot.value as Map;
+      return map.entries
+          .map((e) => CouponModel.fromJson(e.key.toString(), e.value as Map))
+          .where((c) => c.managerId == managerId)
+          .toList();
+    });
+  }
+
+  Future<void> deleteCoupon(String code) =>
+      _db.ref('${AppConstants.couponsPath}/$code').remove();
 
   // ─── Users ────────────────────────────────────────────────────────────────
 

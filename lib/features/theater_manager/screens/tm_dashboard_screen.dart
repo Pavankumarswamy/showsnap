@@ -153,6 +153,22 @@ class TmDashboardScreen extends ConsumerWidget {
           overflow: TextOverflow.ellipsis,
         ),
         actions: [
+          if (theaterAsync.valueOrNull != null)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined,
+                  color: TMColors.textSecondary),
+              tooltip: 'Edit Theater Profile',
+              onPressed: () async {
+                final theater = theaterAsync.valueOrNull!;
+                final result = await context.push(
+                  '/admin/edit-theater/${theater.theaterId}',
+                );
+                if (result != null) {
+                  ref.invalidate(_tmDashStatsProvider);
+                  ref.invalidate(_tmTheaterProvider);
+                }
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.notifications_outlined,
                 color: TMColors.textSecondary),
@@ -288,42 +304,47 @@ class TmDashboardScreen extends ConsumerWidget {
 
   Widget _buildContent(
       BuildContext context, WidgetRef ref, _TmDashStats stats) {
-    return ListView(
-      padding: const EdgeInsets.only(top: 20, bottom: 32),
-      children: [
-        // Snapshot cards
-        _buildSnapshotCards(stats),
-        const SizedBox(height: 24),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Recent bookings
-              const Text(
-                'Recent Bookings',
-                style: TextStyle(
-                    color: TMColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: ListView(
+          padding: const EdgeInsets.only(top: 20, bottom: 32),
+          children: [
+            // Snapshot cards
+            _buildSnapshotCards(stats),
+            const SizedBox(height: 24),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Recent bookings
+                  const Text(
+                    'Recent Bookings',
+                    style: TextStyle(
+                        color: TMColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildRecentBookings(stats),
+                  const SizedBox(height: 24),
+                  // Quick actions
+                  const Text(
+                    'Quick Actions',
+                    style: TextStyle(
+                        color: TMColors.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildQuickActions(context),
+                ],
               ),
-              const SizedBox(height: 12),
-              _buildRecentBookings(stats),
-              const SizedBox(height: 24),
-              // Quick actions
-              const Text(
-                'Quick Actions',
-                style: TextStyle(
-                    color: TMColors.textPrimary,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
-              ),
-              const SizedBox(height: 12),
-              _buildQuickActions(context),
-            ],
-          ),
+            ),
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -355,49 +376,50 @@ class TmDashboardScreen extends ConsumerWidget {
       ),
     ];
 
-    return SizedBox(
-      height: 100,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: cards.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, i) {
-          final c = cards[i];
-          return SizedBox(
-            width: 140,
-            child: Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 800 ? 4 : 2;
+        final childAspectRatio = constraints.maxWidth > 800 ? 2.5 : 1.5;
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: childAspectRatio,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          children: cards.asMap().entries.map((entry) {
+            final i = entry.key;
+            final c = entry.value;
+            return StaffGlassCard(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: TMColors.surface,
-                borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-                border: Border.all(color: c.$4.withOpacity(0.3)),
-                boxShadow: [
-                  BoxShadow(
-                    color: c.$4.withOpacity(0.1),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+              glowColor: c.$4.withOpacity(0.06),
+              surfaceColor: TMColors.surface,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(c.$1, color: c.$4, size: 20),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: c.$4.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(c.$1, color: c.$4, size: 20),
+                  ),
                   const Spacer(),
                   Text(
                     c.$2,
                     style: TextStyle(
                         color: c.$4,
                         fontWeight: FontWeight.bold,
-                        fontSize: 18),
+                        fontSize: 20),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
                     c.$3,
                     style: const TextStyle(
-                        color: TMColors.textSecondary, fontSize: 10),
+                        color: TMColors.textSecondary, fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -406,10 +428,10 @@ class TmDashboardScreen extends ConsumerWidget {
             )
                 .animate()
                 .fadeIn(duration: 400.ms, delay: (i * 80).ms)
-                .slideX(begin: 0.1, end: 0),
-          );
-        },
-      ),
+                .slideY(begin: 0.15, end: 0, curve: Curves.easeOutQuad);
+          }).toList(),
+        );
+      },
     );
   }
   Widget _buildRecentBookings(_TmDashStats stats) {
@@ -429,12 +451,9 @@ class TmDashboardScreen extends ConsumerWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-      ),
+    return StaffGlassCard(
+      surfaceColor: TMColors.surface,
+      padding: EdgeInsets.zero,
       child: Column(
         children: stats.recentBookings.asMap().entries.map((entry) {
           final i = entry.key;
@@ -519,17 +538,13 @@ class TmDashboardScreen extends ConsumerWidget {
         children: actions.asMap().entries.map((entry) {
           final i = entry.key;
           final a = entry.value;
-          return Material(
-            color: TMColors.surface,
-            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          return StaffGlassCard(
+            surfaceColor: TMColors.surface,
+            padding: EdgeInsets.zero,
             child: InkWell(
               borderRadius: BorderRadius.circular(ShowSnapRadius.md),
               onTap: () => context.push(a.$3),
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-                  border: Border.all(color: TMColors.border),
-                ),
+              child: Padding(
                 padding: const EdgeInsets.symmetric(
                     horizontal: 8, vertical: 10),
                 child: Column(

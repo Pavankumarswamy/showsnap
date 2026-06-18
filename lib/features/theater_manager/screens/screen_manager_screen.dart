@@ -91,14 +91,34 @@ class ScreenManagerScreen extends ConsumerWidget {
                 color: TMColors.primary,
                 backgroundColor: TMColors.surface,
                 onRefresh: () => ref.refresh(_tmScreensProvider.future),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  itemCount: screens.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (_, i) => _ScreenCard(screen: screens[i])
-                      .animate()
-                      .fadeIn(duration: 400.ms, delay: (i * 70).ms)
-                      .slideY(begin: 0.08, end: 0),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 800) {
+                      return GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          mainAxisExtent: 220,
+                        ),
+                        itemCount: screens.length,
+                        itemBuilder: (_, i) => _ScreenCard(screen: screens[i])
+                            .animate()
+                            .fadeIn(duration: 400.ms, delay: (i * 70).ms)
+                            .slideY(begin: 0.08, end: 0),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                      itemCount: screens.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, i) => _ScreenCard(screen: screens[i])
+                          .animate()
+                          .fadeIn(duration: 400.ms, delay: (i * 70).ms)
+                          .slideY(begin: 0.08, end: 0),
+                    );
+                  },
                 ),
               ),
       ),
@@ -219,12 +239,12 @@ Widget _tmField(TextEditingController ctrl, String label,
   );
 }
 
-class _ScreenCard extends StatelessWidget {
+class _ScreenCard extends ConsumerWidget {
   final ScreenModel screen;
   const _ScreenCard({required this.screen});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final layoutPct = screen.totalSeats > 0
         ? (screen.seatLayout.length / screen.totalSeats).clamp(0.0, 1.0)
         : 0.0;
@@ -234,14 +254,10 @@ class _ScreenCard extends StatelessWidget {
             ? const Color(0xFFFF8F00)
             : const Color(0xFFEF5350);
 
-    return Container(
+    return StaffGlassCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-        boxShadow: StaffShadow.subtle,
-      ),
+      surfaceColor: TMColors.surface,
+      glowColor: layoutColor.withOpacity(0.08),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -269,6 +285,78 @@ class _ScreenCard extends StatelessWidget {
               if (screen.isUnderMaintenance)
                 StaffBadge(
                     label: 'Maintenance', color: const Color(0xFFEF5350)),
+              PopupMenuButton<String>(
+                color: TMColors.surfaceElevated,
+                icon: const Icon(Icons.more_vert_rounded,
+                    color: TMColors.textSecondary, size: 20),
+                onSelected: (action) async {
+                  final db = ref.read(databaseServiceProvider);
+                  if (action == 'edit') {
+                    _showEditScreenDialog(context, ref, screen);
+                  } else if (action == 'maintenance') {
+                    await db.updateScreen(screen.screenId,
+                        {'isUnderMaintenance': !screen.isUnderMaintenance});
+                    ref.invalidate(_tmScreensProvider);
+                    if (context.mounted) {
+                      ShowSnapToast.success(context,
+                          screen.isUnderMaintenance ? 'Screen back online' : 'Screen set to maintenance');
+                    }
+                  } else if (action == 'delete') {
+                    final ok = await StaffConfirmDialog.show(
+                      context,
+                      title: 'Delete Screen',
+                      message: 'Delete "${screen.name}"? This will also remove its seat layout. This cannot be undone.',
+                      confirmLabel: 'Delete',
+                      isDangerous: true,
+                    );
+                    if (ok == true) {
+                      await db.deleteScreen(screen.screenId);
+                      ref.invalidate(_tmScreensProvider);
+                      if (context.mounted) {
+                        ShowSnapToast.success(context, 'Screen deleted');
+                      }
+                    }
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, color: TMColors.textSecondary, size: 18),
+                        SizedBox(width: 8),
+                        Text('Edit Screen', style: TextStyle(color: TMColors.textPrimary)),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'maintenance',
+                    child: Row(
+                      children: [
+                        Icon(
+                          screen.isUnderMaintenance ? Icons.check_circle_outline : Icons.build_outlined,
+                          color: TMColors.textSecondary, size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          screen.isUnderMaintenance ? 'Set Active' : 'Set Maintenance',
+                          style: const TextStyle(color: TMColors.textPrimary),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: AdminColors.error, size: 18),
+                        SizedBox(width: 8),
+                        Text('Delete Screen', style: TextStyle(color: AdminColors.error)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -353,6 +441,83 @@ class _ScreenCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _showEditScreenDialog(BuildContext context, WidgetRef ref, ScreenModel screen) {
+    final nameCtrl = TextEditingController(text: screen.name);
+    final seatsCtrl = TextEditingController(text: '${screen.totalSeats}');
+    String technology = screen.technology;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: TMColors.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+            side: const BorderSide(color: TMColors.border),
+          ),
+          title: const Text(
+            'Edit Screen',
+            style: TextStyle(
+                color: TMColors.textPrimary, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _tmField(nameCtrl, 'Screen Name'),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: technology,
+                dropdownColor: TMColors.surfaceElevated,
+                style: const TextStyle(color: TMColors.textPrimary),
+                decoration: _tmInputDecoration('Technology'),
+                items: ['2D', '3D', 'IMAX', '4DX']
+                    .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+                    .toList(),
+                onChanged: (v) => setS(() => technology = v!),
+              ),
+              const SizedBox(height: 12),
+              _tmField(seatsCtrl, 'Total Seats',
+                  type: TextInputType.number),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: TMColors.textSecondary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: TMColors.primary,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md)),
+              ),
+              onPressed: () async {
+                if (nameCtrl.text.isEmpty) return;
+                await ref.read(databaseServiceProvider).updateScreen(
+                  screen.screenId,
+                  {
+                    'name': nameCtrl.text.trim(),
+                    'technology': technology,
+                    'totalSeats': int.tryParse(seatsCtrl.text) ?? screen.totalSeats,
+                  },
+                );
+                ref.invalidate(_tmScreensProvider);
+                if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ShowSnapToast.success(context, 'Screen updated');
+                }
+              },
+              child: const Text('Save',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       ),
     );
   }

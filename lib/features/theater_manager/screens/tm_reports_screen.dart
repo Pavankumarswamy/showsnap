@@ -11,6 +11,7 @@ import '../../../core/models/booking_model.dart';
 import '../../../core/models/screen_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
+import 'package:intl/intl.dart';
 
 class _TmReportData {
   final int totalRevenue;
@@ -33,10 +34,14 @@ class _TmReportData {
 }
 
 final _tmReportPeriodProvider = StateProvider<String>((ref) => 'Week');
+final _tmReportDateRangeProvider = StateProvider<DateTimeRange?>((ref) => null);
 
 final _tmReportDataProvider = FutureProvider<_TmReportData>((ref) async {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
   if (uid == null) return const _TmReportData();
+
+  final period = ref.watch(_tmReportPeriodProvider);
+  final customRange = ref.watch(_tmReportDateRangeProvider);
 
   final db = ref.watch(databaseServiceProvider);
   final theaters = await db.getAllTheaters();
@@ -45,14 +50,39 @@ final _tmReportDataProvider = FutureProvider<_TmReportData>((ref) async {
   if (theater == null) return const _TmReportData();
 
   final allBookings = await db.getAllBookings();
-  final now = DateTime.now();
-  final cutoff =
-      now.subtract(const Duration(days: 7)).millisecondsSinceEpoch;
+  DateTime end = DateTime.now();
+  DateTime start;
+
+  switch (period) {
+    case 'Today':
+      start = DateTime(end.year, end.month, end.day);
+      break;
+    case 'Week':
+      start = end.subtract(const Duration(days: 7));
+      break;
+    case 'Month':
+      start = end.subtract(const Duration(days: 30));
+      break;
+    case 'Custom':
+      if (customRange != null) {
+        start = customRange.start;
+        end = customRange.end.add(const Duration(days: 1)); // inclusive of end day
+      } else {
+        start = end.subtract(const Duration(days: 7));
+      }
+      break;
+    default:
+      start = end.subtract(const Duration(days: 7));
+  }
+
+  final cutoff = start.millisecondsSinceEpoch;
+  final endCutoff = end.millisecondsSinceEpoch;
 
   final bookings = allBookings
       .where((b) =>
           b.theaterId == theater.theaterId &&
           b.createdAt >= cutoff &&
+          b.createdAt <= endCutoff &&
           (b.status == BookingStatus.confirmed ||
               b.status == BookingStatus.redeemed))
       .toList();
@@ -60,16 +90,18 @@ final _tmReportDataProvider = FutureProvider<_TmReportData>((ref) async {
   final totalRevenue = bookings.fold(0, (s, b) => s + b.totalAmount);
   final totalBookings = bookings.length;
 
-  // Revenue spots (last 7 days)
+  // Revenue spots
   final dayRevenue = <int, int>{};
+  final totalDays = end.difference(start).inDays.clamp(1, 365);
+  
   for (final b in bookings) {
-    final dayIndex =
-        now.difference(DateTime.fromMillisecondsSinceEpoch(b.createdAt)).inDays;
-    final slot = (6 - dayIndex.clamp(0, 6));
+    final dayIndex = DateTime.fromMillisecondsSinceEpoch(b.createdAt).difference(start).inDays;
+    final slot = dayIndex.clamp(0, totalDays);
     dayRevenue[slot] = (dayRevenue[slot] ?? 0) + b.totalAmount;
   }
+  
   final spots = List.generate(
-    7,
+    totalDays + 1,
     (i) => FlSpot(i.toDouble(), (dayRevenue[i] ?? 0).toDouble()),
   );
 
@@ -88,7 +120,9 @@ final _tmReportDataProvider = FutureProvider<_TmReportData>((ref) async {
         bookings.where((b) => b.screenId == screen.screenId).toList();
     final sold = screenBookings.fold(0, (s, b) => s + b.seats.length);
     final capacity = screen.totalSeats > 0 ? screen.totalSeats : 1;
-    screenOcc[screen.name] = sold / capacity;
+    // Calculate expected capacity over the selected period. Assuming 4 shows/day * days
+    final expectedCapacity = capacity * 4 * totalDays;
+    screenOcc[screen.name] = expectedCapacity > 0 ? sold / expectedCapacity : 0.0;
     screenSeats[screen.name] = sold;
   }
 
@@ -165,78 +199,148 @@ class TmReportsScreen extends ConsumerWidget {
       color: TMColors.primary,
       backgroundColor: TMColors.surface,
       onRefresh: () => ref.refresh(_tmReportDataProvider.future),
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Period selector
-          _buildPeriodSelector(ref, period),
-          const SizedBox(height: 16),
-          // Revenue card
-          _buildRevenueCard(data).animate().fadeIn(duration: 400.ms),
-          const SizedBox(height: 16),
-          // Screen occupancy
-          _buildScreenOccupancy(data)
-              .animate()
-              .fadeIn(duration: 400.ms, delay: 100.ms),
-          const SizedBox(height: 16),
-          // Movie performance
-          _buildMoviePerformance(data)
-              .animate()
-              .fadeIn(duration: 400.ms, delay: 200.ms),
-          const SizedBox(height: 32),
-        ],
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1200),
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Period selector
+              _buildPeriodSelector(ref, period),
+              const SizedBox(height: 16),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: _buildRevenueCard(data).animate().fadeIn(duration: 400.ms)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _buildScreenOccupancy(data).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                              const SizedBox(height: 16),
+                              _buildMoviePerformance(data).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Column(
+                    children: [
+                      _buildRevenueCard(data).animate().fadeIn(duration: 400.ms),
+                      const SizedBox(height: 16),
+                      _buildScreenOccupancy(data).animate().fadeIn(duration: 400.ms, delay: 100.ms),
+                      const SizedBox(height: 16),
+                      _buildMoviePerformance(data).animate().fadeIn(duration: 400.ms, delay: 200.ms),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildPeriodSelector(WidgetRef ref, String period) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: ['Today', 'Week', 'Month', 'Custom'].map((p) {
-          final isSelected = period == p;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () =>
-                  ref.read(_tmReportPeriodProvider.notifier).state = p,
-              child: AnimatedContainer(
-                duration: 150.ms,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: isSelected ? TMColors.primary : TMColors.surface,
-                  borderRadius:
-                      BorderRadius.circular(ShowSnapRadius.pill),
-                  border: Border.all(
-                    color: isSelected ? TMColors.primary : TMColors.border,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: ['Today', 'Week', 'Month', 'Custom'].map((p) {
+              final isSelected = period == p;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: GestureDetector(
+                  onTap: () async {
+                    if (p == 'Custom') {
+                      final now = DateTime.now();
+                      final range = await showDateRangePicker(
+                        context: ref.context,
+                        firstDate: DateTime(2020),
+                        lastDate: now,
+                        currentDate: now,
+                        builder: (context, child) {
+                          return Theme(
+                            data: Theme.of(context).copyWith(
+                              colorScheme: const ColorScheme.dark(
+                                primary: TMColors.primary,
+                                onPrimary: Colors.black,
+                                surface: TMColors.surfaceElevated,
+                                onSurface: TMColors.textPrimary,
+                              ),
+                            ),
+                            child: child!,
+                          );
+                        },
+                      );
+                      if (range != null) {
+                        ref.read(_tmReportDateRangeProvider.notifier).state = range;
+                        ref.read(_tmReportPeriodProvider.notifier).state = p;
+                      }
+                    } else {
+                      ref.read(_tmReportPeriodProvider.notifier).state = p;
+                    }
+                  },
+                  child: AnimatedContainer(
+                    duration: 150.ms,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? TMColors.primary : TMColors.surface,
+                      borderRadius: BorderRadius.circular(ShowSnapRadius.pill),
+                      border: Border.all(
+                        color: isSelected ? TMColors.primary : TMColors.border,
+                      ),
+                    ),
+                    child: Text(
+                      p,
+                      style: TextStyle(
+                        color: isSelected ? Colors.black : TMColors.textSecondary,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
                   ),
                 ),
-                child: Text(
-                  p,
-                  style: TextStyle(
-                    color: isSelected ? Colors.black : TMColors.textSecondary,
-                    fontWeight:
-                        isSelected ? FontWeight.bold : FontWeight.normal,
-                    fontSize: 13,
+              );
+            }).toList(),
+          ),
+        ),
+        if (period == 'Custom')
+          Padding(
+            padding: const EdgeInsets.only(top: 8, left: 4),
+            child: Consumer(
+              builder: (context, ref, child) {
+                final range = ref.watch(_tmReportDateRangeProvider);
+                if (range == null) return const SizedBox.shrink();
+                final fmt = DateFormat('MMM d, yyyy');
+                return Text(
+                  '${fmt.format(range.start)} - ${fmt.format(range.end)}',
+                  style: const TextStyle(
+                    color: TMColors.textMuted,
+                    fontSize: 12,
                   ),
-                ),
-              ),
+                );
+              },
             ),
-          );
-        }).toList(),
-      ),
+          ),
+      ],
     );
   }
 
   Widget _buildRevenueCard(_TmReportData data) {
-    return Container(
+    return StaffGlassCard(
+      surfaceColor: TMColors.surface,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -316,13 +420,9 @@ class TmReportsScreen extends ConsumerWidget {
   }
 
   Widget _buildScreenOccupancy(_TmReportData data) {
-    return Container(
+    return StaffGlassCard(
+      surfaceColor: TMColors.surface,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -407,13 +507,9 @@ class TmReportsScreen extends ConsumerWidget {
     final maxVal =
         sorted.isEmpty ? 1 : sorted.first.value.toDouble();
 
-    return Container(
+    return StaffGlassCard(
+      surfaceColor: TMColors.surface,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

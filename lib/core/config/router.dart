@@ -42,6 +42,7 @@ import '../../features/event_manager/screens/add_event_screen.dart';
 import '../../features/event_manager/screens/em_event_details_screen.dart';
 import '../../features/event_manager/screens/event_ticket_scanner_screen.dart';
 import '../../features/event_manager/screens/em_analytics_screen.dart';
+import '../../features/event_manager/screens/em_coupons_screen.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/onboarding/welcome_screen.dart';
 import '../navigation/main_shell.dart';
@@ -93,6 +94,7 @@ class AppRoutes {
   static const String emEventDetails = '/em/event-details/:id';
   static const String eventTicketScanner = '/em/scanner';
   static const String emAnalytics = '/em/analytics';
+  static const String emCoupons = '/em/coupons';
   static const String adRequestForm = '/influencer/ad-request';
 }
 
@@ -465,6 +467,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.emAnalytics,
           pageBuilder: (c, s) =>
               _horizontalPage(c, s, const EmAnalyticsScreen())),
+      GoRoute(
+          path: AppRoutes.emCoupons,
+          pageBuilder: (c, s) =>
+              _horizontalPage(c, s, const EmCouponsScreen())),
 
     ],
     errorBuilder: (_, state) => Scaffold(

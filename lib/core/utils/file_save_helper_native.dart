@@ -7,3 +7,9 @@ Future<void> saveAndDownloadPng(Uint8List bytes, String filename) async {
   final file = File('${directory.path}/$filename');
   await file.writeAsBytes(bytes);
 }
+
+Future<void> saveAndDownloadFile(Uint8List bytes, String filename) async {
+  final directory = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+  final file = File('${directory.path}/$filename');
+  await file.writeAsBytes(bytes);
+}

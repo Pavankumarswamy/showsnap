@@ -126,14 +126,34 @@ class MovieManagerScreen extends ConsumerWidget {
                 color: TMColors.primary,
                 backgroundColor: TMColors.surface,
                 onRefresh: () => ref.refresh(_tmMoviesProvider.future),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                  itemCount: movies.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _MovieCard(movie: movies[i])
-                      .animate()
-                      .fadeIn(duration: 400.ms, delay: (i * 60).ms)
-                      .slideY(begin: 0.08, end: 0),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 800) {
+                      return GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          mainAxisExtent: 110,
+                        ),
+                        itemCount: movies.length,
+                        itemBuilder: (_, i) => _MovieCard(movie: movies[i])
+                            .animate()
+                            .fadeIn(duration: 400.ms, delay: (i * 60).ms)
+                            .slideY(begin: 0.08, end: 0),
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                      itemCount: movies.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, i) => _MovieCard(movie: movies[i])
+                          .animate()
+                          .fadeIn(duration: 400.ms, delay: (i * 60).ms)
+                          .slideY(begin: 0.08, end: 0),
+                    );
+                  },
                 ),
               ),
       ),
@@ -163,13 +183,10 @@ class _MovieCard extends ConsumerWidget {
         statusLabel = 'Closed';
     }
 
-    return Container(
+    return StaffGlassCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: TMColors.surface,
-        borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-        border: Border.all(color: TMColors.border),
-      ),
+      surfaceColor: TMColors.surface,
+      glowColor: statusColor.withOpacity(0.08),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -226,7 +243,11 @@ class _MovieCard extends ConsumerWidget {
             icon: const Icon(Icons.more_vert_rounded,
                 color: TMColors.textSecondary, size: 20),
             onSelected: (action) async {
-              if (action == 'close') {
+              if (action == 'edit') {
+                Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => _EditMovieForm(movie: movie),
+                ));
+              } else if (action == 'close') {
                 final ok = await StaffConfirmDialog.show(
                   context,
                   title: 'Close Movie',
@@ -247,15 +268,419 @@ class _MovieCard extends ConsumerWidget {
             },
             itemBuilder: (_) => [
               const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, color: TMColors.textSecondary, size: 18),
+                    SizedBox(width: 8),
+                    Text('Edit Movie', style: TextStyle(color: TMColors.textPrimary)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'close',
-                child: Text('Close Movie',
-                    style: TextStyle(color: AdminColors.error)),
+                child: Row(
+                  children: [
+                    Icon(Icons.block_outlined, color: AdminColors.error, size: 18),
+                    SizedBox(width: 8),
+                    Text('Close Movie', style: TextStyle(color: AdminColors.error)),
+                  ],
+                ),
               ),
             ],
           ),
         ],
       ),
     );
+  }
+}
+
+class _EditMovieForm extends ConsumerStatefulWidget {
+  final MovieModel movie;
+  const _EditMovieForm({required this.movie});
+
+  @override
+  ConsumerState<_EditMovieForm> createState() => _EditMovieFormState();
+}
+
+class _EditMovieFormState extends ConsumerState<_EditMovieForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _titleCtrl;
+  late final TextEditingController _synopsisCtrl;
+  late final TextEditingController _directorCtrl;
+  late final TextEditingController _castCtrl;
+  late final TextEditingController _durationCtrl;
+  late final TextEditingController _trailerUrlCtrl;
+  late DateTime _startDate;
+  late DateTime _endDate;
+  late String _language;
+  late String _certificate;
+  late String _status;
+  late final Set<String> _genres;
+  File? _posterFile;
+  bool _saving = false;
+
+  // ignore: non_constant_identifier_names
+  final _genres_list = [
+    'Action', 'Comedy', 'Drama', 'Thriller', 'Horror',
+    'Romance', 'Sci-Fi', 'Animation', 'Documentary', 'Fantasy',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _titleCtrl = TextEditingController(text: widget.movie.title);
+    _synopsisCtrl = TextEditingController(text: widget.movie.synopsis);
+    _directorCtrl = TextEditingController(text: widget.movie.director);
+    _castCtrl = TextEditingController(text: widget.movie.cast.join(', '));
+    _durationCtrl = TextEditingController(text: '${widget.movie.durationMinutes}');
+    _trailerUrlCtrl = TextEditingController(text: widget.movie.trailerUrl);
+    _startDate = DateTime.fromMillisecondsSinceEpoch(widget.movie.releaseDateTs);
+    _endDate = DateTime.fromMillisecondsSinceEpoch(widget.movie.endDateTs);
+    _language = widget.movie.language;
+    if (!_language.isNotEmpty) _language = 'Hindi';
+    _certificate = widget.movie.certificate;
+    if (!_certificate.isNotEmpty) _certificate = 'UA';
+    _status = widget.movie.status;
+    _genres = Set.from(widget.movie.genres);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _synopsisCtrl.dispose();
+    _directorCtrl.dispose();
+    _castCtrl.dispose();
+    _durationCtrl.dispose();
+    _trailerUrlCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: TMColors.background,
+      appBar: AppBar(
+        backgroundColor: TMColors.surface,
+        foregroundColor: TMColors.textPrimary,
+        elevation: 0,
+        title: const Text('Edit Movie',
+            style: TextStyle(
+                color: TMColors.textPrimary, fontWeight: FontWeight.bold)),
+        actions: [
+          TextButton(
+            onPressed: _saving ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: TMColors.primary))
+                : const Text('SAVE',
+                    style: TextStyle(
+                        color: TMColors.primary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Poster
+              GestureDetector(
+                onTap: _pickPoster,
+                child: Container(
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: TMColors.surface,
+                    borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+                    border: Border.all(color: TMColors.border),
+                  ),
+                  child: _posterFile != null
+                      ? ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(ShowSnapRadius.md),
+                          child: kIsWeb
+                              ? Image.network(_posterFile!.path,
+                                  fit: BoxFit.cover)
+                              : Image.file(_posterFile!, fit: BoxFit.cover))
+                      : widget.movie.posterUrl.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius:
+                                  BorderRadius.circular(ShowSnapRadius.md),
+                              child: CachedNetworkImage(
+                                imageUrl: widget.movie.posterUrl,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Icon(Icons.add_photo_alternate_outlined,
+                                    size: 40, color: TMColors.textMuted),
+                                const SizedBox(height: 8),
+                                Text('Tap to change poster',
+                                    style: TextStyle(
+                                        color: TMColors.textSecondary)),
+                              ],
+                            ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _formField(_titleCtrl, 'Title *',
+                  validator: (v) => v?.isEmpty == true ? 'Required' : null),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(child: _formDropdown<String>('Language', _language,
+                      ['Hindi', 'English', 'Tamil', 'Telugu', 'Kannada', 'Malayalam'],
+                      (v) => setState(() => _language = v!))),
+                  const SizedBox(width: 12),
+                  Expanded(child: _formDropdown<String>('Certificate', _certificate,
+                      ['U', 'UA', 'A', 'S'],
+                      (v) => setState(() => _certificate = v!))),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _formField(_trailerUrlCtrl, 'YouTube Trailer URL'),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.calendar_today,
+                          size: 16, color: TMColors.textSecondary),
+                      label: Text(
+                          'Start: ${DateFormat('dd MMM').format(_startDate)}',
+                          style: const TextStyle(
+                              color: TMColors.textPrimary, fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: TMColors.surfaceElevated,
+                        side: const BorderSide(color: TMColors.border),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(ShowSnapRadius.md)),
+                      ),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                            context: context,
+                            initialDate: _startDate,
+                            firstDate: DateTime(2000),
+                            lastDate: DateTime(2100));
+                        if (d != null) setState(() => _startDate = d);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.event,
+                          size: 16, color: TMColors.textSecondary),
+                      label: Text(
+                          'End: ${DateFormat('dd MMM').format(_endDate)}',
+                          style: const TextStyle(
+                              color: TMColors.textPrimary, fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: TMColors.surfaceElevated,
+                        side: const BorderSide(color: TMColors.border),
+                        shape: RoundedRectangleBorder(
+                            borderRadius:
+                                BorderRadius.circular(ShowSnapRadius.md)),
+                      ),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                            context: context,
+                            initialDate: _endDate,
+                            firstDate: _startDate,
+                            lastDate: DateTime(2100));
+                        if (d != null) setState(() => _endDate = d);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _formField(_durationCtrl, 'Duration (min)',
+                        type: TextInputType.number),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _formDropdown<String>('Status', _status,
+                        ['nowShowing', 'upcoming', 'closed'],
+                        (v) => setState(() => _status = v!)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _formField(_directorCtrl, 'Director'),
+              const SizedBox(height: 12),
+              _formField(_castCtrl, 'Cast (comma-separated)'),
+              const SizedBox(height: 12),
+              _formField(_synopsisCtrl, 'Synopsis', maxLines: 4),
+              const SizedBox(height: 16),
+              const Text('Genres',
+                  style: TextStyle(
+                      color: TMColors.textSecondary,
+                      fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: _genres_list.map((g) {
+                  final selected = _genres.contains(g);
+                  return FilterChip(
+                    label: Text(g,
+                        style: TextStyle(
+                            color: selected
+                                ? Colors.black
+                                : TMColors.textSecondary)),
+                    selected: selected,
+                    onSelected: (v) => setState(() {
+                      if (v) {
+                        _genres.add(g);
+                      } else {
+                        _genres.remove(g);
+                      }
+                    }),
+                    selectedColor: TMColors.primary,
+                    backgroundColor: TMColors.surfaceElevated,
+                    side: BorderSide(
+                        color: selected ? TMColors.primary : TMColors.border),
+                    checkmarkColor: Colors.black,
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _formField(TextEditingController ctrl, String label,
+      {TextInputType type = TextInputType.text,
+      int maxLines = 1,
+      String? Function(String?)? validator}) {
+    return TextFormField(
+      controller: ctrl,
+      keyboardType: type,
+      maxLines: maxLines,
+      validator: validator,
+      style: const TextStyle(color: TMColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: TMColors.textSecondary),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          borderSide: const BorderSide(color: TMColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          borderSide: const BorderSide(color: TMColors.primary),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          borderSide: const BorderSide(color: AdminColors.error),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          borderSide: const BorderSide(color: AdminColors.error),
+        ),
+        filled: true,
+        fillColor: TMColors.surfaceElevated,
+      ),
+    );
+  }
+
+  DropdownButtonFormField<T> _formDropdown<T>(
+    String label,
+    T? value,
+    List<T> items,
+    void Function(T?) onChanged, {
+    String Function(T)? labelOf,
+  }) {
+    return DropdownButtonFormField<T>(
+      value: value,
+      dropdownColor: TMColors.surfaceElevated,
+      style: const TextStyle(color: TMColors.textPrimary),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: const TextStyle(color: TMColors.textSecondary),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          borderSide: const BorderSide(color: TMColors.border),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(ShowSnapRadius.md),
+          borderSide: const BorderSide(color: TMColors.primary),
+        ),
+        filled: true,
+        fillColor: TMColors.surfaceElevated,
+      ),
+      items: items.map((t) {
+        final l = labelOf != null ? labelOf(t) : t.toString();
+        return DropdownMenuItem(value: t, child: Text(l));
+      }).toList(),
+      onChanged: onChanged,
+    );
+  }
+
+  Future<void> _pickPoster() async {
+    final picker = ImagePicker();
+    final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
+    if (img != null) setState(() => _posterFile = File(img.path));
+  }
+
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    try {
+      String posterUrl = widget.movie.posterUrl;
+      if (_posterFile != null) {
+        posterUrl = await ref
+            .read(cloudinaryServiceProvider)
+            .uploadImage(_posterFile!, AppConstants.cloudinaryMoviePosters);
+      }
+      final db = ref.read(databaseServiceProvider);
+      final duration = int.tryParse(_durationCtrl.text) ?? 120;
+      
+      await db.updateMovie(widget.movie.movieId, {
+        'title': _titleCtrl.text.trim(),
+        'language': _language,
+        'genres': _genres.toList(),
+        'durationMinutes': duration,
+        'certificate': _certificate,
+        'synopsis': _synopsisCtrl.text.trim(),
+        'cast': _castCtrl.text
+            .split(',')
+            .map((s) => s.trim())
+            .where((s) => s.isNotEmpty)
+            .toList(),
+        'director': _directorCtrl.text.trim(),
+        'posterUrl': posterUrl,
+        'trailerUrl': _trailerUrlCtrl.text.trim(),
+        'status': _status,
+        'releaseDateTs': _startDate.millisecondsSinceEpoch,
+        'endDateTs': _endDate.millisecondsSinceEpoch,
+      });
+
+      ref.invalidate(_tmMoviesProvider);
+      if (mounted) {
+        ShowSnapToast.success(context, 'Movie updated!');
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ShowSnapToast.error(context, 'Failed: $e');
+        setState(() => _saving = false);
+      }
+    }
   }
 }
 

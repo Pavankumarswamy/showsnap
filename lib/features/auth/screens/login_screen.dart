@@ -59,6 +59,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       context.go(AppRoutes.adminDashboard);
     } else if (role == AppConstants.roleTheaterManager) {
       context.go(AppRoutes.tmDashboard);
+    } else if (role == AppConstants.roleEventManager) {
+      context.go(AppRoutes.emDashboard);
     } else {
       context.go(AppRoutes.home);
     }

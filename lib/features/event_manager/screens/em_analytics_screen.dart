@@ -34,32 +34,12 @@ class _EmAnalyticsData {
   });
 }
 
-final _emEventsStreamProvider = StreamProvider<List<EventModel>>((ref) {
-  final uid = ref.watch(authStateProvider).valueOrNull?.uid;
-  if (uid == null) return Stream.value([]);
-  return ref.watch(databaseServiceProvider).streamEventsForManager(uid);
-});
+final _emAnalyticsProvider = FutureProvider<_EmAnalyticsData>((ref) async {
+  final uid = ref.watch(authStateProvider).valueOrNull?.uid ?? '';
+  final db = ref.watch(databaseServiceProvider);
 
-final _emBookingsStreamProvider = StreamProvider<List<BookingModel>>((ref) {
-  return ref.watch(databaseServiceProvider).streamAllBookings();
-});
-
-final _emAnalyticsProvider = Provider<AsyncValue<_EmAnalyticsData>>((ref) {
-  final eventsAsync = ref.watch(_emEventsStreamProvider);
-  final bookingsAsync = ref.watch(_emBookingsStreamProvider);
-
-  if (eventsAsync.isLoading || bookingsAsync.isLoading) {
-    return const AsyncValue.loading();
-  }
-  if (eventsAsync.hasError) {
-    return AsyncValue.error(eventsAsync.error!, eventsAsync.stackTrace!);
-  }
-  if (bookingsAsync.hasError) {
-    return AsyncValue.error(bookingsAsync.error!, bookingsAsync.stackTrace!);
-  }
-
-  final events = eventsAsync.value ?? [];
-  final allBookings = bookingsAsync.value ?? [];
+  final events = await db.getEventsForManager(uid);
+  final allBookings = await db.getAllBookings();
   final eventIds = events.map((e) => e.eventId).toSet();
 
   final myBookings = allBookings
@@ -111,7 +91,7 @@ final _emAnalyticsProvider = Provider<AsyncValue<_EmAnalyticsData>>((ref) {
     }
   }
 
-  return AsyncValue.data(_EmAnalyticsData(
+  return _EmAnalyticsData(
     totalEvents: events.length,
     totalTicketsSold: ticketsSold,
     totalRevenue: revenue,
@@ -120,7 +100,7 @@ final _emAnalyticsProvider = Provider<AsyncValue<_EmAnalyticsData>>((ref) {
     dayLabels30Days: dayLabels,
     ticketsByTier: tierCount,
     revenueByTier: tierRev,
-  ));
+  );
 });
 
 // ─── Analytics Screen ───────────────────────────────────────────────────────
@@ -150,20 +130,24 @@ class _EmAnalyticsScreenState extends ConsumerState<EmAnalyticsScreen> {
         error: (e, st) => Center(child: Text('Error: $e', style: const TextStyle(color: EMColors.error))),
         data: (data) => RefreshIndicator(
           onRefresh: () async {
-            ref.invalidate(_emEventsStreamProvider);
-            ref.invalidate(_emBookingsStreamProvider);
+            ref.invalidate(_emAnalyticsProvider);
           },
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildOverallStats(data),
-              const SizedBox(height: 24),
-              _buildFunnel(data),
-              const SizedBox(height: 24),
-              _buildRevenueChart(data),
-              const SizedBox(height: 24),
-              _buildPieCharts(data),
-            ],
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1200),
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  _buildOverallStats(data),
+                  const SizedBox(height: 16),
+                  _buildFunnel(data),
+                  const SizedBox(height: 16),
+                  _buildRevenueChart(data),
+                  const SizedBox(height: 16),
+                  _buildPieCharts(data),
+                ],
+              ),
+            ),
           ),
         ),
       ),

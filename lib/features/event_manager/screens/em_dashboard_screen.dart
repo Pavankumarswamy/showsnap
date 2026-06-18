@@ -66,32 +66,12 @@ class _EmStats {
   });
 }
 
-final _emEventsStreamProvider = StreamProvider<List<EventModel>>((ref) {
-  final uid = ref.watch(authStateProvider).valueOrNull?.uid;
-  if (uid == null) return Stream.value([]);
-  return ref.watch(databaseServiceProvider).streamEventsForManager(uid);
-});
+final _emStatsProvider = FutureProvider<_EmStats>((ref) async {
+  final uid = ref.watch(authStateProvider).valueOrNull?.uid ?? '';
+  final db = ref.watch(databaseServiceProvider);
 
-final _emBookingsStreamProvider = StreamProvider<List<BookingModel>>((ref) {
-  return ref.watch(databaseServiceProvider).streamAllBookings();
-});
-
-final _emStatsProvider = Provider<AsyncValue<_EmStats>>((ref) {
-  final eventsAsync = ref.watch(_emEventsStreamProvider);
-  final bookingsAsync = ref.watch(_emBookingsStreamProvider);
-
-  if (eventsAsync.isLoading || bookingsAsync.isLoading) {
-    return const AsyncValue.loading();
-  }
-  if (eventsAsync.hasError) {
-    return AsyncValue.error(eventsAsync.error!, eventsAsync.stackTrace!);
-  }
-  if (bookingsAsync.hasError) {
-    return AsyncValue.error(bookingsAsync.error!, bookingsAsync.stackTrace!);
-  }
-
-  final events = eventsAsync.value ?? [];
-  final allBookings = bookingsAsync.value ?? [];
+  final events = await db.getEventsForManager(uid);
+  final allBookings = await db.getAllBookings();
   final eventIds = events.map((e) => e.eventId).toSet();
 
   final myBookings = allBookings
@@ -145,7 +125,7 @@ final _emStatsProvider = Provider<AsyncValue<_EmStats>>((ref) {
     }
   }
 
-  return AsyncValue.data(_EmStats(
+  return _EmStats(
     events: events,
     totalTicketsSold: ticketsSold,
     totalRevenue: revenue,
@@ -155,7 +135,7 @@ final _emStatsProvider = Provider<AsyncValue<_EmStats>>((ref) {
     dayLabels: dayLabels,
     recentBookings: recentBookings.take(5).toList(),
     ticketsByTier: tierCount,
-  ));
+  );
 });
 
 // ─── EM Drawer ────────────────────────────────────────────────────────────────
@@ -176,6 +156,7 @@ class _EmDrawer extends StatelessWidget {
   static const _items = [
     _NavItem(Icons.dashboard_rounded, 'Dashboard', '/em'),
     _NavItem(Icons.analytics_rounded, 'Analytics', '/em/analytics'),
+    _NavItem(Icons.local_offer_rounded, 'Promo Codes', '/em/coupons'),
     _NavItem(Icons.add_circle_outline_rounded, 'Create Event', '/em/add-event'),
     _NavItem(Icons.qr_code_scanner_rounded, 'Ticket Scanner', '/em/scanner'),
   ];
@@ -433,8 +414,7 @@ class EmDashboardScreen extends ConsumerWidget {
               color: EMColors.primary,
               backgroundColor: EMColors.surfaceElevated,
               onRefresh: () async {
-                ref.invalidate(_emEventsStreamProvider);
-                ref.invalidate(_emBookingsStreamProvider);
+                ref.invalidate(_emStatsProvider);
               },
               child: statsAsync.when(
                 loading: _buildSkeleton,
@@ -451,8 +431,7 @@ class EmDashboardScreen extends ConsumerWidget {
                       const SizedBox(height: 16),
                       ElevatedButton(
                         onPressed: () {
-                          ref.invalidate(_emEventsStreamProvider);
-                          ref.invalidate(_emBookingsStreamProvider);
+                          ref.invalidate(_emStatsProvider);
                         },
                         child: const Text('Retry'),
                       ),
@@ -564,8 +543,11 @@ class EmDashboardScreen extends ConsumerWidget {
 
   Widget _buildContent(
       BuildContext context, WidgetRef ref, _EmStats stats) {
-    return CustomScrollView(
-      slivers: [
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1200),
+        child: CustomScrollView(
+          slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           sliver: SliverList(
@@ -606,6 +588,8 @@ class EmDashboardScreen extends ConsumerWidget {
           ),
         ),
       ],
+    ),
+      ),
     );
   }
 
@@ -653,13 +637,17 @@ class EmDashboardScreen extends ConsumerWidget {
       ),
     ];
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.5,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth > 800 ? 4 : 2;
+        final childAspectRatio = constraints.maxWidth > 800 ? 2.5 : 1.5;
+        return GridView.count(
+          crossAxisCount: crossAxisCount,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: childAspectRatio,
       children: cards.asMap().entries.map((entry) {
         final i = entry.key;
         final c = entry.value;
@@ -676,6 +664,8 @@ class EmDashboardScreen extends ConsumerWidget {
             .slideY(
                 begin: 0.15, end: 0, curve: Curves.easeOutQuad);
       }).toList(),
+        );
+      },
     );
   }
 
@@ -836,6 +826,8 @@ class EmDashboardScreen extends ConsumerWidget {
           EMColors.primary),
       (Icons.qr_code_scanner_rounded, 'Scan Tickets',
           AppRoutes.eventTicketScanner, EMColors.accent),
+      (Icons.local_offer_rounded, 'Promo Codes',
+          AppRoutes.emCoupons, EMColors.warning),
       (Icons.share_rounded, 'Share App', 'share_action', EMColors.info),
     ];
 
@@ -864,34 +856,40 @@ class EmDashboardScreen extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 12),
-        Row(
-          children: actions.asMap().entries.map((entry) {
-            final i = entry.key;
-            final a = entry.value;
-            return Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                    right: i < actions.length - 1 ? 10 : 0),
-                child: _EmQuickAction(
-                  icon: a.$1,
-                  label: a.$2,
-                  color: a.$4,
-                  onTap: () async {
-                    if (a.$3 == 'share_action') {
-                      Share.share('Check out ShowSnap to discover and book the best events and movies! 🎟️✨\nhttps://showsnap.web.app');
-                    } else {
-                      await context.push(a.$3);
-                    }
-                  },
-                )
-                    .animate()
-                    .fadeIn(
-                        duration: 300.ms,
-                        delay: (450 + i * 60).ms)
-                    .slideY(begin: 0.1, end: 0),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final crossAxisCount = constraints.maxWidth > 800 ? 4 : 2;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: 10,
+                mainAxisSpacing: 10,
+                mainAxisExtent: 64, // Fixed height for each action
               ),
-            );
-          }).toList(),
+          itemCount: actions.length,
+          itemBuilder: (context, i) {
+            final a = actions[i];
+            return _EmQuickAction(
+              icon: a.$1,
+              label: a.$2,
+              color: a.$4,
+              onTap: () async {
+                if (a.$3 == 'share_action') {
+                  Share.share(
+                      'Check out ShowSnap to discover and book the best events and movies! 🎟️✨\nhttps://showsnap.web.app');
+                } else {
+                  await context.push(a.$3);
+                }
+              },
+            )
+                .animate()
+                .fadeIn(duration: 300.ms, delay: (450 + i * 60).ms)
+                .slideY(begin: 0.1, end: 0);
+          },
+        );
+          },
         ),
       ],
     );

@@ -959,18 +959,22 @@ class PushDrawerLayoutState extends State<PushDrawerLayout> with SingleTickerPro
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.of(context).size.width >= 900;
+
     PreferredSizeWidget? effectiveAppBar = widget.appBar;
     if (widget.appBar is AppBar) {
       final ab = widget.appBar as AppBar;
       effectiveAppBar = AppBar(
         key: ab.key,
-        leading: IconButton(
-          icon: AnimatedIcon(
-            icon: AnimatedIcons.menu_close,
-            progress: _controller,
-          ),
-          onPressed: toggleDrawer,
-        ),
+        leading: isDesktop
+            ? null // Hide hamburger on desktop
+            : IconButton(
+                icon: AnimatedIcon(
+                  icon: AnimatedIcons.menu_close,
+                  progress: _controller,
+                ),
+                onPressed: toggleDrawer,
+              ),
         automaticallyImplyLeading: false,
         title: ab.title,
         actions: ab.actions,
@@ -991,10 +995,39 @@ class PushDrawerLayoutState extends State<PushDrawerLayout> with SingleTickerPro
         toolbarOpacity: ab.toolbarOpacity,
         bottomOpacity: ab.bottomOpacity,
         toolbarHeight: ab.toolbarHeight,
-        leadingWidth: ab.leadingWidth,
+        leadingWidth: isDesktop ? 0 : ab.leadingWidth,
         toolbarTextStyle: ab.toolbarTextStyle,
         titleTextStyle: ab.titleTextStyle,
         systemOverlayStyle: ab.systemOverlayStyle,
+      );
+    }
+
+    if (isDesktop) {
+      // If the drawer was open via animation, close it without animation to reset state
+      if (_isOpen) {
+        _isOpen = false;
+        _controller.value = 0;
+      }
+      return Scaffold(
+        backgroundColor: widget.backgroundColor ?? AdminColors.background,
+        appBar: effectiveAppBar,
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 260,
+              child: Material(
+                color: AdminColors.background,
+                child: widget.drawer,
+              ),
+            ),
+            Container(width: 1, color: AdminColors.border),
+            Expanded(
+              child: widget.body,
+            ),
+          ],
+        ),
+        floatingActionButton: widget.floatingActionButton,
       );
     }
 
