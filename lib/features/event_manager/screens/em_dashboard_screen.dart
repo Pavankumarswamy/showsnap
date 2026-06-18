@@ -140,13 +140,13 @@ final _emStatsProvider = FutureProvider<_EmStats>((ref) async {
 
 // ─── EM Drawer ────────────────────────────────────────────────────────────────
 
-class _EmDrawer extends StatelessWidget {
+class EmDrawer extends StatelessWidget {
   final String currentRoute;
   final Function(String) onNavigateTo;
   final VoidCallback? onSignOut;
   final String managerName;
 
-  const _EmDrawer({
+  const EmDrawer({
     required this.currentRoute,
     required this.onNavigateTo,
     this.onSignOut,
@@ -154,11 +154,12 @@ class _EmDrawer extends StatelessWidget {
   });
 
   static const _items = [
-    _NavItem(Icons.dashboard_rounded, 'Dashboard', '/em'),
-    _NavItem(Icons.analytics_rounded, 'Analytics', '/em/analytics'),
-    _NavItem(Icons.local_offer_rounded, 'Promo Codes', '/em/coupons'),
-    _NavItem(Icons.add_circle_outline_rounded, 'Create Event', '/em/add-event'),
-    _NavItem(Icons.qr_code_scanner_rounded, 'Ticket Scanner', '/em/scanner'),
+    EmNavItem(Icons.dashboard_rounded, 'Dashboard', '/em'),
+    EmNavItem(Icons.event_note_rounded, 'My Events', '/em/events'),
+    EmNavItem(Icons.analytics_rounded, 'Analytics', '/em/analytics'),
+    EmNavItem(Icons.local_offer_rounded, 'Promo Codes', '/em/coupons'),
+    EmNavItem(Icons.add_circle_outline_rounded, 'Create Event', '/em/add-event'),
+    EmNavItem(Icons.qr_code_scanner_rounded, 'Ticket Scanner', '/em/scanner'),
   ];
 
   @override
@@ -224,7 +225,7 @@ class _EmDrawer extends StatelessWidget {
                   final isActive = currentRoute == item.route ||
                       (item.route != '/em' &&
                           currentRoute.startsWith(item.route));
-                  return _EmNavTile(
+                  return EmNavTile(
                     item: item,
                     isActive: isActive,
                     onTap: () async {
@@ -268,19 +269,19 @@ class _EmDrawer extends StatelessWidget {
   }
 }
 
-class _NavItem {
+class EmNavItem {
   final IconData icon;
   final String label;
   final String route;
-  const _NavItem(this.icon, this.label, this.route);
+  const EmNavItem(this.icon, this.label, this.route);
 }
 
-class _EmNavTile extends StatelessWidget {
-  final _NavItem item;
+class EmNavTile extends StatelessWidget {
+  final EmNavItem item;
   final bool isActive;
   final VoidCallback onTap;
 
-  const _EmNavTile({
+  const EmNavTile({
     required this.item,
     required this.isActive,
     required this.onTap,
@@ -353,11 +354,12 @@ class EmDashboardScreen extends ConsumerWidget {
 
     return PushDrawerLayout(
       backgroundColor: EMColors.background,
-      drawer: _EmDrawer(
+      drawer: EmDrawer(
         currentRoute: AppRoutes.emDashboard,
         managerName: managerName,
         onNavigateTo: (route) async {
           await context.push(route);
+          ref.invalidate(_emStatsProvider);
         },
         onSignOut: () => _signOut(context, ref),
       ),
@@ -371,6 +373,7 @@ class EmDashboardScreen extends ConsumerWidget {
                 fontWeight: FontWeight.w700, color: Colors.black87)),
         onPressed: () async {
           await context.push(AppRoutes.addEvent);
+          ref.invalidate(_emStatsProvider);
         },
       )
           .animate()
@@ -1013,17 +1016,23 @@ class EmDashboardScreen extends ConsumerWidget {
             ),
             const SizedBox(width: 10),
             const Text(
-              'My Events',
+              'Recent Events',
               style: TextStyle(
                   color: EMColors.textPrimary,
                   fontWeight: FontWeight.bold,
                   fontSize: 15),
             ),
             const Spacer(),
-            Text(
-              '${stats.events.length} total',
-              style: const TextStyle(
-                  color: EMColors.textMuted, fontSize: 12),
+            TextButton(
+              onPressed: () async {
+                await context.push('/em/events');
+                ref.invalidate(_emStatsProvider);
+              },
+              style: TextButton.styleFrom(
+                foregroundColor: EMColors.primary,
+                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              child: const Text('View All'),
             ),
           ],
         ),
@@ -1038,12 +1047,12 @@ class EmDashboardScreen extends ConsumerWidget {
             ),
           ).animate().fadeIn(duration: 400.ms, delay: 500.ms)
         else
-          ...stats.events.asMap().entries.map((entry) {
+          ...stats.events.take(3).toList().asMap().entries.map((entry) {
             final i = entry.key;
             final event = entry.value;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
-              child: _EmEventCard(
+              child: EmEventCard(
                 event: event,
                 onDelete: () => _confirmDelete(context, ref, event),
               )
@@ -1472,13 +1481,13 @@ class _NextEventCountdown extends StatelessWidget {
 
 // ─── Event Card ───────────────────────────────────────────────────────────────
 
-class _EmEventCard extends StatelessWidget {
+class EmEventCard extends ConsumerWidget {
   final EventModel event;
   final VoidCallback onDelete;
-  const _EmEventCard({required this.event, required this.onDelete});
+  const EmEventCard({super.key, required this.event, required this.onDelete});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final isUpcoming = event.startTs > now;
     final isPast = event.startTs < now;
@@ -1499,8 +1508,10 @@ class _EmEventCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(ShowSnapRadius.md),
-          onTap: () =>
-              context.push('/em/event-details/${event.eventId}'),
+          onTap: () async {
+            await context.push('/em/event-details/${event.eventId}');
+            ref.invalidate(_emStatsProvider);
+          },
           child: Padding(
             padding: const EdgeInsets.all(14),
             child: Row(

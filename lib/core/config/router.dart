@@ -39,6 +39,7 @@ import '../../features/theater_manager/screens/tm_show_details_screen.dart';
 import '../../features/theater_manager/screens/tm_reports_screen.dart';
 import '../../features/influencer/screens/ad_request_form_screen.dart';
 import '../../features/event_manager/screens/em_dashboard_screen.dart';
+import '../../features/event_manager/screens/em_events_screen.dart';
 import '../../features/event_manager/screens/add_event_screen.dart';
 import '../../features/event_manager/screens/em_event_details_screen.dart';
 import '../../features/event_manager/screens/event_ticket_scanner_screen.dart';
@@ -91,6 +92,7 @@ class AppRoutes {
   static const String ticketScanner = '/tm/scanner';
   static const String tmShowDetails = '/tm/show-details/:id';
   static const String emDashboard = '/em';
+  static const String emEvents = '/em/events';
   static const String addEvent = '/em/add-event';
   static const String editEvent = '/em/edit-event/:id';
   static const String emEventDetails = '/em/event-details/:id';
@@ -156,9 +158,6 @@ final routerProvider = Provider<GoRouter>((ref) {
     initialLocation: AppRoutes.splash,
     refreshListenable: notifier,
     redirect: (context, state) {
-      // Use ref.read so the redirect always sees the *current* value without
-      // creating a new GoRouter on each stream emission.
-      final isLoggedIn = ref.read(authStateProvider).valueOrNull != null;
       final loc = state.matchedLocation;
       const authRoutes = {
         AppRoutes.login,
@@ -167,45 +166,54 @@ final routerProvider = Provider<GoRouter>((ref) {
         AppRoutes.splash,
       };
 
-      if (!isLoggedIn && !authRoutes.contains(loc)) return AppRoutes.login;
-
-      if (isLoggedIn) {
-        final firebaseUser = ref.read(authStateProvider).valueOrNull;
-        final email = firebaseUser?.email ?? '';
-        final userModel = ref.read(currentUserModelProvider).valueOrNull;
-
-        // Still loading the user model from DB.
-        // We only allow staying on splash or auth routes while loading.
-        if (userModel == null) {
-          if (loc == AppRoutes.splash || authRoutes.contains(loc)) return null;
-          return AppRoutes.splash;
-        }
-
-        final isAdminByEmail = email == 'admin@gmail.com';
-        final role = userModel.role;
-        final isAdmin = isAdminByEmail || role == AppConstants.roleAdmin;
-        final isTM = !isAdmin && role == AppConstants.roleTheaterManager;
-        final isEM = !isAdmin && !isTM && role == AppConstants.roleEventManager;
-
-        // Logged-in users should never see auth screens
-        final onAuthRoute = authRoutes.contains(loc);
-
-        // Staff default routes (redirect from auth or root)
-        if (isAdmin && (loc == '/' || onAuthRoute)) {
-          return AppRoutes.adminDashboard;
-        }
-        if (isTM && (loc == '/' || onAuthRoute)) {
-          return AppRoutes.tmDashboard;
-        }
-        if (isEM && (loc == '/' || onAuthRoute)) {
-          return AppRoutes.emDashboard;
-        }
-
-        // Regular user — redirect away from auth screens
-        if (!isAdmin && !isTM && !isEM && (loc == '/' || onAuthRoute)) {
-          return AppRoutes.home;
-        }
+      final authState = ref.read(authStateProvider);
+      
+      if (authState.isLoading) {
+        if (loc == AppRoutes.splash) return null;
+        return AppRoutes.splash;
       }
+
+      final isLoggedIn = authState.valueOrNull != null;
+
+      if (!isLoggedIn) {
+        if (!authRoutes.contains(loc)) return AppRoutes.login;
+        return null;
+      }
+
+      final firebaseUser = authState.valueOrNull;
+      final email = firebaseUser?.email ?? '';
+      
+      final userModelAsync = ref.read(currentUserModelProvider);
+
+      if (userModelAsync.isLoading) {
+        if (loc == AppRoutes.splash || authRoutes.contains(loc)) return null;
+        return AppRoutes.splash;
+      }
+
+      final userModel = userModelAsync.valueOrNull;
+      final role = userModel?.role ?? AppConstants.roleUser;
+
+      final isAdminByEmail = email == 'admin@gmail.com';
+      final isAdmin = isAdminByEmail || role == AppConstants.roleAdmin;
+      final isTM = !isAdmin && role == AppConstants.roleTheaterManager;
+      final isEM = !isAdmin && !isTM && role == AppConstants.roleEventManager;
+
+      final onAuthRoute = authRoutes.contains(loc);
+
+      if (isAdmin && (loc == '/' || onAuthRoute)) {
+        return AppRoutes.adminDashboard;
+      }
+      if (isTM && (loc == '/' || onAuthRoute)) {
+        return AppRoutes.tmDashboard;
+      }
+      if (isEM && (loc == '/' || onAuthRoute)) {
+        return AppRoutes.emDashboard;
+      }
+
+      if (!isAdmin && !isTM && !isEM && (loc == '/' || onAuthRoute)) {
+        return AppRoutes.home;
+      }
+
       return null;
     },
     routes: [
@@ -455,6 +463,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.emDashboard,
           pageBuilder: (c, s) =>
               _fadePage(c, s, const EmDashboardScreen())),
+      GoRoute(
+          path: AppRoutes.emEvents,
+          pageBuilder: (c, s) =>
+              _fadePage(c, s, const EmEventsScreen())),
       GoRoute(
           path: AppRoutes.addEvent,
           pageBuilder: (c, s) =>

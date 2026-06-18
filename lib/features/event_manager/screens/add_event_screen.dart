@@ -781,11 +781,12 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           const Text('Starts At', style: TextStyle(fontSize: 10, color: Colors.grey)),
                           const SizedBox(height: 2),
-                          Text(startDateTimeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+                          Text(startDateTimeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                         ],
                       ),
                     ),
@@ -798,11 +799,12 @@ class _AddEventScreenState extends ConsumerState<AddEventScreen> {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           const Text('Ends At', style: TextStyle(fontSize: 10, color: Colors.grey)),
                           const SizedBox(height: 2),
-                          Text(endDateTimeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.black87)),
+                          Text(endDateTimeLabel, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.white)),
                         ],
                       ),
                     ),

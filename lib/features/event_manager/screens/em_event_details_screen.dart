@@ -549,9 +549,9 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
             ]
           ],
           bottom: const TabBar(
-            labelColor: Colors.black,
-            unselectedLabelColor: Colors.black54,
-            indicatorColor: Colors.black,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white60,
+            indicatorColor: Colors.white,
             tabs: [
               Tab(text: 'Sales & Tiers'),
               Tab(text: 'Bookings / Attendees'),
@@ -594,9 +594,9 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
                 const SizedBox(height: 4),
                 Text('${event.venueName} • ${event.city}',
-                    style: const TextStyle(color: ShowSnapColors.grey600)),
+                    style: const TextStyle(color: Colors.white70)),
                 Text(event.startTs.epochToDateTimeLabel,
-                    style: const TextStyle(color: ShowSnapColors.grey600)),
+                    style: const TextStyle(color: Colors.white70)),
               ],
             ),
           ),
@@ -624,11 +624,11 @@ class _EmEventDetailsScreenState extends ConsumerState<EmEventDetailsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(tier.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.white)),
                         const SizedBox(height: 2),
                         Text(
-                          'Price: ₹${tier.price}  •  Sold: $sold/$tier.totalSeats\nRevenue: ₹$revenue',
-                          style: const TextStyle(fontSize: 11, color: ShowSnapColors.grey600),
+                          'Price: ₹${tier.price}  •  Sold: $sold/${tier.totalSeats}\nRevenue: ₹$revenue',
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
                         ),
                       ],
                     ),
