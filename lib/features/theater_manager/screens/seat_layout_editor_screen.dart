@@ -69,8 +69,8 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
     
     // Resize grid if needed based on loaded seats
     if (screen.seatLayout.isNotEmpty) {
-      _gridRows = maxR + 2;
-      _gridCols = maxC + 2;
+      _gridRows = maxR + 1;
+      _gridCols = maxC + 1;
       _initGrid();
     }
 
@@ -221,20 +221,87 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
     }
   }
 
+  Color get _currentPaintColor {
+    if (_isAccessible) return SeatColors.accessible;
+    switch (_currentCategory) {
+      case SeatCategory.gold:
+        return SeatColors.gold;
+      case SeatCategory.platinum:
+        return SeatColors.platinum;
+      case SeatCategory.silver:
+        return SeatColors.silver;
+    }
+  }
+
   void _onRowHeaderTap(int y) {
     if (_previewMode) return;
     setState(() {
+      bool hasAnySeat = false;
       for (int x = 0; x < _gridCols; x++) {
-        final seat = _grid[y][x].seat;
-        if (seat != null) {
-          _grid[y][x].seat = seat.copyWith(
+        if (_grid[y][x].seat != null) {
+          hasAnySeat = true;
+          break;
+        }
+      }
+
+      if (hasAnySeat) {
+        for (int x = 0; x < _gridCols; x++) {
+          _grid[y][x].seat = null;
+        }
+      } else {
+        final rowStr = _getRowLabel(y);
+        for (int x = 0; x < _gridCols; x++) {
+          final seatId = '${widget.screenId}_${rowStr}_${x + 1}';
+          _grid[y][x].seat = SeatModel(
+            seatId: seatId,
+            row: rowStr,
+            number: x + 1,
             category: _currentCategory,
+            x: x,
+            y: y,
             isAccessible: _isAccessible,
           );
         }
       }
+      _renumberRow(y);
     });
-    context.showSnackbar('Applied category to row ${_getRowLabel(y)}');
+    context.showSnackbar('Toggled seats in row ${_getRowLabel(y)}');
+  }
+
+  void _onColHeaderTap(int x) {
+    if (_previewMode) return;
+    setState(() {
+      bool hasAnySeat = false;
+      for (int y = 0; y < _gridRows; y++) {
+        if (_grid[y][x].seat != null) {
+          hasAnySeat = true;
+          break;
+        }
+      }
+
+      if (hasAnySeat) {
+        for (int y = 0; y < _gridRows; y++) {
+          _grid[y][x].seat = null;
+        }
+      } else {
+        for (int y = 0; y < _gridRows; y++) {
+          final rowStr = _getRowLabel(y);
+          _grid[y][x].seat = SeatModel(
+            seatId: '${widget.screenId}_${rowStr}_1',
+            row: rowStr,
+            number: 1,
+            category: _currentCategory,
+            x: x,
+            y: y,
+            isAccessible: _isAccessible,
+          );
+        }
+      }
+      for (int y = 0; y < _gridRows; y++) {
+        _renumberRow(y);
+      }
+    });
+    context.showSnackbar('Toggled seats in column ${x + 1}');
   }
 
   Future<void> _saveLayout() async {
@@ -253,9 +320,9 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
       layoutMap[s.seatId] = s.toJson();
     }
 
-    await ref.read(databaseServiceProvider).updateScreen(
-        widget.screenId,
-        {'seatLayout': layoutMap, 'totalSeats': seats.length});
+    // Use saveScreenLayout (set, not update) so deleted seats are removed
+    await ref.read(databaseServiceProvider).saveScreenLayout(
+        widget.screenId, layoutMap, seats.length);
 
     setState(() => _saving = false);
     if (mounted) context.showSnackbar('Layout saved — ${seats.length} seats');
@@ -378,6 +445,42 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
                                 curve: Curves.elasticOut,
                               )
                               .fadeIn(),
+                          // Column Headers
+                          if (!_previewMode)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(width: 42), // Spacer for row headers (30 width + 12 margin)
+                                ...List.generate(_gridCols, (x) {
+                                  return GestureDetector(
+                                    onTap: () => _onColHeaderTap(x),
+                                    child: Container(
+                                      width: 28,
+                                      height: 28,
+                                      margin: const EdgeInsets.all(2),
+                                      decoration: BoxDecoration(
+                                        color: _currentPaintColor.withOpacity(0.25),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: _currentPaintColor,
+                                          width: 1.5,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '${x + 1}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 10,
+                                            color: _currentPaintColor.withOpacity(0.9),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
                           ...List.generate(_gridRows, (y) {
                           return Row(
                             mainAxisSize: MainAxisSize.min,
@@ -391,39 +494,51 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
                                     height: 28,
                                     margin: const EdgeInsets.only(right: 12),
                                     decoration: BoxDecoration(
-                                      color: ShowSnapColors.grey300,
+                                      color: _currentPaintColor.withOpacity(0.25),
                                       borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: _currentPaintColor,
+                                        width: 1.5,
+                                      ),
                                     ),
                                     child: Center(
                                       child: Text(
                                         _getRowLabel(y),
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: _currentPaintColor.withOpacity(0.9),
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               // Seats
                               ...List.generate(_gridCols, (x) {
-                                final cell = _grid[y][x];
+                                final seat = _grid[y][x].seat;
+                                final cellKey = ValueKey(
+                                  'cell_${y}_${x}_${seat?.category.name ?? 'empty'}_${seat?.isAccessible ?? false}',
+                                );
                                 return GestureDetector(
+                                  key: cellKey,
                                   onTap: () => _onCellTap(x, y),
                                   child: Container(
                                     width: 28,
                                     height: 28,
                                     margin: const EdgeInsets.all(2),
                                     decoration: BoxDecoration(
-                                      color: _cellColor(cell),
+                                      color: _cellColorFromSeat(seat),
                                       borderRadius: BorderRadius.circular(4),
                                       border: Border.all(
-                                        color: cell.seat != null
+                                        color: seat != null
                                             ? ShowSnapColors.grey600
                                             : (_previewMode ? Colors.transparent : ShowSnapColors.grey300),
                                       ),
                                     ),
-                                    child: cell.seat != null
+                                    child: seat != null
                                         ? Center(
                                             child: Text(
-                                              '${cell.seat!.number}',
+                                              '${seat.number}',
                                               style: const TextStyle(
                                                   fontSize: 9,
                                                   fontWeight: FontWeight.w700),
@@ -472,10 +587,23 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
     );
   }
 
-  Color _cellColor(_GridCell cell) {
-    if (cell.seat == null) return _previewMode ? Colors.transparent : ShowSnapColors.grey100;
-    if (cell.seat!.isAccessible) return SeatColors.accessible;
-    switch (cell.seat!.category) {
+  Color _cellColor(_GridCell cell) => _cellColorFromSeat(cell.seat);
+
+  Color _cellColorFromSeat(SeatModel? seat) {
+    if (seat == null) return _previewMode ? Colors.transparent : ShowSnapColors.grey100;
+    if (seat.isAccessible) return SeatColors.accessible;
+    switch (seat.category) {
+      case SeatCategory.gold:
+        return SeatColors.gold;
+      case SeatCategory.platinum:
+        return SeatColors.platinum;
+      case SeatCategory.silver:
+        return SeatColors.silver;
+    }
+  }
+
+  Color _categoryColor(SeatCategory c) {
+    switch (c) {
       case SeatCategory.gold:
         return SeatColors.gold;
       case SeatCategory.platinum:
@@ -503,17 +631,49 @@ class _SeatLayoutEditorScreenState extends ConsumerState<SeatLayoutEditorScreen>
           const SizedBox(width: 16),
           // Category Tool
           Expanded(
-            child: DropdownButtonFormField<SeatCategory>(
-              value: _currentCategory,
-              decoration: const InputDecoration(
-                  labelText: 'Paint Category', 
-                  contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  isDense: true),
-              items: SeatCategory.values
-                  .map((c) => DropdownMenuItem(
-                      value: c, child: Text(c.label)))
-                  .toList(),
-              onChanged: (v) => setState(() => _currentCategory = v!),
+            child: Row(
+              children: [
+                // Color swatch indicator
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 18,
+                  height: 18,
+                  margin: const EdgeInsets.only(right: 6),
+                  decoration: BoxDecoration(
+                    color: _currentPaintColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: ShowSnapColors.grey600, width: 1),
+                  ),
+                ),
+                Expanded(
+                  child: DropdownButtonFormField<SeatCategory>(
+                    value: _currentCategory,
+                    decoration: const InputDecoration(
+                        labelText: 'Paint Category',
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        isDense: true),
+                    items: SeatCategory.values
+                        .map((c) => DropdownMenuItem(
+                            value: c,
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 12,
+                                  height: 12,
+                                  margin: const EdgeInsets.only(right: 6),
+                                  decoration: BoxDecoration(
+                                    color: _categoryColor(c),
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                Text(c.label),
+                              ],
+                            )))
+                        .toList(),
+                    onChanged: (v) => setState(() => _currentCategory = v!),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 8),

@@ -317,7 +317,8 @@ class _EditMovieFormState extends ConsumerState<_EditMovieForm> {
   late String _certificate;
   late String _status;
   late final Set<String> _genres;
-  File? _posterFile;
+  XFile? _posterFile;
+  Uint8List? _posterBytes;
   bool _saving = false;
 
   // ignore: non_constant_identifier_names
@@ -399,14 +400,11 @@ class _EditMovieFormState extends ConsumerState<_EditMovieForm> {
                     borderRadius: BorderRadius.circular(ShowSnapRadius.md),
                     border: Border.all(color: TMColors.border),
                   ),
-                  child: _posterFile != null
+                  child: _posterBytes != null
                       ? ClipRRect(
                           borderRadius:
                               BorderRadius.circular(ShowSnapRadius.md),
-                          child: kIsWeb
-                              ? Image.network(_posterFile!.path,
-                                  fit: BoxFit.cover)
-                              : Image.file(_posterFile!, fit: BoxFit.cover))
+                          child: Image.memory(_posterBytes!, fit: BoxFit.cover))
                       : widget.movie.posterUrl.isNotEmpty
                           ? ClipRRect(
                               borderRadius:
@@ -634,7 +632,13 @@ class _EditMovieFormState extends ConsumerState<_EditMovieForm> {
   Future<void> _pickPoster() async {
     final picker = ImagePicker();
     final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (img != null) setState(() => _posterFile = File(img.path));
+    if (img != null) {
+      final bytes = await img.readAsBytes();
+      setState(() {
+        _posterFile = img;
+        _posterBytes = bytes;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -642,10 +646,14 @@ class _EditMovieFormState extends ConsumerState<_EditMovieForm> {
     setState(() => _saving = true);
     try {
       String posterUrl = widget.movie.posterUrl;
-      if (_posterFile != null) {
+      if (_posterBytes != null && _posterFile != null) {
         posterUrl = await ref
             .read(cloudinaryServiceProvider)
-            .uploadImage(_posterFile!, AppConstants.cloudinaryMoviePosters);
+            .uploadImageBytes(
+              _posterBytes!,
+              _posterFile!.name,
+              AppConstants.cloudinaryMoviePosters,
+            );
       }
       final db = ref.read(databaseServiceProvider);
       final duration = int.tryParse(_durationCtrl.text) ?? 120;
@@ -908,7 +916,8 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
   String _certificate = 'UA';
   String _status = 'nowShowing';
   final Set<String> _genres = {};
-  File? _posterFile;
+  XFile? _posterFile;
+  Uint8List? _posterBytes;
   bool _saving = false;
   ScreenModel? _selectedScreen;
   final List<TimeOfDay> _timeStamps = [];
@@ -973,14 +982,11 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
                     borderRadius: BorderRadius.circular(ShowSnapRadius.md),
                     border: Border.all(color: TMColors.border),
                   ),
-                  child: _posterFile != null
+                  child: _posterBytes != null
                       ? ClipRRect(
                           borderRadius:
                               BorderRadius.circular(ShowSnapRadius.md),
-                          child: kIsWeb
-                              ? Image.network(_posterFile!.path,
-                                  fit: BoxFit.cover)
-                              : Image.file(_posterFile!, fit: BoxFit.cover))
+                          child: Image.memory(_posterBytes!, fit: BoxFit.cover))
                       : Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
@@ -1257,7 +1263,13 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
   Future<void> _pickPoster() async {
     final picker = ImagePicker();
     final img = await picker.pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (img != null) setState(() => _posterFile = File(img.path));
+    if (img != null) {
+      final bytes = await img.readAsBytes();
+      setState(() {
+        _posterFile = img;
+        _posterBytes = bytes;
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -1266,10 +1278,14 @@ class _AddMovieFormState extends ConsumerState<_AddMovieForm> {
     try {
       final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
       String posterUrl = '';
-      if (_posterFile != null) {
+      if (_posterBytes != null && _posterFile != null) {
         posterUrl = await ref
             .read(cloudinaryServiceProvider)
-            .uploadImage(_posterFile!, AppConstants.cloudinaryMoviePosters);
+            .uploadImageBytes(
+              _posterBytes!,
+              _posterFile!.name,
+              AppConstants.cloudinaryMoviePosters,
+            );
       }
       final db = ref.read(databaseServiceProvider);
       final duration = int.tryParse(_durationCtrl.text) ?? 120;

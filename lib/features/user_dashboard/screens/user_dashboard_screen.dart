@@ -285,8 +285,9 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> with SingleTicke
     if (img == null) return;
     setState(() => _uploading = true);
     try {
-      final url = await ref.read(cloudinaryServiceProvider).uploadImage(
-          File(img.path), AppConstants.cloudinaryAvatars);
+      final bytes = await img.readAsBytes();
+      final url = await ref.read(cloudinaryServiceProvider).uploadImageBytes(
+          bytes, img.name, AppConstants.cloudinaryAvatars);
       final uid = ref.read(authStateProvider).valueOrNull?.uid;
       if (uid != null) {
         await ref.read(databaseServiceProvider).updateUser(uid, {'avatarUrl': url});
@@ -613,15 +614,19 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> with SingleTicke
       context: context,
       backgroundColor: const Color(0xFF1F2124),
       isScrollControlled: true,
+      useRootNavigator: true,
       clipBehavior: Clip.antiAlias,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(ShowSnapRadius.lg)),
       ),
       builder: (sheetCtx) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(sheetCtx).viewInsets.bottom,
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -717,7 +722,8 @@ class _ProfileHeaderState extends ConsumerState<_ProfileHeader> with SingleTicke
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

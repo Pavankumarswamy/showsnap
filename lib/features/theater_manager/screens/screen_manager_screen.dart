@@ -11,18 +11,19 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/widgets/showsnap_toast.dart';
 
-final _tmScreensProvider = FutureProvider<List<ScreenModel>>((ref) async {
+final _tmScreensProvider = StreamProvider<List<ScreenModel>>((ref) async* {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
-  if (uid == null) return [];
-  final theaters = await ref.watch(databaseServiceProvider).getAllTheaters();
+  if (uid == null) { yield []; return; }
+  final theaters = await ref.read(databaseServiceProvider).getAllTheaters();
   final theater = theaters
       .cast<dynamic>()
       .firstWhere((t) => t.managerId == uid, orElse: () => null);
-  if (theater == null) return [];
-  return ref
-      .watch(databaseServiceProvider)
-      .getScreensForTheater(theater.theaterId);
+  if (theater == null) { yield []; return; }
+  yield* ref
+      .read(databaseServiceProvider)
+      .streamScreensForTheater(theater.theaterId);
 });
+
 
 class ScreenManagerScreen extends ConsumerWidget {
   const ScreenManagerScreen({super.key});
@@ -90,7 +91,7 @@ class ScreenManagerScreen extends ConsumerWidget {
             : RefreshIndicator(
                 color: TMColors.primary,
                 backgroundColor: TMColors.surface,
-                onRefresh: () => ref.refresh(_tmScreensProvider.future),
+                onRefresh: () async => ref.invalidate(_tmScreensProvider),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     if (constraints.maxWidth > 800) {
@@ -196,7 +197,6 @@ class ScreenManagerScreen extends ConsumerWidget {
                   technology: technology,
                   totalSeats: int.tryParse(seatsCtrl.text) ?? 0,
                 ));
-                ref.invalidate(_tmScreensProvider);
                 if (ctx.mounted) {
                   Navigator.pop(ctx);
                   ShowSnapToast.success(context, 'Screen created');
@@ -296,7 +296,6 @@ class _ScreenCard extends ConsumerWidget {
                   } else if (action == 'maintenance') {
                     await db.updateScreen(screen.screenId,
                         {'isUnderMaintenance': !screen.isUnderMaintenance});
-                    ref.invalidate(_tmScreensProvider);
                     if (context.mounted) {
                       ShowSnapToast.success(context,
                           screen.isUnderMaintenance ? 'Screen back online' : 'Screen set to maintenance');
@@ -311,7 +310,6 @@ class _ScreenCard extends ConsumerWidget {
                     );
                     if (ok == true) {
                       await db.deleteScreen(screen.screenId);
-                      ref.invalidate(_tmScreensProvider);
                       if (context.mounted) {
                         ShowSnapToast.success(context, 'Screen deleted');
                       }
@@ -507,7 +505,6 @@ class _ScreenCard extends ConsumerWidget {
                     'totalSeats': int.tryParse(seatsCtrl.text) ?? screen.totalSeats,
                   },
                 );
-                ref.invalidate(_tmScreensProvider);
                 if (ctx.mounted) {
                   Navigator.pop(ctx);
                   ShowSnapToast.success(context, 'Screen updated');

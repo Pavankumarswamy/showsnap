@@ -479,23 +479,23 @@ class _HomeBodyState extends ConsumerState<_HomeBody> {
 const _kDefaultBanners = [
   BannerModel(
       bannerId: 'd1',
-      imageUrl: 'https://i.ibb.co/9C1fqLR/Gemini-Generated-Image-2fn32w2fn32w2fn3-clean.png',
+      imageUrl: 'https://image.tmdb.org/t/p/w780/8b8R8l88ILGWXv7Z31GO80ReOU.jpg',
   ),
   BannerModel(
       bannerId: 'd2',
-      imageUrl: 'https://i.ibb.co/FknMNP8W/Gemini-Generated-Image-dx6kf2dx6kf2dx6k-clean.png',
+      imageUrl: 'https://image.tmdb.org/t/p/w780/9l1eZiJHmhr5jIlthMdJN5WYoff.jpg',
   ),
   BannerModel(
       bannerId: 'd3',
-      imageUrl: 'https://i.ibb.co/Y73TgH6b/Gemini-Generated-Image-fewa0mfewa0mfewa-clean.png',
+      imageUrl: 'https://image.tmdb.org/t/p/w780/rktDFPbfHfUbArZ6OOOKsXcv0Bm.jpg',
   ),
   BannerModel(
       bannerId: 'd4',
-      imageUrl: 'https://i.ibb.co/vxBjkf7n/Gemini-Generated-Image-mixq9xmixq9xmixq-clean.png',
+      imageUrl: 'https://image.tmdb.org/t/p/w780/zfbjgQE1uSd9wiPTX4VzsLi0rGG.jpg',
   ),
   BannerModel(
       bannerId: 'd5',
-      imageUrl: 'https://i.ibb.co/h12pLGKL/Gemini-Generated-Image-tpggextpggextpgg-clean.png',
+      imageUrl: 'https://image.tmdb.org/t/p/w780/7gKI9hpEMcZUQpNgKrkDzJpbnc0.jpg',
   ),
 ];
 
@@ -521,7 +521,12 @@ class _PromoBanner extends ConsumerWidget {
               return _BannerCard(
                 banner: banner,
                 onTap: banner.ctaRoute.isNotEmpty
-                    ? () => context.push(banner.ctaRoute)
+                    ? () {
+                        final route = banner.ctaRoute.startsWith('/')
+                            ? banner.ctaRoute
+                            : '/${banner.ctaRoute}';
+                        context.push(route);
+                      }
                     : null,
               );
             },
@@ -561,11 +566,12 @@ class _BannerCard extends StatelessWidget {
               // Background: image if available, else gradient
               Container(decoration: BoxDecoration(gradient: _gradients[idx])),
               if (banner.imageUrl.isNotEmpty)
-                CachedNetworkImage(
-                  imageUrl: banner.imageUrl,
-                  fit: BoxFit.fill,
-                  placeholder: (_, __) => const SizedBox(),
-                  errorWidget: (_, __, ___) => const SizedBox(),
+                Positioned.fill(
+                  child: Image.network(
+                    banner.imageUrl.replaceFirst('http://', 'https://'),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Center(child: Icon(Icons.broken_image, color: Colors.white54, size: 30)),
+                  ),
                 ),
 
               // Gradient overlay so text is always readable on images

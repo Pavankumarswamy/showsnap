@@ -19,10 +19,8 @@
     "screens": {
       ".indexOn": ["theaterId"],
       ".read": true,
-      "$theaterId": {
-        "$screenId": {
-          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('theaters').child($theaterId).child('managerId').val() === auth.uid)"
-        }
+      "$screenId": {
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'theaterManager' || root.child('theaters').child(newData.child('theaterId').val()).child('managerId').val() === auth.uid || root.child('theaters').child(data.child('theaterId').val()).child('managerId').val() === auth.uid)"
       }
     },
 
