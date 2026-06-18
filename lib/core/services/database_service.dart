@@ -338,6 +338,9 @@ class DatabaseService {
           String theaterId, Map<String, dynamic> updates) =>
       _db.ref('${AppConstants.theatersPath}/$theaterId').update(updates);
 
+  Future<void> deleteTheater(String theaterId) =>
+      _db.ref('${AppConstants.theatersPath}/$theaterId').remove();
+
   // ─── Screens ──────────────────────────────────────────────────────────────
 
   Future<List<ScreenModel>> getScreensForTheater(String theaterId) async {
@@ -671,6 +674,9 @@ class DatabaseService {
 
   Future<void> updateUser(String uid, Map<String, dynamic> updates) =>
       _db.ref('${AppConstants.usersPath}/$uid').update(updates);
+
+  Future<void> deleteUser(String uid) =>
+      _db.ref('${AppConstants.usersPath}/$uid').remove();
 
   Future<void> addSavedAddress(String uid, AddressModel address) async {
     final ref = _db.ref('${AppConstants.usersPath}/$uid/savedAddresses').push();

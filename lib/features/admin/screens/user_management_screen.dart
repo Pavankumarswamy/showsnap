@@ -349,10 +349,14 @@ class _UserTile extends ConsumerWidget {
                   user.isActive ? 'Deactivate' : 'Activate',
                   style: TextStyle(
                     color: user.isActive
-                        ? AdminColors.error
+                        ? AdminColors.textSecondary
                         : AdminColors.success,
                   ),
                 ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Text('Delete', style: TextStyle(color: AdminColors.error)),
               ),
             ],
           ),
@@ -363,6 +367,30 @@ class _UserTile extends ConsumerWidget {
 
   Future<void> _handleAction(
       BuildContext context, WidgetRef ref, String action) async {
+    if (action == 'delete') {
+      final ok = await StaffConfirmDialog.show(
+        context,
+        title: 'Delete User',
+        message: 'Are you sure you want to permanently delete user "${user.displayName}"? This action cannot be undone.',
+        confirmLabel: 'Delete',
+        isDangerous: true,
+      );
+      if (ok != true) return;
+
+      try {
+        await ref.read(databaseServiceProvider).deleteUser(user.uid);
+        ref.invalidate(_allUsersProvider);
+        if (context.mounted) {
+          ShowSnapToast.success(context, 'User deleted');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ShowSnapToast.error(context, 'Failed to delete: $e');
+        }
+      }
+      return;
+    }
+
     if (action == 'deactivate') {
       final ok = await StaffConfirmDialog.show(
         context,

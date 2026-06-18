@@ -331,10 +331,14 @@ class _IconMenuBtn extends ConsumerWidget {
             theater.isActive ? 'Deactivate' : 'Activate',
             style: TextStyle(
               color: theater.isActive
-                  ? AdminColors.error
+                  ? AdminColors.textSecondary
                   : AdminColors.success,
             ),
           ),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: AdminColors.error)),
         ),
       ],
     );
@@ -342,6 +346,30 @@ class _IconMenuBtn extends ConsumerWidget {
 
   Future<void> _handleAction(
       BuildContext context, WidgetRef ref, String action) async {
+    if (action == 'delete') {
+      final ok = await StaffConfirmDialog.show(
+        context,
+        title: 'Delete Theater',
+        message: 'Are you sure you want to permanently delete "${theater.name}"? This action cannot be undone.',
+        confirmLabel: 'Delete',
+        isDangerous: true,
+      );
+      if (ok != true) return;
+
+      try {
+        await ref.read(databaseServiceProvider).deleteTheater(theater.theaterId);
+        onRefresh();
+        if (context.mounted) {
+          ShowSnapToast.success(context, '${theater.name} deleted');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ShowSnapToast.error(context, 'Failed to delete: $e');
+        }
+      }
+      return;
+    }
+
     if (action == 'deactivate') {
       final ok = await StaffConfirmDialog.show(
         context,
