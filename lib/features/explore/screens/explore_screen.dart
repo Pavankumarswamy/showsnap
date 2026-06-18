@@ -252,7 +252,7 @@ class _MoviesTab extends ConsumerWidget {
             crossAxisCount: 3,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 0.48,
+            childAspectRatio: 0.46,
           ),
           itemCount: movies.length,
           itemBuilder: (_, i) => MovieCard(movie: movies[i], heroTagSuffix: 'explore_movies')

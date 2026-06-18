@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -7,7 +10,10 @@ import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import '../widgets/web_video_player.dart'
+    if (dart.library.html) '../widgets/web_video_player_web.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/models/booking_model.dart';
 import '../../../core/models/movie_model.dart';
@@ -114,20 +120,22 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   @override
   void initState() {
     super.initState();
-    final url = widget.movie.trailerUrl;
-    if (url.isNotEmpty) {
-      final videoId = YoutubePlayer.convertUrlToId(url) ?? url;
-      _ytCtrl = YoutubePlayerController(
-        initialVideoId: videoId,
-        flags: const YoutubePlayerFlags(
-          autoPlay: true,
-          mute: true,
-          enableCaption: false,
-          hideControls: true,
-          hideThumbnail: true,
-        ),
-      );
-      _ytCtrl!.addListener(_onYtListener);
+    if (!kIsWeb) {
+      final url = widget.movie.trailerUrl;
+      if (url.isNotEmpty) {
+        final videoId = YoutubePlayer.convertUrlToId(url) ?? url;
+        _ytCtrl = YoutubePlayerController(
+          initialVideoId: videoId,
+          flags: const YoutubePlayerFlags(
+            autoPlay: true,
+            mute: true,
+            enableCaption: false,
+            hideControls: true,
+            hideThumbnail: true,
+          ),
+        );
+        _ytCtrl!.addListener(_onYtListener);
+      }
     }
   }
 
@@ -156,6 +164,12 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
   @override
   Widget build(BuildContext context) {
     final movie = widget.movie;
+    final videoId = YoutubePlayer.convertUrlToId(movie.trailerUrl) ?? movie.trailerUrl;
+
+    if (kIsWeb) {
+      return _buildScaffold(context, buildWebVideoPlayer(videoId));
+    }
+
     return YoutubePlayerBuilder(
       player: YoutubePlayer(
         controller: _ytCtrl ?? YoutubePlayerController(
@@ -163,7 +177,13 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           flags: const YoutubePlayerFlags(autoPlay: false),
         ),
       ),
-      builder: (context, player) => Scaffold(
+      builder: (context, player) => _buildScaffold(context, player),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context, Widget playerWidget) {
+    final movie = widget.movie;
+    return Scaffold(
         backgroundColor: ShowSnapColors.background,
         bottomNavigationBar: movie.status == 'nowShowing'
             ? Container(
@@ -265,7 +285,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                    if (_ytCtrl != null)
+                    if (kIsWeb ? (movie.trailerUrl.isNotEmpty && _playTrailer) : _ytCtrl != null)
                       SizedBox.expand(
                         child: FittedBox(
                           fit: BoxFit.cover,
@@ -278,7 +298,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onTap: () {
-                                  if (_playTrailer && _ytCtrl != null) {
+                                  if (!kIsWeb && _playTrailer && _ytCtrl != null) {
                                     if (_ytCtrl!.value.isPlaying) {
                                       _ytCtrl!.pause();
                                     } else {
@@ -288,7 +308,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                                 },
                                 child: IgnorePointer(
                                   ignoring: true,
-                                  child: player,
+                                  child: playerWidget,
                                 ),
                               ),
                             ),
@@ -340,16 +360,22 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                         ],
                       ),
                     ),
-                    if (!_playTrailer && _ytCtrl != null)
+                    if (!_playTrailer && (kIsWeb ? movie.trailerUrl.isNotEmpty : _ytCtrl != null))
                       Center(
                         child: TappableScale(
                           onTap: () {
-                            _trailerTimer?.cancel();
-                            _ytCtrl?.unMute();
-                            _ytCtrl?.play();
-                            setState(() {
-                              _playTrailer = true;
-                            });
+                            if (kIsWeb) {
+                              setState(() {
+                                _playTrailer = true;
+                              });
+                            } else {
+                              _trailerTimer?.cancel();
+                              _ytCtrl?.unMute();
+                              _ytCtrl?.play();
+                              setState(() {
+                                _playTrailer = true;
+                              });
+                            }
                           },
                           child: Container(
                             padding: const EdgeInsets.all(16),
@@ -461,19 +487,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
                               duration: ShowSnapDuration.normal,
                               delay: const Duration(milliseconds: 280)),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 40,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: movie.cast.length,
-                          separatorBuilder: (_, __) =>
-                              const SizedBox(width: 8),
-                          itemBuilder: (_, i) => Chip(
-                            label: Text(movie.cast[i],
-                                style: const TextStyle(fontSize: 12)),
-                          ),
-                        ),
-                      )
+                      _CastList(cast: movie.cast, movieName: movie.title)
                           .animate()
                           .fadeIn(
                               duration: ShowSnapDuration.normal,
@@ -509,8 +523,7 @@ class _MovieDetailContentState extends ConsumerState<_MovieDetailContent> {
           ],
         ),
       ),
-    ),
-  );
+    );
   }
 }
 
@@ -798,6 +811,121 @@ class _InfoRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─── Cast List ───────────────────────────────────────────────────────────────
+
+class _CastList extends StatelessWidget {
+  final List<String> cast;
+  final String movieName;
+  const _CastList({required this.cast, required this.movieName});
+
+  @override
+  Widget build(BuildContext context) {
+    if (cast.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 220, // Height for 2 rows of avatars + text
+      child: GridView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 0),
+        scrollDirection: Axis.horizontal,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: 90,
+        ),
+        itemCount: cast.length,
+        itemBuilder: (context, index) {
+          return _CastAvatar(name: cast[index], movieName: movieName);
+        },
+      ),
+    );
+  }
+}
+
+class _CastAvatar extends StatefulWidget {
+  final String name;
+  final String movieName;
+  const _CastAvatar({required this.name, required this.movieName});
+
+  @override
+  State<_CastAvatar> createState() => _CastAvatarState();
+}
+
+class _CastAvatarState extends State<_CastAvatar> {
+  String? _imageUrl;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchImage();
+  }
+
+  Future<void> _fetchImage() async {
+    try {
+      final nameQuery = Uri.encodeComponent(widget.name.replaceAll(' ', '_'));
+      final url = Uri.parse('https://en.wikipedia.org/api/rest_v1/page/summary/$nameQuery');
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['thumbnail'] != null && data['thumbnail']['source'] != null) {
+          if (mounted) {
+            setState(() {
+              _imageUrl = data['thumbnail']['source'];
+              _loading = false;
+            });
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+    
+    if (mounted) {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _launchSearch() async {
+    final query = Uri.encodeComponent('${widget.name} ${widget.movieName}');
+    final url = Uri.parse('https://www.google.com/search?q=$query');
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: _launchSearch,
+      behavior: HitTestBehavior.opaque,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircleAvatar(
+            radius: 32,
+            backgroundColor: ShowSnapColors.grey300,
+            backgroundImage: _imageUrl != null ? CachedNetworkImageProvider(_imageUrl!) : null,
+            child: _loading 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) 
+                : (_imageUrl == null ? const Icon(Icons.person, color: Colors.white, size: 30) : null),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            widget.name,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            maxLines: 2,
+            textAlign: TextAlign.center,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
     );
   }
 }

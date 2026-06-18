@@ -356,6 +356,23 @@ class DatabaseService {
         .toList();
   }
 
+  /// Real-time stream of all screens for a given theater.
+  Stream<List<ScreenModel>> streamScreensForTheater(String theaterId) {
+    return _db
+        .ref(AppConstants.screensPath)
+        .orderByChild('theaterId')
+        .equalTo(theaterId)
+        .onValue
+        .map((e) {
+          if (!e.snapshot.exists || e.snapshot.value == null) return [];
+          final map = e.snapshot.value as Map;
+          return map.entries
+              .map((entry) =>
+                  ScreenModel.fromJson(entry.key.toString(), entry.value as Map))
+              .toList();
+        });
+  }
+
   Future<ScreenModel?> getScreen(String screenId) async {
     final snap = await _db.ref('${AppConstants.screensPath}/$screenId').get();
     if (!snap.exists || snap.value == null) return null;
@@ -380,6 +397,20 @@ class DatabaseService {
 
   Future<void> updateScreen(String screenId, Map<String, dynamic> updates) =>
       _db.ref('${AppConstants.screensPath}/$screenId').update(updates);
+
+  /// Saves the seat layout by REPLACING the seatLayout node entirely (not
+  /// merging), so deleted seats are properly removed from Firebase.
+  Future<void> saveScreenLayout(
+      String screenId, Map<String, dynamic> layoutMap, int totalSeats) async {
+    final screenRef = _db.ref('${AppConstants.screensPath}/$screenId');
+    // Use .set() on the seatLayout child to fully replace it,
+    // then update totalSeats. Using .update({'seatLayout': map}) would
+    // shallow-merge and leave deleted seats behind.
+    await Future.wait([
+      screenRef.child('seatLayout').set(layoutMap),
+      screenRef.child('totalSeats').set(totalSeats),
+    ]);
+  }
 
   Future<void> deleteScreen(String screenId) =>
       _db.ref('${AppConstants.screensPath}/$screenId').remove();

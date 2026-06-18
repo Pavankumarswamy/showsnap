@@ -2,12 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:geolocator/geolocator.dart';
 import '../providers/booking_provider.dart';
+
 import '../../../core/config/theme.dart';
 import '../../../core/models/show_model.dart';
 import '../../../core/models/theater_model.dart';
 import '../../../core/services/database_service.dart';
 import '../../../core/utils/extensions.dart';
+
+final _userLocationProvider = FutureProvider.autoDispose<Position?>((ref) async {
+  try {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+      return null;
+    }
+    return await Geolocator.getLastKnownPosition() ?? await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.low);
+  } catch (_) {
+    return null;
+  }
+});
 
 class ShowSelectionScreen extends ConsumerStatefulWidget {
   final String movieId;
@@ -192,17 +208,33 @@ class _TheaterShowList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final locationAsync = ref.watch(_userLocationProvider);
+    final userPos = locationAsync.valueOrNull;
+
     return FutureBuilder<List<TheaterModel>>(
       future: ref.read(databaseServiceProvider).getAllTheaters(),
       builder: (context, snap) {
         final theaters = snap.data ?? [];
         final theaterMap = {for (final t in theaters) t.theaterId: t};
 
+        // Sort theater IDs by distance from user (nearest first)
+        final sortedTheaterIds = theaterShows.keys.toList()
+          ..sort((a, b) {
+            if (userPos == null) return 0;
+            final tA = theaterMap[a];
+            final tB = theaterMap[b];
+            if (tA == null || tA.lat == 0) return 1;
+            if (tB == null || tB.lat == 0) return -1;
+            final distA = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, tA.lat, tA.lng);
+            final distB = Geolocator.distanceBetween(userPos.latitude, userPos.longitude, tB.lat, tB.lng);
+            return distA.compareTo(distB);
+          });
+
         return ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: theaterShows.length,
+          itemCount: sortedTheaterIds.length,
           itemBuilder: (_, i) {
-            final theaterId = theaterShows.keys.elementAt(i);
+            final theaterId = sortedTheaterIds[i];
             final shows = theaterShows[theaterId]!;
             final theater = theaterMap[theaterId];
             return Card(
@@ -212,23 +244,84 @@ class _TheaterShowList extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      theater?.name ?? theaterId,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleSmall
-                          ?.copyWith(fontWeight: FontWeight.bold),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            (theater?.name ?? theaterId).toUpperCase(),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleSmall
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (theater != null && userPos != null && theater.lat != 0 && theater.lng != 0)
+                          Builder(
+                            builder: (context) {
+                              final dist = Geolocator.distanceBetween(
+                                userPos.latitude, userPos.longitude,
+                                theater.lat, theater.lng,
+                              );
+                              final distKm = (dist / 1000).toStringAsFixed(1);
+                              return Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: ShowSnapColors.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: ShowSnapColors.primary.withOpacity(0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.location_on, size: 10, color: ShowSnapColors.primary),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '$distKm km',
+                                      style: const TextStyle(fontSize: 10, color: ShowSnapColors.primary, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                          ),
+                      ],
                     ),
-                    if (theater?.address.isNotEmpty == true) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        theater!.address,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: ShowSnapColors.grey600),
+                    const SizedBox(height: 4),
+                    FutureBuilder<List<String>>(
+                      future: Future.wait(
+                        shows.map((s) => s.screenId).toSet().map((sid) =>
+                          ref.read(databaseServiceProvider)
+                            .getScreen(sid)
+                            .then((sc) => sc?.name ?? sid)
+                        ),
                       ),
-                    ],
+                      builder: (context, nameSnap) {
+                        final names = nameSnap.data?.map((n) => n.toUpperCase()).join(', ') ?? shows.map((s) => s.screenId).toSet().join(', ');
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '$names  •  ${(theater?.city ?? '').toUpperCase()}',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.copyWith(color: ShowSnapColors.grey600, fontWeight: FontWeight.w500),
+                            ),
+                            if (theater?.address.isNotEmpty == true) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                theater!.address,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.copyWith(color: ShowSnapColors.grey600.withOpacity(0.7), fontSize: 10),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
+                    ),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -239,16 +332,24 @@ class _TheaterShowList extends ConsumerWidget {
                         Color bg;
                         Color fg;
                         Border? border;
+                        Gradient? gradient;
                         if (!s.bookingOpen || s.isSoldOut) {
                           bg = ShowSnapColors.grey300;
                           fg = ShowSnapColors.grey600;
+                          gradient = null;
                         } else if (s.seatsAvailable < 20) {
                           bg = Colors.orange.shade100;
                           fg = Colors.orange.shade800;
+                          gradient = null;
                         } else {
-                          bg = Colors.grey.shade100;
-                          fg = ShowSnapColors.primary;
-                          border = Border.all(color: ShowSnapColors.primary.withOpacity(0.5), width: 1.5);
+                          bg = Colors.transparent;
+                          fg = const Color(0xFF1B7A3E);
+                          gradient = const LinearGradient(
+                            colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          );
+                          border = Border.all(color: const Color(0xFF66BB6A).withOpacity(0.6), width: 1.5);
                         }
                         return GestureDetector(
                           onTap: s.bookingOpen && !s.isSoldOut
@@ -260,6 +361,7 @@ class _TheaterShowList extends ConsumerWidget {
                                 horizontal: 12, vertical: 8),
                             decoration: BoxDecoration(
                               color: bg,
+                              gradient: gradient,
                               borderRadius: BorderRadius.circular(8),
                               border: border,
                             ),
