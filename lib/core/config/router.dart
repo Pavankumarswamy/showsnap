@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/movie_model.dart';
 import '../../features/auth/screens/login_screen.dart';
-import '../../features/auth/screens/register_screen.dart';
 import '../../features/auth/screens/profile_setup_screen.dart';
 import '../../features/home/screens/home_screen.dart';
 import '../../features/explore/screens/explore_screen.dart';
@@ -59,7 +58,6 @@ class AppRoutes {
   static const String splash = '/';
   static const String welcome = '/welcome';
   static const String login = '/login';
-  static const String register = '/register';
   static const String profileSetup = '/profile-setup';
   static const String home = '/home';
   static const String explore = '/explore';
@@ -163,7 +161,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       const authRoutes = {
         AppRoutes.login,
-        AppRoutes.register,
         AppRoutes.welcome,
         AppRoutes.splash,
       };
@@ -227,13 +224,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           path: AppRoutes.welcome,
           pageBuilder: (c, s) => _fadePage(c, s, const WelcomeScreen())),
 
-      // ── Auth ──────────────────────────────────────────────────────────────
       GoRoute(
           path: AppRoutes.login,
           pageBuilder: (c, s) => _fadePage(c, s, const LoginScreen())),
-      GoRoute(
-          path: AppRoutes.register,
-          pageBuilder: (c, s) => _fadePage(c, s, const RegisterScreen())),
       GoRoute(
           path: AppRoutes.profileSetup,
           pageBuilder: (c, s) => _fadePage(c, s, const ProfileSetupScreen())),

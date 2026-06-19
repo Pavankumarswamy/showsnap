@@ -1,39 +1,43 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/auth_service.dart';
-
-enum AuthStatus { idle, loading, success, error }
+import '../../../core/services/whatsapp_otp_service.dart';
 
 class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   final AuthService _authService;
+  final WhatsAppOtpService _otpService;
 
-  AuthNotifier(this._authService) : super(const AsyncValue.data(null));
+  AuthNotifier(this._authService, this._otpService) : super(const AsyncValue.data(null));
 
-  Future<void> signIn(String email, String password) async {
+  Future<void> sendOtp(String phone) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-        () => _authService.signInWithEmail(email, password));
+    state = await AsyncValue.guard(() => _otpService.sendOtp(phone));
   }
 
-  Future<void> signUp(
-      String email, String password, String displayName) async {
+  Future<void> verifyOtp(String phone, String otp) async {
     state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-        () => _authService.signUpWithEmail(email, password, displayName));
+    state = await AsyncValue.guard(() => _otpService.verifyOtpAndSignIn(phone, otp));
+  }
+
+  Future<void> signInWithGoogle() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _authService.signInWithGoogle());
+  }
+
+  Future<void> signInWithGoogleWeb() async {
+    state = const AsyncValue.loading();
+    state = await AsyncValue.guard(() => _authService.signInWithGoogleWeb());
   }
 
   Future<void> signOut() async {
     state = const AsyncValue.loading();
     state = await AsyncValue.guard(() => _authService.signOut());
   }
-
-  Future<void> sendPasswordReset(String email) async {
-    state = const AsyncValue.loading();
-    state = await AsyncValue.guard(
-        () => _authService.sendPasswordReset(email));
-  }
 }
 
 final authNotifierProvider =
     StateNotifierProvider<AuthNotifier, AsyncValue<void>>((ref) {
-  return AuthNotifier(ref.watch(authServiceProvider));
+  return AuthNotifier(
+    ref.watch(authServiceProvider),
+    ref.watch(whatsappOtpServiceProvider),
+  );
 });

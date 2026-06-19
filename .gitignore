@@ -45,3 +45,15 @@ app.*.map.json
 /android/app/release
 
 .env
+
+# ── Secrets & service-account credentials (NEVER commit these) ──────────────
+ss-service.json
+*-service.json
+*service_account*.json
+encrypted_service_account.txt
+encrypt_key.js
+google-services-private.json
+
+# ── Firebase config (contains API keys) ─────────────────────────────────────
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist

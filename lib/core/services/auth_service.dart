@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../constants/app_constants.dart';
 import '../models/user_model.dart';
@@ -12,20 +14,78 @@ class AuthService {
 
   User? get currentUser => _auth.currentUser;
 
-  Future<UserCredential> signInWithEmail(String email, String password) =>
-      _auth.signInWithEmailAndPassword(email: email, password: password);
+  bool _googleSignInInitialized = false;
 
-  Future<UserCredential> signUpWithEmail(
-      String email, String password, String displayName) async {
-    final credential = await _auth.createUserWithEmailAndPassword(
-        email: email, password: password);
-    await credential.user?.updateDisplayName(displayName);
-    await _createUserRecord(credential.user!, displayName, 'user');
-    return credential;
+  Future<UserCredential?> signInWithGoogle() async {
+    if (!_googleSignInInitialized) {
+      await GoogleSignIn.instance.initialize(
+        serverClientId: '332127348645-ttrrcuk6961eevtvso8vmhrohk0rb8uh.apps.googleusercontent.com',
+      );
+      _googleSignInInitialized = true;
+    }
+
+    GoogleSignInAccount? googleUser;
+
+    // Step 1: Try One Tap (bottom sheet) — lightweight, no full account picker
+    try {
+      final lightweightFuture = GoogleSignIn.instance.attemptLightweightAuthentication();
+      if (lightweightFuture != null) {
+        googleUser = await lightweightFuture;
+      }
+    } catch (_) {
+      // One Tap not available or failed — proceed to full flow
+    }
+
+    // Step 2: If One Tap didn't sign in, show the full bottom-sheet account picker
+    if (googleUser == null) {
+      try {
+        googleUser = await GoogleSignIn.instance.authenticate();
+      } on GoogleSignInException catch (e) {
+        if (e.code == GoogleSignInExceptionCode.canceled) return null;
+        rethrow;
+      }
+    }
+
+    if (googleUser == null) return null;
+
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      idToken: googleAuth.idToken,
+    );
+
+    final userCredential = await _auth.signInWithCredential(credential);
+    if (userCredential.user != null) {
+      await _createUserRecord(
+        userCredential.user!,
+        userCredential.user!.displayName ?? 'ShowSnap User',
+        AppConstants.roleUser,
+      );
+    }
+    return userCredential;
   }
 
-  Future<void> sendPasswordReset(String email) =>
-      _auth.sendPasswordResetEmail(email: email);
+
+
+  /// Web-specific Google Sign-In using signInWithPopup (no SDK needed on web).
+  Future<UserCredential?> signInWithGoogleWeb() async {
+    if (!kIsWeb) return signInWithGoogle();
+    try {
+      final provider = GoogleAuthProvider();
+      provider.addScope('email');
+      provider.addScope('profile');
+      final userCredential = await _auth.signInWithPopup(provider);
+      if (userCredential.user != null) {
+        await _createUserRecord(
+          userCredential.user!,
+          userCredential.user!.displayName ?? 'ShowSnap User',
+          AppConstants.roleUser,
+        );
+      }
+      return userCredential;
+    } catch (e) {
+      rethrow;
+    }
+  }
 
   Future<void> signOut() => _auth.signOut();
 

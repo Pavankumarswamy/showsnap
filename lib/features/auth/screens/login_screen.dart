@@ -1,17 +1,19 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 import '../providers/auth_provider.dart';
 import '../widgets/premium_auth_widgets.dart';
+import '../screens/web_login_screen.dart';
 import '../../../core/config/router.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/auth_service.dart';
-import '../../../core/utils/validators.dart';
 import '../../../core/utils/extensions.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -23,36 +25,66 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  bool _obscurePassword = true;
-  bool _rememberMe = false;
+  final _phoneCtrl = TextEditingController();
+  final _otpCtrl = TextEditingController();
+  String _completePhoneNumber = '';
+  bool _otpSent = false;
 
   final _shakeKey = GlobalKey<ShakeWidgetState>();
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
-    _passwordCtrl.dispose();
+    _phoneCtrl.dispose();
+    _otpCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _submit() async {
+  Future<void> _requestOtp() async {
     if (!_formKey.currentState!.validate()) return;
-    await ref.read(authNotifierProvider.notifier).signIn(
-          _emailCtrl.text.trim(),
-          _passwordCtrl.text,
-        );
+    if (_completePhoneNumber.isEmpty) return;
+
+    await ref.read(authNotifierProvider.notifier).sendOtp(_completePhoneNumber);
+    if (!mounted) return;
+    
+    // Check if error occurred, if not set otpSent to true
+    if (!ref.read(authNotifierProvider).hasError) {
+      setState(() {
+        _otpSent = true;
+      });
+      context.showSnackbar('OTP Sent to WhatsApp');
+    }
+  }
+
+  Future<void> _verifyOtp() async {
+    if (_otpCtrl.text.isEmpty || _otpCtrl.text.length < 6) {
+      context.showErrorSnackbar('Please enter a valid 6-digit OTP');
+      return;
+    }
+    await ref.read(authNotifierProvider.notifier).verifyOtp(_completePhoneNumber, _otpCtrl.text.trim());
+  }
+
+  Future<void> _signInWithGoogle() async {
+    await ref.read(authNotifierProvider.notifier).signInWithGoogle();
   }
 
   Future<void> _navigateByRole() async {
     final authService = ref.read(authServiceProvider);
     await authService.ensureAdminRole();
-    final email = authService.currentUser?.email ?? '';
+    final user = authService.currentUser;
+    if (user == null) return;
+    
+    // Check if new user (no display name)
+    if (user.displayName == null || user.displayName!.isEmpty) {
+      if (mounted) context.go(AppRoutes.profileSetup);
+      return;
+    }
+
+    final email = user.email ?? '';
     if (email == 'admin@gmail.com') {
       if (mounted) context.go(AppRoutes.adminDashboard);
       return;
     }
+    
     final role = await authService.getCurrentUserRole();
     if (!mounted) return;
     if (role == AppConstants.roleAdmin) {
@@ -68,11 +100,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // On web, show the web-optimised login UI.
+    if (kIsWeb) return const WebLoginScreen();
+
     final authState = ref.watch(authNotifierProvider);
 
     ref.listen(authNotifierProvider, (prev, next) {
       next.whenOrNull(
-        data: (_) => _navigateByRole(),
+        data: (_) {
+          if (prev != null && prev.isLoading && _otpSent && _otpCtrl.text.isNotEmpty) {
+             _navigateByRole();
+          } else if (prev != null && prev.isLoading && !_otpSent) {
+             _navigateByRole(); // This handles Google Sign In success since _otpSent is false
+          }
+        },
         error: (err, _) {
           _shakeKey.currentState?.shake();
           context.showErrorSnackbar(err.toString().replaceAll('Exception: ', ''));
@@ -86,8 +127,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         backgroundColor: Colors.white,
         body: Stack(
           children: [
-
-
             SafeArea(
               bottom: false,
               child: Column(
@@ -116,7 +155,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           topLeft: Radius.circular(40),
                           topRight: Radius.circular(40),
                         ),
-                        // Box shadow removed
                       ),
                       child: ClipRRect(
                         borderRadius: const BorderRadius.only(
@@ -140,7 +178,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 ),
                               ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
 
-                              
                               const SizedBox(height: 24),
 
                               // Form
@@ -148,126 +185,124 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 key: _formKey,
                                 child: Column(
                                   children: [
-                                    PremiumTextField(
-                                      controller: _emailCtrl,
-                                      label: 'Email Address',
-                                      prefixIcon: Icons.email_outlined,
-                                      keyboardType: TextInputType.emailAddress,
-                                      validator: Validators.email,
-                                    ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.1, end: 0),
-                                    
-                                    const SizedBox(height: 8),
-                                    
-                                    PremiumTextField(
-                                      controller: _passwordCtrl,
-                                      label: 'Password',
-                                      prefixIcon: Icons.lock_outline,
-                                      obscureText: _obscurePassword,
-                                      textInputAction: TextInputAction.done,
-                                      onFieldSubmitted: (_) => _submit(),
-                                      validator: Validators.password,
-                                      suffixIcon: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          IconButton(
-                                            icon: Icon(
-                                              _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-                                              color: Colors.white.withOpacity(0.6),
-                                            ),
-                                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                                    if (!_otpSent) ...[
+                                      IntlPhoneField(
+                                        controller: _phoneCtrl,
+                                        decoration: InputDecoration(
+                                          labelText: 'Phone Number',
+                                          labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
                                           ),
-                                          Icon(Icons.fingerprint, color: ShowSnapColors.primary.withOpacity(0.8)),
-                                          const SizedBox(width: 12),
-                                        ],
+                                          enabledBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                                          ),
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                            borderSide: const BorderSide(color: ShowSnapColors.primary),
+                                          ),
+                                          fillColor: Colors.white.withOpacity(0.05),
+                                          filled: true,
+                                        ),
+                                        style: const TextStyle(color: Colors.white),
+                                        dropdownTextStyle: const TextStyle(color: Colors.white),
+                                        dropdownIcon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+                                        initialCountryCode: 'IN',
+                                        onChanged: (phone) {
+                                          _completePhoneNumber = phone.completeNumber;
+                                        },
+                                      ).animate().fadeIn(delay: 400.ms).slideX(begin: 0.1, end: 0),
+                                      
+                                      const SizedBox(height: 24),
+
+                                      // Request OTP Button
+                                      ShakeWidget(
+                                        key: _shakeKey,
+                                        child: PremiumAuthButton(
+                                          text: 'Continue with Phone',
+                                          isLoading: authState.isLoading,
+                                          onPressed: _requestOtp,
+                                        ),
+                                      ).animate().fadeIn(delay: 500.ms).scale(begin: const Offset(0.9, 0.9)),
+                                    ] else ...[
+                                      PremiumTextField(
+                                        controller: _otpCtrl,
+                                        label: 'Enter 6-digit OTP',
+                                        prefixIcon: Icons.message_outlined,
+                                        keyboardType: TextInputType.number,
+                                        textInputAction: TextInputAction.done,
+                                        onFieldSubmitted: (_) => _verifyOtp(),
+                                      ).animate().fadeIn().slideX(begin: 0.1, end: 0),
+                                      
+                                      const SizedBox(height: 24),
+
+                                      // Verify OTP Button
+                                      ShakeWidget(
+                                        key: _shakeKey,
+                                        child: PremiumAuthButton(
+                                          text: 'Verify OTP',
+                                          isLoading: authState.isLoading,
+                                          onPressed: _verifyOtp,
+                                        ),
+                                      ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9)),
+
+                                      const SizedBox(height: 16),
+                                      TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _otpSent = false;
+                                            _otpCtrl.clear();
+                                          });
+                                        },
+                                        child: Text(
+                                          'Change Phone Number',
+                                          style: TextStyle(color: Colors.white.withOpacity(0.6)),
+                                        ),
                                       ),
-                                    ).animate().fadeIn(delay: 500.ms).slideX(begin: 0.1, end: 0),
-                                    
-                                    const SizedBox(height: 16),
-                                    
-                                    // Remember Me & Forgot Password
+                                    ],
+
+                                    const SizedBox(height: 32),
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
-                                        GestureDetector(
-                                          onTap: () {
-                                            HapticFeedback.selectionClick();
-                                            setState(() => _rememberMe = !_rememberMe);
-                                          },
-                                          child: Row(
-                                            children: [
-                                              AnimatedContainer(
-                                                duration: ShowSnapDuration.fast,
-                                                width: 20,
-                                                height: 20,
-                                                decoration: BoxDecoration(
-                                                  color: _rememberMe ? ShowSnapColors.primary : Colors.transparent,
-                                                  border: Border.all(
-                                                    color: _rememberMe ? ShowSnapColors.primary : Colors.white.withOpacity(0.4),
-                                                    width: 1.5,
-                                                  ),
-                                                  borderRadius: BorderRadius.circular(6),
-                                                ),
-                                                child: _rememberMe 
-                                                    ? const Icon(Icons.check, size: 14, color: Colors.black)
-                                                    : null,
-                                              ),
-                                              const SizedBox(width: 8),
-                                              Text(
-                                                'Remember me',
-                                                style: TextStyle(
-                                                  color: Colors.white.withOpacity(0.8),
-                                                  fontSize: 14,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
+                                        Expanded(child: Divider(color: Colors.white.withOpacity(0.2))),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: Text('OR', style: TextStyle(color: Colors.white.withOpacity(0.5))),
                                         ),
-                                        TextButton(
-                                          onPressed: () => _showForgotPasswordDialog(context),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: ShowSnapColors.primary,
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: Size.zero,
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          ),
-                                          child: const Text(
-                                            'Forgot Password?',
-                                            style: TextStyle(fontWeight: FontWeight.w600),
-                                          ),
-                                        ),
+                                        Expanded(child: Divider(color: Colors.white.withOpacity(0.2))),
                                       ],
                                     ).animate().fadeIn(delay: 600.ms),
+                                    const SizedBox(height: 32),
 
-                                    const SizedBox(height: 24),
-
-                                    // Login Button
-                                    ShakeWidget(
-                                      key: _shakeKey,
-                                      child: PremiumAuthButton(
-                                        text: 'Sign In',
-                                        isLoading: authState.isLoading,
-                                        onPressed: _submit,
-                                      ),
-                                    ).animate().fadeIn(delay: 700.ms).scale(begin: const Offset(0.9, 0.9)),
-
-                                    const SizedBox(height: 24),
-
-                                    // Register Link
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text('New to ShowSnap? ', style: TextStyle(color: Colors.white.withOpacity(0.6))),
-                                        TextButton(
-                                          onPressed: () => context.go(AppRoutes.register),
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: Size.zero,
-                                          ),
-                                          child: const Text('Sign Up', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    // Google Sign In Button
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 56,
+                                      child: ElevatedButton.icon(
+                                        icon: Image.network(
+                                          'https://techdocs.akamai.com/identity-cloud/img/social-login/identity-providers/iconfinder-new-google-favicon-682665.png',
+                                          height: 24,
                                         ),
-                                      ],
-                                    ).animate().fadeIn(delay: 1100.ms),
+                                        label: const Text(
+                                          'Continue with Google',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          elevation: 0,
+                                        ),
+                                        onPressed: authState.isLoading ? null : _signInWithGoogle,
+                                      ),
+                                    ).animate().fadeIn(delay: 700.ms).slideY(begin: 0.2, end: 0),
 
                                     // Extra padding for bottom safe area
                                     SizedBox(height: MediaQuery.of(context).padding.bottom),
@@ -285,46 +320,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showForgotPasswordDialog(BuildContext context) {
-    final emailCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: ShowSnapColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Text('Reset Password', style: TextStyle(color: Colors.white)),
-        content: PremiumTextField(
-          controller: emailCtrl,
-          label: 'Email',
-          prefixIcon: Icons.email_outlined,
-          keyboardType: TextInputType.emailAddress,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.6))),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ShowSnapColors.primary,
-              foregroundColor: Colors.black,
-            ),
-            onPressed: () async {
-              if (emailCtrl.text.isNotEmpty) {
-                await ref.read(authNotifierProvider.notifier).sendPasswordReset(emailCtrl.text.trim());
-                if (ctx.mounted) {
-                  Navigator.pop(ctx);
-                  context.showSnackbar('Reset email sent!');
-                }
-              }
-            },
-            child: const Text('Send'),
-          ),
-        ],
       ),
     );
   }
